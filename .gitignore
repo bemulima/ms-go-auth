@@ -1,0 +1,10 @@
+.env
+.cache/
+bin/
+build/
+dist/
+*.log
+*.out
+coverage.*
+tmp/
+vendor/
