@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/example/auth-service/config"
+	"github.com/example/auth-service/internal/tokenverify"
 )
 
 type Tokens struct {
@@ -17,6 +18,9 @@ type Tokens struct {
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"`
 }
+
+// VerificationResult is returned by token verification routines.
+type VerificationResult = tokenverify.Result
 
 type JWTSigner interface {
 	SignAccessToken(subject string, claims map[string]interface{}, ttl time.Duration) (string, error)

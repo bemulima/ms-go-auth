@@ -15,6 +15,7 @@ import (
 	"github.com/example/auth-service/internal/adapter/postgres"
 	taraclient "github.com/example/auth-service/internal/adapter/tarantool"
 	"github.com/example/auth-service/internal/domain"
+	"github.com/example/auth-service/internal/tokenverify"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
 
@@ -31,6 +32,7 @@ type Service interface {
 	VerifyEmailChange(ctx context.Context, traceID, code string) (*domain.AuthUser, error)
 	StartPasswordReset(ctx context.Context, traceID, email string) (string, error)
 	FinishPasswordReset(ctx context.Context, traceID, email, code, newPassword string) error
+	VerifyToken(ctx context.Context, traceID, token string) (*VerificationResult, error)
 }
 
 type authService struct {
@@ -221,6 +223,15 @@ func (s *authService) FinishPasswordReset(ctx context.Context, traceID, email, c
 	}
 	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("password reset finished")
 	return nil
+}
+
+func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*VerificationResult, error) {
+	result, err := tokenverify.Verify(s.signer, token, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info().Str("trace_id", traceID).Str("user_id", result.UserID).Msg("token verified")
+	return result, nil
 }
 
 func (s *authService) issueTokens(user *domain.AuthUser) (*Tokens, error) {

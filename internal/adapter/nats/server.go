@@ -5,12 +5,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	nats "github.com/nats-io/nats.go"
+
+	"github.com/example/auth-service/internal/tokenverify"
 )
 
 type VerifyHandler struct {
-	signer    tokenParser
+	parser    tokenverify.Parser
 	respondFn func(msg *nats.Msg, resp verifyResponse)
 }
 
@@ -26,12 +27,8 @@ type verifyResponse struct {
 	Claims map[string]any `json:"claims,omitempty"`
 }
 
-type tokenParser interface {
-	Parse(token string) (*jwt.Token, jwt.MapClaims, error)
-}
-
-func NewVerifyHandler(signer tokenParser) *VerifyHandler {
-	return &VerifyHandler{signer: signer, respondFn: respond}
+func NewVerifyHandler(parser tokenverify.Parser) *VerifyHandler {
+	return &VerifyHandler{parser: parser, respondFn: respond}
 }
 
 func (h *VerifyHandler) Subscribe(conn *nats.Conn, subject, queue string) error {
@@ -48,29 +45,19 @@ func (h *VerifyHandler) handle(msg *nats.Msg) {
 		h.respondFn(msg, verifyResponse{OK: false, Error: "invalid_payload"})
 		return
 	}
-	tok, claims, err := h.signer.Parse(req.Token)
-	if err != nil || tok == nil || !tok.Valid {
-		h.respondFn(msg, verifyResponse{OK: false, Error: "invalid_token"})
-		return
-	}
-	if exp, err := claims.GetExpirationTime(); err != nil || exp == nil || time.Now().After(exp.Time) {
-		h.respondFn(msg, verifyResponse{OK: false, Error: "expired"})
-		return
-	}
-	sub, _ := claims["sub"].(string)
-	email, _ := claims["email"].(string)
-	if sub == "" {
-		h.respondFn(msg, verifyResponse{OK: false, Error: "subject_missing"})
-		return
-	}
-	filtered := map[string]any{}
-	for k, v := range claims {
-		if k == "sub" || k == "email" {
-			continue
+	result, err := tokenverify.Verify(h.parser, req.Token, time.Now)
+	if err != nil {
+		switch {
+		case errors.Is(err, tokenverify.ErrTokenExpired):
+			h.respondFn(msg, verifyResponse{OK: false, Error: "expired"})
+		case errors.Is(err, tokenverify.ErrSubjectMissing):
+			h.respondFn(msg, verifyResponse{OK: false, Error: "subject_missing"})
+		default:
+			h.respondFn(msg, verifyResponse{OK: false, Error: "invalid_token"})
 		}
-		filtered[k] = v
+		return
 	}
-	h.respondFn(msg, verifyResponse{OK: true, UserID: sub, Email: email, Claims: filtered})
+	h.respondFn(msg, verifyResponse{OK: true, UserID: result.UserID, Email: result.Email, Claims: result.Claims})
 }
 
 func respond(msg *nats.Msg, resp verifyResponse) {

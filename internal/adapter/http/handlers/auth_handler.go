@@ -56,6 +56,10 @@ type oauthCallbackRequest struct {
 	Code string `json:"code"`
 }
 
+type verifyTokenRequest struct {
+	Token string `json:"token"`
+}
+
 func (h *AuthHandler) SignupStart(c echo.Context) error {
 	req := new(signupStartRequest)
 	if err := c.Bind(req); err != nil {
@@ -157,6 +161,18 @@ func (h *AuthHandler) OAuthCallback(c echo.Context) error {
 	_ = provider
 	// placeholder: oauth exchange would happen here
 	return res.ErrorJSON(c, http.StatusNotImplemented, "oauth_not_implemented", "oauth flow not implemented", requestIDFromCtx(c), nil)
+}
+
+func (h *AuthHandler) VerifyToken(c echo.Context) error {
+	req := new(verifyTokenRequest)
+	if err := c.Bind(req); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+	result, err := h.service.VerifyToken(c.Request().Context(), requestIDFromCtx(c), req.Token)
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusUnauthorized, "verify_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return res.JSON(c, http.StatusOK, result)
 }
 
 func requestIDFromCtx(c echo.Context) string {

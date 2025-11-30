@@ -25,6 +25,7 @@ type mockAuthService struct {
 	verifyEmailChangeFn  func(code string) (*domain.AuthUser, error)
 	startPasswordResetFn func(email string) (string, error)
 	finishPasswordFn     func(email, code, newPass string) error
+	verifyTokenFn        func(token string) (*usecase.VerificationResult, error)
 }
 
 func (m *mockAuthService) StartSignup(_ context.Context, _ string, email string) (string, error) {
@@ -57,6 +58,10 @@ func (m *mockAuthService) StartPasswordReset(_ context.Context, _ string, email 
 
 func (m *mockAuthService) FinishPasswordReset(_ context.Context, _ string, email, code, newPassword string) error {
 	return m.finishPasswordFn(email, code, newPassword)
+}
+
+func (m *mockAuthService) VerifyToken(_ context.Context, _ string, token string) (*usecase.VerificationResult, error) {
+	return m.verifyTokenFn(token)
 }
 
 // ensure interface compliance
@@ -189,6 +194,51 @@ func TestSignupVerifyError(t *testing.T) {
 	_ = h.SignupVerify(c)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestVerifyTokenSuccess(t *testing.T) {
+	e := echo.New()
+	svc := &mockAuthService{
+		verifyTokenFn: func(token string) (*usecase.VerificationResult, error) {
+			if token != "good" {
+				t.Fatalf("unexpected token: %s", token)
+			}
+			return &usecase.VerificationResult{UserID: "u1", Email: "user@example.com", Claims: map[string]any{"role": "student"}}, nil
+		},
+	}
+	h := NewAuthHandler(svc)
+	body, _ := json.Marshal(map[string]string{"token": "good"})
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := h.VerifyToken(c); err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestVerifyTokenFailure(t *testing.T) {
+	e := echo.New()
+	svc := &mockAuthService{
+		verifyTokenFn: func(_ string) (*usecase.VerificationResult, error) {
+			return nil, errors.New("invalid_token")
+		},
+	}
+	h := NewAuthHandler(svc)
+	body, _ := json.Marshal(map[string]string{"token": "bad"})
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	_ = h.VerifyToken(c)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
 	}
 }
 

@@ -39,6 +39,7 @@ func (r *Router) Setup(e *echo.Echo) {
 	auth.POST("/oauth/:provider/callback", r.handlers.OAuthCallback)
 	auth.POST("/password/reset/start", r.handlers.PasswordResetStart)
 	auth.POST("/password/reset/finish", r.handlers.PasswordResetFinish)
+	auth.POST("/verify", r.handlers.VerifyToken)
 	auth.POST("/email/change/verify", r.handlers.EmailChangeVerify)
 
 	protected := e.Group(base+"/auth", r.authMW)
