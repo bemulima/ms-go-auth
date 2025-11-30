@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/adapter/nats"
-	taraclient "github.com/example/auth-service/internal/adapter/tarantool"
 	"github.com/example/auth-service/internal/adapter/postgres"
+	taraclient "github.com/example/auth-service/internal/adapter/tarantool"
 	"github.com/example/auth-service/internal/domain"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
@@ -35,15 +34,15 @@ type Service interface {
 }
 
 type authService struct {
-	cfg          *config.Config
-	logger       pkglog.Logger
-	users        repo.AuthUserRepository
-	identities   repo.AuthIdentityRepository
-	refresh      repo.RefreshTokenRepository
-	tarantoool   taraclient.Client
-	userClient   natsadapter.UserClient
-	rbacClient   natsadapter.RBACClient
-	signer       JWTSigner
+	cfg        *config.Config
+	logger     pkglog.Logger
+	users      repo.AuthUserRepository
+	identities repo.AuthIdentityRepository
+	refresh    repo.RefreshTokenRepository
+	tarantoool taraclient.Client
+	userClient natsadapter.UserClient
+	rbacClient natsadapter.RBACClient
+	signer     JWTSigner
 }
 
 func NewAuthService(cfg *config.Config, logger pkglog.Logger, users repo.AuthUserRepository, identities repo.AuthIdentityRepository, refresh repo.RefreshTokenRepository, tara taraclient.Client, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient, signer JWTSigner) Service {
@@ -140,6 +139,9 @@ func (s *authService) Refresh(ctx context.Context, traceID, refreshToken string)
 	hash := hashToken(jti)
 	session, err := s.refresh.FindActive(ctx, hash)
 	if err != nil {
+		return nil, errInvalidCredentials
+	}
+	if session.UserID != sub {
 		return nil, errInvalidCredentials
 	}
 	user, err := s.users.FindByID(ctx, sub)
