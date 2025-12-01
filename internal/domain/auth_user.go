@@ -10,7 +10,7 @@ type AuthUser struct {
 	LastLoginAt       *time.Time `json:"last_login_at"`
 	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-	Identities        []AuthIdentity
+	Identities        []AuthIdentity `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
 }
 
 func (AuthUser) TableName() string { return "auth_user" }
@@ -21,7 +21,7 @@ type AuthIdentity struct {
 	Provider       string    `gorm:"type:text;not null" json:"provider"`
 	ProviderUserID string    `gorm:"type:text;not null" json:"provider_user_id"`
 	Email          string    `gorm:"type:text" json:"email"`
-	RawProfile     map[string]interface{} `gorm:"type:jsonb" json:"raw_profile"`
+	RawProfile     map[string]interface{} `gorm:"type:jsonb;serializer:json" json:"raw_profile"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

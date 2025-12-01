@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  ms-go-auth:
+    container_name: ms-go-auth
+    image: golang:1.24-alpine
+    working_dir: /app
+    command: go run ./cmd/ms-go-auth
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    ports:
+      - "8089:8081"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - ms-go-auth-net
+      - ms-getway_default
+
+  postgres:
+    container_name: ms-go-auth-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER:-app}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-app_password}
+      POSTGRES_DB: ${AUTH_DB_NAME:-authdb}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+    restart: unless-stopped
+    networks:
+      - ms-go-auth-net
+
+networks:
+  ms-go-auth-net:
+    driver: bridge
+  ms-getway_default:
+    external: true
+
+volumes:
+  pgdata:
+  go-mod-cache:
+  go-build-cache:
