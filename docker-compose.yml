@@ -12,14 +12,12 @@ services:
       - ./:/app
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
-    ports:
-      - "8089:8081"
     depends_on:
       - postgres
     restart: unless-stopped
     networks:
-      - ms-go-auth-net
-      - ms-getway_default
+      - default
+      - ms-net
 
   postgres:
     container_name: ms-go-auth-postgres
@@ -30,16 +28,10 @@ services:
       POSTGRES_DB: ${AUTH_DB_NAME:-authdb}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5438:5432"
     restart: unless-stopped
-    networks:
-      - ms-go-auth-net
 
 networks:
-  ms-go-auth-net:
-    driver: bridge
-  ms-getway_default:
+  ms-net:
     external: true
 
 volumes:
