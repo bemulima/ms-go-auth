@@ -16,12 +16,13 @@ import (
 	"gorm.io/gorm/schema"
 
 	"github.com/example/auth-service/config"
-	httpadapter "github.com/example/auth-service/internal/adapter/http"
-	handlers "github.com/example/auth-service/internal/adapter/http/handlers"
-	authmw "github.com/example/auth-service/internal/adapter/http/middleware"
-	natsadapter "github.com/example/auth-service/internal/adapter/nats"
-	repo "github.com/example/auth-service/internal/adapter/postgres"
-	taraclient "github.com/example/auth-service/internal/adapter/tarantool"
+	httpadapter "github.com/example/auth-service/internal/adapters/http"
+	apiv1 "github.com/example/auth-service/internal/adapters/http/api/v1"
+	handlers "github.com/example/auth-service/internal/adapters/http/api/v1/handlers"
+	authmw "github.com/example/auth-service/internal/adapters/http/middleware"
+	natsadapter "github.com/example/auth-service/internal/adapters/nats"
+	repo "github.com/example/auth-service/internal/adapters/postgres"
+	taraclient "github.com/example/auth-service/internal/adapters/tarantool"
 	"github.com/example/auth-service/internal/domain"
 	"github.com/example/auth-service/internal/usecase"
 	pkglog "github.com/example/auth-service/pkg/log"
@@ -40,7 +41,7 @@ func New(ctx context.Context) (*App, error) {
 	logger := pkglog.New(cfg.AppEnv)
 
 	db, err := gorm.Open(postgres.Open(buildDSN(cfg)), &gorm.Config{
-		Logger: loggerForGorm(cfg),
+		Logger:         loggerForGorm(cfg),
 		NamingStrategy: schema.NamingStrategy{SingularTable: true},
 	})
 	if err != nil {
@@ -77,7 +78,7 @@ func New(ctx context.Context) (*App, error) {
 	service := usecase.NewAuthService(cfg, logger, userRepo, identityRepo, refreshRepo, tarantoool, userClient, rbacClient, signer)
 	handler := handlers.NewAuthHandler(service)
 	authMW := authmw.NewAuthMiddleware(signer)
-	router := httpadapter.NewRouter(cfg, handler, authMW.Handler)
+	router := httpadapter.NewRouter(cfg, apiv1.NewRouter(handler, authMW.Handler))
 
 	if nc != nil {
 		verifyHandler := natsadapter.NewVerifyHandler(signer)

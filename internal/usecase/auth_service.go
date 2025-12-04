@@ -11,9 +11,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/example/auth-service/config"
-	"github.com/example/auth-service/internal/adapter/nats"
-	"github.com/example/auth-service/internal/adapter/postgres"
-	taraclient "github.com/example/auth-service/internal/adapter/tarantool"
+	"github.com/example/auth-service/internal/adapters/nats"
+	"github.com/example/auth-service/internal/adapters/postgres"
+	taraclient "github.com/example/auth-service/internal/adapters/tarantool"
 	"github.com/example/auth-service/internal/domain"
 	"github.com/example/auth-service/internal/tokenverify"
 	pkglog "github.com/example/auth-service/pkg/log"
