@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/example/auth-service/config"
+	"github.com/example/auth-service/internal/adapters/nats"
 	"github.com/example/auth-service/internal/domain"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
@@ -134,15 +135,53 @@ func (m *mockTarantool) VerifyPasswordReset(_ context.Context, _ string, _ strin
 	return m.verifyPasswordResetErr
 }
 
+type recordingUserClient struct {
+	calls []struct {
+		userID string
+		source string
+		typ    string
+	}
+}
+
+func (r *recordingUserClient) CreateUser(_ context.Context, userID string, source string, typ string) error {
+	r.calls = append(r.calls, struct {
+		userID string
+		source string
+		typ    string
+	}{userID: userID, source: source, typ: typ})
+	return nil
+}
+
+type recordingRBACClient struct {
+	calls []struct {
+		userID string
+		role   string
+	}
+}
+
+func (r *recordingRBACClient) AssignRole(_ context.Context, userID, role string) error {
+	r.calls = append(r.calls, struct {
+		userID string
+		role   string
+	}{userID: userID, role: role})
+	return nil
+}
+
 type testDeps struct {
-	users   *mockUserRepo
-	refresh *mockRefreshRepo
-	tara    *mockTarantool
-	signer  JWTSigner
-	cfg     *config.Config
+	users      *mockUserRepo
+	refresh    *mockRefreshRepo
+	tara       *mockTarantool
+	signer     JWTSigner
+	cfg        *config.Config
+	userClient natsadapter.UserClient
+	rbacClient natsadapter.RBACClient
 }
 
 func newTestService(t *testing.T) (Service, *testDeps) {
+	return newTestServiceWithClients(t, nil, nil)
+}
+
+func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient) (Service, *testDeps) {
 	t.Helper()
 	cfg := &config.Config{
 		JWTSecret:   "test-secret",
@@ -150,7 +189,7 @@ func newTestService(t *testing.T) (Service, *testDeps) {
 		JWTAudience: "frontend",
 		AccessTTL:   time.Minute,
 		RefreshTTL:  time.Hour,
-		DefaultRole: "student",
+		DefaultRole: "user",
 	}
 	signer, err := NewJWTSigner(cfg)
 	if err != nil {
@@ -159,14 +198,14 @@ func newTestService(t *testing.T) (Service, *testDeps) {
 	users := newMockUserRepo()
 	refresh := newMockRefreshRepo()
 	tara := &mockTarantool{
-		signupUUID:           "signup-uuid",
-		emailChangeUUID:      "email-change-uuid",
-		passwordResetUUID:    "pwd-reset-uuid",
+		signupUUID:              "signup-uuid",
+		emailChangeUUID:         "email-change-uuid",
+		passwordResetUUID:       "pwd-reset-uuid",
 		verifyEmailChangeUserID: "user-1",
 		verifyEmailChangeEmail:  "new@example.com",
 	}
-	svc := NewAuthService(cfg, pkglog.New("test"), users, mockIdentityRepo{}, refresh, tara, nil, nil, signer)
-	return svc, &testDeps{users: users, refresh: refresh, tara: tara, signer: signer, cfg: cfg}
+	svc := NewAuthService(cfg, pkglog.New("test"), users, mockIdentityRepo{}, refresh, tara, userClient, rbacClient, signer)
+	return svc, &testDeps{users: users, refresh: refresh, tara: tara, signer: signer, cfg: cfg, userClient: userClient, rbacClient: rbacClient}
 }
 
 func TestStartSignup(t *testing.T) {
@@ -206,6 +245,34 @@ func TestVerifySignupCreatesUserAndTokens(t *testing.T) {
 	}
 	if len(deps.refresh.tokens) == 0 {
 		t.Fatalf("refresh token not stored")
+	}
+}
+
+func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
+	userClient := &recordingUserClient{}
+	rbacClient := &recordingRBACClient{}
+	svc, deps := newTestServiceWithClients(t, userClient, rbacClient)
+
+	user, _, err := svc.VerifySignup(context.Background(), "trace", "notify@example.com", "code", "password123")
+	if err != nil {
+		t.Fatalf("verify signup: %v", err)
+	}
+	if user == nil {
+		t.Fatalf("user is nil")
+	}
+	if len(userClient.calls) != 1 {
+		t.Fatalf("expected CreateUser to be called once, got %d", len(userClient.calls))
+	}
+	call := userClient.calls[0]
+	if call.userID != user.ID || call.source != "auth" || call.typ != "signup" {
+		t.Fatalf("CreateUser call mismatch: %+v", call)
+	}
+	if len(rbacClient.calls) != 1 {
+		t.Fatalf("expected AssignRole to be called once, got %d", len(rbacClient.calls))
+	}
+	rbacCall := rbacClient.calls[0]
+	if rbacCall.userID != user.ID || rbacCall.role != deps.cfg.DefaultRole {
+		t.Fatalf("AssignRole call mismatch: %+v", rbacCall)
 	}
 }
 

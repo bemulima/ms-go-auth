@@ -29,3 +29,7 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 
 ## Config (.env)
 See `config/config.go` for variables: DB, JWT, NATS subjects, Tarantool URLs, default role, HTTP host/port/base path.
+
+## Testing
+- Unit/handler tests: `GOCACHE=../.gocache go test ./...`
+- External deps are mocked (no DB/NATS required). Default role used in tests is `user` (configurable via `AUTH_DEFAULT_ROLE`).

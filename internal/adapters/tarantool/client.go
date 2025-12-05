@@ -31,22 +31,26 @@ func NewHTTPClient(baseURL string, timeout time.Duration) Client {
 
 func (c *httpClient) StartSignup(ctx context.Context, email string) (string, error) {
 	payload := map[string]interface{}{"value": map[string]string{"email": email}}
-	var resp struct{ UUID string `json:"uuid"` }
-	if err := c.post(ctx, "/signup-start", payload, &resp); err != nil {
+	var resp struct {
+		UUID string `json:"uuid"`
+	}
+	if err := c.post(ctx, "/api/v1/set-new-user", payload, &resp); err != nil {
 		return "", err
 	}
 	return resp.UUID, nil
 }
 
 func (c *httpClient) VerifySignup(ctx context.Context, email, code string) error {
-	payload := map[string]interface{}{"value": map[string]string{"email": email, "code": code}}
-	return c.post(ctx, "/signup-verify", payload, nil)
+	payload := map[string]interface{}{"value": map[string]string{"uuid": email, "code": code}}
+	return c.post(ctx, "/api/v1/check-new-user-code", payload, nil)
 }
 
 func (c *httpClient) StartEmailChange(ctx context.Context, userID, newEmail string) (string, error) {
 	payload := map[string]interface{}{"value": map[string]string{"user_id": userID, "email": newEmail}}
-	var resp struct{ UUID string `json:"uuid"` }
-	if err := c.post(ctx, "/email-change-start", payload, &resp); err != nil {
+	var resp struct {
+		UUID string `json:"uuid"`
+	}
+	if err := c.post(ctx, "/api/v1/start-email-change", payload, &resp); err != nil {
 		return "", err
 	}
 	return resp.UUID, nil
@@ -58,7 +62,7 @@ func (c *httpClient) VerifyEmailChange(ctx context.Context, code string) (string
 		UserID   string `json:"user_id"`
 		NewEmail string `json:"email"`
 	}
-	if err := c.post(ctx, "/email-change-verify", payload, &resp); err != nil {
+	if err := c.post(ctx, "/api/v1/verify-email-change", payload, &resp); err != nil {
 		return "", "", err
 	}
 	return resp.UserID, resp.NewEmail, nil
@@ -66,7 +70,9 @@ func (c *httpClient) VerifyEmailChange(ctx context.Context, code string) (string
 
 func (c *httpClient) StartPasswordReset(ctx context.Context, email string) (string, error) {
 	payload := map[string]interface{}{"value": map[string]string{"email": email}}
-	var resp struct{ UUID string `json:"uuid"` }
+	var resp struct {
+		UUID string `json:"uuid"`
+	}
 	if err := c.post(ctx, "/password-reset-start", payload, &resp); err != nil {
 		return "", err
 	}

@@ -24,7 +24,9 @@ func (r *Router) Setup(e *echo.Echo) {
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger())
 
-	internalhttp.Register(e)
+	internalGroup := e.Group("/internal")
+	internalhttp.Register(internalGroup)
+
 	apiGroup := e.Group(r.cfg.HTTPBasePath)
 	r.apiRouter.Register(apiGroup)
 }

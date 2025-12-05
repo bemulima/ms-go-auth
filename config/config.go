@@ -22,23 +22,23 @@ type Config struct {
 	DBName     string `env:"AUTH_DB_NAME" envDefault:"authdb"`
 	DBSSLMode  string `env:"AUTH_DB_SSLMODE" envDefault:"disable"`
 
-	JWTSecret       string        `env:"AUTH_JWT_SECRET"`
-	JWTPrivateKey   string        `env:"AUTH_JWT_PRIVATE_KEY"`
-	JWTPublicKey    string        `env:"AUTH_JWT_PUBLIC_KEY"`
-	JWTAudience     string        `env:"AUTH_JWT_AUDIENCE" envDefault:"frontend"`
-	JWTIssuer       string        `env:"AUTH_JWT_ISSUER" envDefault:"auth-service"`
-	AccessTTL       time.Duration `env:"AUTH_JWT_ACCESS_TTL" envDefault:"15m"`
-	RefreshTTL      time.Duration `env:"AUTH_JWT_REFRESH_TTL" envDefault:"720h"`
+	JWTSecret     string        `env:"AUTH_JWT_SECRET"`
+	JWTPrivateKey string        `env:"AUTH_JWT_PRIVATE_KEY"`
+	JWTPublicKey  string        `env:"AUTH_JWT_PUBLIC_KEY"`
+	JWTAudience   string        `env:"AUTH_JWT_AUDIENCE" envDefault:"frontend"`
+	JWTIssuer     string        `env:"AUTH_JWT_ISSUER" envDefault:"auth-service"`
+	AccessTTL     time.Duration `env:"AUTH_JWT_ACCESS_TTL" envDefault:"15m"`
+	RefreshTTL    time.Duration `env:"AUTH_JWT_REFRESH_TTL" envDefault:"720h"`
 
-	NATSURL                string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
-	NATSVerifySubject      string `env:"NATS_SUBJECT_VERIFY_JWT" envDefault:"auth.verifyJWT"`
-	NATSUserCreateSubject  string `env:"NATS_SUBJECT_USER_CREATE" envDefault:"user.create-user"`
-	NATSAssignRoleSubject  string `env:"NATS_SUBJECT_ASSIGN_ROLE" envDefault:"rbac.assign-role"`
+	NATSURL               string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
+	NATSVerifySubject     string `env:"NATS_SUBJECT_VERIFY_JWT" envDefault:"auth.verifyJWT"`
+	NATSUserCreateSubject string `env:"NATS_SUBJECT_USER_CREATE" envDefault:"user.create-user"`
+	NATSAssignRoleSubject string `env:"NATS_SUBJECT_ASSIGN_ROLE" envDefault:"rbac.assign-role"`
 
-	TarantoolSignupURL     string `env:"TARANTOOL_SIGNUP_URL"`
+	TarantoolSignupURL      string `env:"TARANTOOL_SIGNUP_URL"`
 	TarantoolEmailChangeURL string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
 
-	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`
+	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"user"`
 }
 
 func Load() (*Config, error) {
