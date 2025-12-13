@@ -1,4 +1,4 @@
-package handlers
+package unit
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	apihandlers "github.com/example/auth-service/internal/adapters/http/api/v1/handlers"
 	"github.com/example/auth-service/internal/domain"
 	"github.com/example/auth-service/internal/usecase"
 	res "github.com/example/auth-service/pkg/http"
@@ -77,7 +78,7 @@ func TestSignupStartSuccess(t *testing.T) {
 			return "uuid-1", nil
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 
 	body, _ := json.Marshal(map[string]string{"email": "user@example.com"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
@@ -108,7 +109,7 @@ func TestSignupStartFailure(t *testing.T) {
 			return "", echo.NewHTTPError(http.StatusBadRequest, "fail")
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 
 	body, _ := json.Marshal(map[string]string{"email": "bad"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
@@ -137,7 +138,7 @@ func TestSignInSuccess(t *testing.T) {
 			return &domain.AuthUser{ID: "u1", Email: email}, &usecase.Tokens{AccessToken: "a", RefreshToken: "r", ExpiresIn: 60}, nil
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 	body, _ := json.Marshal(map[string]string{"email": "user@example.com", "password": "secret"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -159,7 +160,7 @@ func TestRefreshUnauthorized(t *testing.T) {
 			return nil, errors.New("bad")
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 	body, _ := json.Marshal(map[string]string{"refresh_token": "invalid"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -184,7 +185,7 @@ func TestSignupVerifyError(t *testing.T) {
 			return nil, nil, errors.New("verify fail")
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 	body, _ := json.Marshal(map[string]string{"email": "user@example.com", "code": "c", "password": "pass"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -207,7 +208,7 @@ func TestVerifyTokenSuccess(t *testing.T) {
 			return &usecase.VerificationResult{UserID: "u1", Email: "user@example.com", Claims: map[string]any{"role": "student"}}, nil
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 	body, _ := json.Marshal(map[string]string{"token": "good"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -229,7 +230,7 @@ func TestVerifyTokenFailure(t *testing.T) {
 			return nil, errors.New("invalid_token")
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 	body, _ := json.Marshal(map[string]string{"token": "bad"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -252,7 +253,7 @@ func TestEmailChangeStart(t *testing.T) {
 			return "uuid-email", nil
 		},
 	}
-	h := NewAuthHandler(svc)
+	h := apihandlers.NewAuthHandler(svc)
 	body, _ := json.Marshal(map[string]string{"new_email": "new@example.com"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)

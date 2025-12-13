@@ -1,4 +1,4 @@
-package natsadapter
+package unit
 
 import (
 	"encoding/json"
@@ -8,6 +8,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/nats-io/nats.go"
+
+	natsadapter "github.com/example/auth-service/internal/adapters/nats"
 )
 
 type stubParser struct {
@@ -36,12 +38,12 @@ func TestVerifyHandlerHandleSuccess(t *testing.T) {
 			err:    nil,
 		},
 	}}
-	handler := NewVerifyHandler(parser)
-	var captured verifyResponse
-	handler.respondFn = func(_ *nats.Msg, resp verifyResponse) { captured = resp }
+	handler := natsadapter.NewVerifyHandler(parser)
+	var captured natsadapter.VerifyResponse
+	handler.SetResponder(func(_ *nats.Msg, resp natsadapter.VerifyResponse) { captured = resp })
 
-	payload, _ := json.Marshal(verifyRequest{Token: "good"})
-	handler.handle(&nats.Msg{Data: payload})
+	payload, _ := json.Marshal(map[string]string{"token": "good"})
+	handler.Handle(&nats.Msg{Data: payload})
 
 	if !captured.OK || captured.UserID != "user-1" || captured.Email != "user@example.com" {
 		t.Fatalf("unexpected response: %+v", captured)
@@ -55,12 +57,12 @@ func TestVerifyHandlerInvalidToken(t *testing.T) {
 	parser := stubParser{responses: map[string]parseResult{
 		"bad": {token: nil, claims: nil, err: errors.New("bad token")},
 	}}
-	handler := NewVerifyHandler(parser)
-	var captured verifyResponse
-	handler.respondFn = func(_ *nats.Msg, resp verifyResponse) { captured = resp }
+	handler := natsadapter.NewVerifyHandler(parser)
+	var captured natsadapter.VerifyResponse
+	handler.SetResponder(func(_ *nats.Msg, resp natsadapter.VerifyResponse) { captured = resp })
 
-	payload, _ := json.Marshal(verifyRequest{Token: "bad"})
-	handler.handle(&nats.Msg{Data: payload})
+	payload, _ := json.Marshal(map[string]string{"token": "bad"})
+	handler.Handle(&nats.Msg{Data: payload})
 
 	if captured.OK || captured.Error != "invalid_token" {
 		t.Fatalf("expected invalid_token, got %+v", captured)
@@ -76,12 +78,12 @@ func TestVerifyHandlerSubjectMissing(t *testing.T) {
 			err:    nil,
 		},
 	}}
-	handler := NewVerifyHandler(parser)
-	var captured verifyResponse
-	handler.respondFn = func(_ *nats.Msg, resp verifyResponse) { captured = resp }
+	handler := natsadapter.NewVerifyHandler(parser)
+	var captured natsadapter.VerifyResponse
+	handler.SetResponder(func(_ *nats.Msg, resp natsadapter.VerifyResponse) { captured = resp })
 
-	payload, _ := json.Marshal(verifyRequest{Token: "nosub"})
-	handler.handle(&nats.Msg{Data: payload})
+	payload, _ := json.Marshal(map[string]string{"token": "nosub"})
+	handler.Handle(&nats.Msg{Data: payload})
 
 	if captured.OK || captured.Error != "subject_missing" {
 		t.Fatalf("expected subject_missing, got %+v", captured)

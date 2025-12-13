@@ -1,4 +1,4 @@
-package middleware
+package unit
 
 import (
 	"encoding/json"
@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 
+	authmiddleware "github.com/example/auth-service/internal/adapters/http/middleware"
 	res "github.com/example/auth-service/pkg/http"
 )
 
@@ -36,7 +37,7 @@ func TestAuthMiddlewareMissingToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	mw := NewAuthMiddleware(stubSigner{})
+	mw := authmiddleware.NewAuthMiddleware(stubSigner{})
 	handler := mw.Handler(func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
 	_ = handler(c)
 
@@ -57,7 +58,7 @@ func TestAuthMiddlewareInvalidToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	mw := NewAuthMiddleware(stubSigner{respErr: errors.New("parse error")})
+	mw := authmiddleware.NewAuthMiddleware(stubSigner{respErr: errors.New("parse error")})
 	handler := mw.Handler(func(c echo.Context) error { return c.String(http.StatusOK, "ok") })
 	_ = handler(c)
 
@@ -73,7 +74,7 @@ func TestAuthMiddlewareSubjectMissing(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	mw := NewAuthMiddleware(stubSigner{
+	mw := authmiddleware.NewAuthMiddleware(stubSigner{
 		respToken:  &jwt.Token{Valid: true},
 		respClaims: jwt.MapClaims{},
 	})

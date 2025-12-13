@@ -1,4 +1,4 @@
-package usecase
+package unit
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/adapters/nats"
 	"github.com/example/auth-service/internal/domain"
+	"github.com/example/auth-service/internal/usecase"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
 
@@ -171,17 +172,17 @@ type testDeps struct {
 	users      *mockUserRepo
 	refresh    *mockRefreshRepo
 	tara       *mockTarantool
-	signer     JWTSigner
+	signer     usecase.JWTSigner
 	cfg        *config.Config
 	userClient natsadapter.UserClient
 	rbacClient natsadapter.RBACClient
 }
 
-func newTestService(t *testing.T) (Service, *testDeps) {
+func newTestService(t *testing.T) (usecase.Service, *testDeps) {
 	return newTestServiceWithClients(t, nil, nil)
 }
 
-func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient) (Service, *testDeps) {
+func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient) (usecase.Service, *testDeps) {
 	t.Helper()
 	cfg := &config.Config{
 		JWTSecret:   "test-secret",
@@ -191,7 +192,7 @@ func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, 
 		RefreshTTL:  time.Hour,
 		DefaultRole: "user",
 	}
-	signer, err := NewJWTSigner(cfg)
+	signer, err := usecase.NewJWTSigner(cfg)
 	if err != nil {
 		t.Fatalf("new signer: %v", err)
 	}
@@ -204,7 +205,7 @@ func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, 
 		verifyEmailChangeUserID: "user-1",
 		verifyEmailChangeEmail:  "new@example.com",
 	}
-	svc := NewAuthService(cfg, pkglog.New("test"), users, mockIdentityRepo{}, refresh, tara, userClient, rbacClient, signer)
+	svc := usecase.NewAuthService(cfg, pkglog.New("test"), users, mockIdentityRepo{}, refresh, tara, userClient, rbacClient, signer)
 	return svc, &testDeps{users: users, refresh: refresh, tara: tara, signer: signer, cfg: cfg, userClient: userClient, rbacClient: rbacClient}
 }
 
@@ -382,4 +383,8 @@ func TestPasswordResetFlow(t *testing.T) {
 	if bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte("newpass123")) != nil {
 		t.Fatalf("password was not updated")
 	}
+}
+
+func hashToken(jti string) string {
+	return fmt.Sprintf("rt:%s", jti)
 }
