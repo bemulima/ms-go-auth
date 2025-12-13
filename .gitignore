@@ -9,3 +9,4 @@ coverage.*
 tmp/
 vendor/
 docker-compose.override.yml
+.gocache
