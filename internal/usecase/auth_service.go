@@ -32,6 +32,7 @@ type Service interface {
 	VerifyEmailChange(ctx context.Context, traceID, code string) (*domain.AuthUser, error)
 	StartPasswordReset(ctx context.Context, traceID, email string) (string, error)
 	FinishPasswordReset(ctx context.Context, traceID, email, code, newPassword string) error
+	ChangePassword(ctx context.Context, traceID, userID, oldPassword, newPassword string) error
 	VerifyToken(ctx context.Context, traceID, token string) (*VerificationResult, error)
 }
 
@@ -222,6 +223,30 @@ func (s *authService) FinishPasswordReset(ctx context.Context, traceID, email, c
 		return err
 	}
 	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("password reset finished")
+	return nil
+}
+
+func (s *authService) ChangePassword(ctx context.Context, traceID, userID, oldPassword, newPassword string) error {
+	if err := validatePassword(newPassword); err != nil {
+		return err
+	}
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return errInvalidCredentials
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+		return errInvalidCredentials
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user.PasswordHash = string(hash)
+	user.PasswordUpdatedAt = time.Now()
+	if err := s.users.Update(ctx, user); err != nil {
+		return err
+	}
+	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("password changed")
 	return nil
 }
 

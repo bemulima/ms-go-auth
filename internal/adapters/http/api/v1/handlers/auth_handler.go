@@ -52,6 +52,11 @@ type passwordResetFinishRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type changePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
 type oauthCallbackRequest struct {
 	Code string `json:"code"`
 }
@@ -152,6 +157,18 @@ func (h *AuthHandler) PasswordResetFinish(c echo.Context) error {
 	}
 	if err := h.service.FinishPasswordReset(c.Request().Context(), requestIDFromCtx(c), req.Email, req.Code, req.NewPassword); err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "password_reset_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return res.JSON(c, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *AuthHandler) ChangePassword(c echo.Context) error {
+	req := new(changePasswordRequest)
+	if err := c.Bind(req); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+	userID := c.Get("user_id").(string)
+	if err := h.service.ChangePassword(c.Request().Context(), requestIDFromCtx(c), userID, req.OldPassword, req.NewPassword); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "password_change_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
 	return res.JSON(c, http.StatusOK, map[string]string{"status": "ok"})
 }
