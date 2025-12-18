@@ -10,7 +10,7 @@ import (
 )
 
 type UserClient interface {
-	CreateUser(ctx context.Context, userID string, source string, typ string) error
+	CreateUser(ctx context.Context, userID string, email string, source string, typ string) error
 }
 
 type RBACClient interface {
@@ -35,8 +35,8 @@ func NewRBACClient(conn *nats.Conn, subject string) RBACClient {
 	return &rbacClient{conn: conn, subject: subject}
 }
 
-func (c *userClient) CreateUser(ctx context.Context, userID string, source string, typ string) error {
-	payload := map[string]interface{}{"id": userID, "source": source, "type": typ}
+func (c *userClient) CreateUser(ctx context.Context, userID string, email string, source string, typ string) error {
+	payload := map[string]interface{}{"id": userID, "email": email, "source": source, "type": typ}
 	return requestAck(ctx, c.conn, c.subject, payload)
 }
 

@@ -93,14 +93,16 @@ func (r *mockRefreshRepo) RevokeByHash(_ context.Context, hash string) error {
 }
 
 type mockTarantool struct {
-	signupUUID           string
 	lastSignupEmail      string
+	lastSignupPassword   string
 	emailChangeUUID      string
 	lastEmailChangeUser  string
 	lastEmailChangeEmail string
 	passwordResetUUID    string
 	lastPasswordReset    string
 
+	startSignupErr          error
+	verifySignupPassword    string
 	verifySignupErr         error
 	verifyEmailChangeUserID string
 	verifyEmailChangeEmail  string
@@ -108,13 +110,17 @@ type mockTarantool struct {
 	verifyPasswordResetErr  error
 }
 
-func (m *mockTarantool) StartSignup(_ context.Context, email string) (string, error) {
+func (m *mockTarantool) StartSignup(_ context.Context, email, passwordHash string) error {
 	m.lastSignupEmail = email
-	return m.signupUUID, nil
+	m.lastSignupPassword = passwordHash
+	return m.startSignupErr
 }
 
-func (m *mockTarantool) VerifySignup(_ context.Context, _ string, _ string) error {
-	return m.verifySignupErr
+func (m *mockTarantool) VerifySignup(_ context.Context, _ string, _ string) (string, error) {
+	if m.verifySignupErr != nil {
+		return "", m.verifySignupErr
+	}
+	return m.verifySignupPassword, nil
 }
 
 func (m *mockTarantool) StartEmailChange(_ context.Context, userID, newEmail string) (string, error) {
@@ -199,7 +205,6 @@ func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, 
 	users := newMockUserRepo()
 	refresh := newMockRefreshRepo()
 	tara := &mockTarantool{
-		signupUUID:              "signup-uuid",
 		emailChangeUUID:         "email-change-uuid",
 		passwordResetUUID:       "pwd-reset-uuid",
 		verifyEmailChangeUserID: "user-1",
@@ -213,25 +218,26 @@ func TestStartSignup(t *testing.T) {
 	svc, deps := newTestService(t)
 	// existing user
 	_ = deps.users.Create(context.Background(), &domain.AuthUser{Email: "user@example.com"})
-	if _, err := svc.StartSignup(context.Background(), "trace", "user@example.com"); err == nil {
+	if err := svc.StartSignup(context.Background(), "trace", "user@example.com", "password123"); err == nil {
 		t.Fatalf("expected error for existing user")
 	}
 	// new user
-	uuid, err := svc.StartSignup(context.Background(), "trace", "New@Example.com")
-	if err != nil {
+	if err := svc.StartSignup(context.Background(), "trace", "New@Example.com", "password123"); err != nil {
 		t.Fatalf("start signup: %v", err)
-	}
-	if uuid != deps.tara.signupUUID {
-		t.Fatalf("unexpected uuid: %s", uuid)
 	}
 	if deps.tara.lastSignupEmail != "new@example.com" {
 		t.Fatalf("email not normalized: %s", deps.tara.lastSignupEmail)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(deps.tara.lastSignupPassword), []byte("password123")); err != nil {
+		t.Fatalf("expected bcrypt password hash to be stored in tarantool")
 	}
 }
 
 func TestVerifySignupCreatesUserAndTokens(t *testing.T) {
 	svc, deps := newTestService(t)
-	user, tokens, err := svc.VerifySignup(context.Background(), "trace", "User@Example.com", "code", "password123")
+	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	deps.tara.verifySignupPassword = string(hash)
+	user, tokens, err := svc.VerifySignup(context.Background(), "trace", "User@Example.com", "code")
 	if err != nil {
 		t.Fatalf("verify signup: %v", err)
 	}
@@ -254,7 +260,9 @@ func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
 	rbacClient := &recordingRBACClient{}
 	svc, deps := newTestServiceWithClients(t, userClient, rbacClient)
 
-	user, _, err := svc.VerifySignup(context.Background(), "trace", "notify@example.com", "code", "password123")
+	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	deps.tara.verifySignupPassword = string(hash)
+	user, _, err := svc.VerifySignup(context.Background(), "trace", "notify@example.com", "code")
 	if err != nil {
 		t.Fatalf("verify signup: %v", err)
 	}

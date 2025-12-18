@@ -18,23 +18,24 @@ import (
 )
 
 type mockAuthService struct {
-	startSignupFn        func(email string) (string, error)
-	verifySignupFn       func(email, code, password string) (*domain.AuthUser, *usecase.Tokens, error)
+	startSignupFn        func(email, password string) error
+	verifySignupFn       func(email, code string) (*domain.AuthUser, *usecase.Tokens, error)
 	signInFn             func(email, password string) (*domain.AuthUser, *usecase.Tokens, error)
 	refreshFn            func(token string) (*usecase.Tokens, error)
 	startEmailChangeFn   func(userID, email string) (string, error)
 	verifyEmailChangeFn  func(code string) (*domain.AuthUser, error)
 	startPasswordResetFn func(email string) (string, error)
 	finishPasswordFn     func(email, code, newPass string) error
+	changePasswordFn     func(userID, oldPassword, newPassword string) error
 	verifyTokenFn        func(token string) (*usecase.VerificationResult, error)
 }
 
-func (m *mockAuthService) StartSignup(_ context.Context, _ string, email string) (string, error) {
-	return m.startSignupFn(email)
+func (m *mockAuthService) StartSignup(_ context.Context, _ string, email, password string) error {
+	return m.startSignupFn(email, password)
 }
 
-func (m *mockAuthService) VerifySignup(_ context.Context, _ string, email, code, password string) (*domain.AuthUser, *usecase.Tokens, error) {
-	return m.verifySignupFn(email, code, password)
+func (m *mockAuthService) VerifySignup(_ context.Context, _ string, email, code string) (*domain.AuthUser, *usecase.Tokens, error) {
+	return m.verifySignupFn(email, code)
 }
 
 func (m *mockAuthService) SignIn(_ context.Context, _ string, email, password string) (*domain.AuthUser, *usecase.Tokens, error) {
@@ -61,6 +62,13 @@ func (m *mockAuthService) FinishPasswordReset(_ context.Context, _ string, email
 	return m.finishPasswordFn(email, code, newPassword)
 }
 
+func (m *mockAuthService) ChangePassword(_ context.Context, _ string, userID, oldPassword, newPassword string) error {
+	if m.changePasswordFn == nil {
+		return nil
+	}
+	return m.changePasswordFn(userID, oldPassword, newPassword)
+}
+
 func (m *mockAuthService) VerifyToken(_ context.Context, _ string, token string) (*usecase.VerificationResult, error) {
 	return m.verifyTokenFn(token)
 }
@@ -71,16 +79,16 @@ var _ usecase.Service = (*mockAuthService)(nil)
 func TestSignupStartSuccess(t *testing.T) {
 	e := echo.New()
 	svc := &mockAuthService{
-		startSignupFn: func(email string) (string, error) {
-			if email != "user@example.com" {
-				t.Fatalf("unexpected email: %s", email)
+		startSignupFn: func(email, password string) error {
+			if email != "user@example.com" || password != "secret" {
+				t.Fatalf("unexpected input: %s/%s", email, password)
 			}
-			return "uuid-1", nil
+			return nil
 		},
 	}
 	h := apihandlers.NewAuthHandler(svc)
 
-	body, _ := json.Marshal(map[string]string{"email": "user@example.com"})
+	body, _ := json.Marshal(map[string]string{"email": "user@example.com", "password": "secret"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -92,26 +100,25 @@ func TestSignupStartSuccess(t *testing.T) {
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	var resp res.Response
+	var resp map[string]interface{}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	data := resp.Data.(map[string]interface{})
-	if data["uuid"] != "uuid-1" {
-		t.Fatalf("unexpected uuid: %+v", data)
+	if resp["message"] != "verification code sent" {
+		t.Fatalf("unexpected response: %+v", resp)
 	}
 }
 
 func TestSignupStartFailure(t *testing.T) {
 	e := echo.New()
 	svc := &mockAuthService{
-		startSignupFn: func(_ string) (string, error) {
-			return "", echo.NewHTTPError(http.StatusBadRequest, "fail")
+		startSignupFn: func(_, _ string) error {
+			return echo.NewHTTPError(http.StatusBadRequest, "fail")
 		},
 	}
 	h := apihandlers.NewAuthHandler(svc)
 
-	body, _ := json.Marshal(map[string]string{"email": "bad"})
+	body, _ := json.Marshal(map[string]string{"email": "bad", "password": "secret"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -181,12 +188,12 @@ func TestRefreshUnauthorized(t *testing.T) {
 func TestSignupVerifyError(t *testing.T) {
 	e := echo.New()
 	svc := &mockAuthService{
-		verifySignupFn: func(_, _, _ string) (*domain.AuthUser, *usecase.Tokens, error) {
+		verifySignupFn: func(_, _ string) (*domain.AuthUser, *usecase.Tokens, error) {
 			return nil, nil, errors.New("verify fail")
 		},
 	}
 	h := apihandlers.NewAuthHandler(svc)
-	body, _ := json.Marshal(map[string]string{"email": "user@example.com", "code": "c", "password": "pass"})
+	body, _ := json.Marshal(map[string]string{"email": "user@example.com", "code": "c"})
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()

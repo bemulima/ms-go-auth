@@ -12,8 +12,8 @@ import (
 )
 
 type Client interface {
-	StartSignup(ctx context.Context, email string) (string, error)
-	VerifySignup(ctx context.Context, email, code string) error
+	StartSignup(ctx context.Context, email, passwordHash string) error
+	VerifySignup(ctx context.Context, email, code string) (string, error)
 	StartEmailChange(ctx context.Context, userID, newEmail string) (string, error)
 	VerifyEmailChange(ctx context.Context, code string) (string, string, error)
 	StartPasswordReset(ctx context.Context, email string) (string, error)
@@ -29,20 +29,20 @@ func NewHTTPClient(baseURL string, timeout time.Duration) Client {
 	return &httpClient{baseURL: baseURL, client: &http.Client{Timeout: timeout}}
 }
 
-func (c *httpClient) StartSignup(ctx context.Context, email string) (string, error) {
-	payload := map[string]interface{}{"value": map[string]string{"email": email}}
-	var resp struct {
-		UUID string `json:"uuid"`
-	}
-	if err := c.post(ctx, "/api/v1/set-new-user", payload, &resp); err != nil {
-		return "", err
-	}
-	return resp.UUID, nil
+func (c *httpClient) StartSignup(ctx context.Context, email, passwordHash string) error {
+	payload := map[string]interface{}{"value": map[string]string{"email": email, "password": passwordHash}}
+	return c.post(ctx, "/api/v1/set-new-user", payload, nil)
 }
 
-func (c *httpClient) VerifySignup(ctx context.Context, email, code string) error {
-	payload := map[string]interface{}{"value": map[string]string{"uuid": email, "code": code}}
-	return c.post(ctx, "/api/v1/check-new-user-code", payload, nil)
+func (c *httpClient) VerifySignup(ctx context.Context, email, code string) (string, error) {
+	payload := map[string]interface{}{"value": map[string]string{"email": email, "code": code}}
+	var resp struct {
+		Password string `json:"password"`
+	}
+	if err := c.post(ctx, "/api/v1/check-new-user-code", payload, &resp); err != nil {
+		return "", err
+	}
+	return resp.Password, nil
 }
 
 func (c *httpClient) StartEmailChange(ctx context.Context, userID, newEmail string) (string, error) {

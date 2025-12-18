@@ -24,8 +24,8 @@ var (
 )
 
 type Service interface {
-	StartSignup(ctx context.Context, traceID, email string) (string, error)
-	VerifySignup(ctx context.Context, traceID, email, code, password string) (*domain.AuthUser, *Tokens, error)
+	StartSignup(ctx context.Context, traceID, email, password string) error
+	VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error)
 	SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error)
 	Refresh(ctx context.Context, traceID, refreshToken string) (*Tokens, error)
 	StartEmailChange(ctx context.Context, traceID, userID, newEmail string) (string, error)
@@ -52,45 +52,52 @@ func NewAuthService(cfg *config.Config, logger pkglog.Logger, users repo.AuthUse
 	return &authService{cfg: cfg, logger: logger, users: users, identities: identities, refresh: refresh, tarantoool: tara, userClient: userClient, rbacClient: rbacClient, signer: signer}
 }
 
-func (s *authService) StartSignup(ctx context.Context, traceID, email string) (string, error) {
+func (s *authService) StartSignup(ctx context.Context, traceID, email, password string) error {
 	norm := normalizeEmail(email)
 	if err := validateEmail(norm); err != nil {
-		return "", err
-	}
-	if _, err := s.users.FindByEmail(ctx, norm); err == nil {
-		return "", fmt.Errorf("user already exists")
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", err
-	}
-	uuid, err := s.tarantoool.StartSignup(ctx, norm)
-	if err != nil {
-		return "", err
-	}
-	s.logger.Info().Str("trace_id", traceID).Str("email", norm).Msg("signup initiated")
-	return uuid, nil
-}
-
-func (s *authService) VerifySignup(ctx context.Context, traceID, email, code, password string) (*domain.AuthUser, *Tokens, error) {
-	norm := normalizeEmail(email)
-	if err := validateEmail(norm); err != nil {
-		return nil, nil, err
+		return err
 	}
 	if err := validatePassword(password); err != nil {
-		return nil, nil, err
+		return err
 	}
-	if err := s.tarantoool.VerifySignup(ctx, norm, code); err != nil {
-		return nil, nil, err
+	if _, err := s.users.FindByEmail(ctx, norm); err == nil {
+		return fmt.Errorf("user already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if err := s.tarantoool.StartSignup(ctx, norm, string(hash)); err != nil {
+		return err
+	}
+
+	s.logger.Info().Str("trace_id", traceID).Str("email", norm).Msg("signup initiated")
+	return nil
+}
+
+func (s *authService) VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error) {
+	norm := normalizeEmail(email)
+	if err := validateEmail(norm); err != nil {
+		return nil, nil, err
+	}
+
+	passwordHash, err := s.tarantoool.VerifySignup(ctx, norm, code)
 	if err != nil {
 		return nil, nil, err
 	}
-	user := &domain.AuthUser{Email: norm, PasswordHash: string(hash)}
+	if strings.TrimSpace(passwordHash) == "" {
+		return nil, nil, fmt.Errorf("password hash missing")
+	}
+
+	user := &domain.AuthUser{Email: norm, PasswordHash: passwordHash}
 	if err := s.users.Create(ctx, user); err != nil {
 		return nil, nil, err
 	}
 	if s.userClient != nil {
-		_ = s.userClient.CreateUser(ctx, user.ID, "auth", "signup")
+		_ = s.userClient.CreateUser(ctx, user.ID, user.Email, "auth", "signup")
 	}
 	if s.rbacClient != nil {
 		_ = s.rbacClient.AssignRole(ctx, user.ID, s.cfg.DefaultRole)

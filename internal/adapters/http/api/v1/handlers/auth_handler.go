@@ -16,13 +16,13 @@ type AuthHandler struct {
 func NewAuthHandler(s usecase.Service) *AuthHandler { return &AuthHandler{service: s} }
 
 type signupStartRequest struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type signupVerifyRequest struct {
-	Email    string `json:"email"`
-	Code     string `json:"code"`
-	Password string `json:"password"`
+	Email string `json:"email"`
+	Code  string `json:"code"`
 }
 
 type signinRequest struct {
@@ -70,11 +70,10 @@ func (h *AuthHandler) SignupStart(c echo.Context) error {
 	if err := c.Bind(req); err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
 	}
-	uuid, err := h.service.StartSignup(c.Request().Context(), requestIDFromCtx(c), req.Email)
-	if err != nil {
+	if err := h.service.StartSignup(c.Request().Context(), requestIDFromCtx(c), req.Email, req.Password); err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "signup_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
-	return res.JSON(c, http.StatusAccepted, map[string]interface{}{"uuid": uuid})
+	return c.JSON(http.StatusAccepted, map[string]string{"message": "verification code sent"})
 }
 
 func (h *AuthHandler) SignupVerify(c echo.Context) error {
@@ -82,11 +81,11 @@ func (h *AuthHandler) SignupVerify(c echo.Context) error {
 	if err := c.Bind(req); err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
 	}
-	user, tokens, err := h.service.VerifySignup(c.Request().Context(), requestIDFromCtx(c), req.Email, req.Code, req.Password)
+	_, tokens, err := h.service.VerifySignup(c.Request().Context(), requestIDFromCtx(c), req.Email, req.Code)
 	if err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "verification_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
-	return res.JSON(c, http.StatusOK, map[string]interface{}{"user": user, "tokens": tokens})
+	return c.JSON(http.StatusOK, tokens)
 }
 
 func (h *AuthHandler) SignIn(c echo.Context) error {
@@ -94,11 +93,11 @@ func (h *AuthHandler) SignIn(c echo.Context) error {
 	if err := c.Bind(req); err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
 	}
-	user, tokens, err := h.service.SignIn(c.Request().Context(), requestIDFromCtx(c), req.Email, req.Password)
+	_, tokens, err := h.service.SignIn(c.Request().Context(), requestIDFromCtx(c), req.Email, req.Password)
 	if err != nil {
 		return res.ErrorJSON(c, http.StatusUnauthorized, "signin_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
-	return res.JSON(c, http.StatusOK, map[string]interface{}{"user": user, "tokens": tokens})
+	return c.JSON(http.StatusOK, tokens)
 }
 
 func (h *AuthHandler) Refresh(c echo.Context) error {
@@ -110,7 +109,7 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 	if err != nil {
 		return res.ErrorJSON(c, http.StatusUnauthorized, "refresh_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
-	return res.JSON(c, http.StatusOK, tokens)
+	return c.JSON(http.StatusOK, tokens)
 }
 
 func (h *AuthHandler) EmailChangeStart(c echo.Context) error {
@@ -119,11 +118,11 @@ func (h *AuthHandler) EmailChangeStart(c echo.Context) error {
 		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
 	}
 	userID := c.Get("user_id").(string)
-	uuid, err := h.service.StartEmailChange(c.Request().Context(), requestIDFromCtx(c), userID, req.NewEmail)
+	_, err := h.service.StartEmailChange(c.Request().Context(), requestIDFromCtx(c), userID, req.NewEmail)
 	if err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "email_change_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
-	return res.JSON(c, http.StatusAccepted, map[string]string{"uuid": uuid})
+	return c.JSON(http.StatusOK, map[string]string{"message": "verification code sent to new email"})
 }
 
 func (h *AuthHandler) EmailChangeVerify(c echo.Context) error {
@@ -189,7 +188,11 @@ func (h *AuthHandler) VerifyToken(c echo.Context) error {
 	if err != nil {
 		return res.ErrorJSON(c, http.StatusUnauthorized, "verify_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
-	return res.JSON(c, http.StatusOK, result)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"user_id": result.UserID,
+		"email":   result.Email,
+		"claims":  result.Claims,
+	})
 }
 
 func requestIDFromCtx(c echo.Context) string {

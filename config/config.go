@@ -38,7 +38,7 @@ type Config struct {
 	TarantoolSignupURL      string `env:"TARANTOOL_SIGNUP_URL"`
 	TarantoolEmailChangeURL string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
 
-	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"user"`
+	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`
 }
 
 func Load() (*Config, error) {
