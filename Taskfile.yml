@@ -1,0 +1,64 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  # ms-go-auth использует БД из ms-go-user (shared postgres)
+  COMPOSE_FILE: '../ms-go-user/docker-compose.yml'
+  DB_CONTAINER: postgres
+  DB_USER: '{{.AUTH_DB_USER | default "app"}}'
+  DB_NAME: '{{.AUTH_DB_NAME | default "authdb"}}'
+
+tasks:
+  create-db:
+    desc: Create auth database in shared Postgres (ms-go-user)
+    cmds:
+      - |
+        existing=$(docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{.DB_NAME}}'")
+        if [ -z "$existing" ]; then
+          docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d postgres -c "CREATE DATABASE {{.DB_NAME}}"
+          echo "Created database {{.DB_NAME}}"
+        else
+          echo "Database {{.DB_NAME}} already exists"
+        fi
+
+  migrate-up:
+    desc: Apply all migrations
+    deps: [create-db]
+    cmds:
+      - |
+        set -euo pipefail
+        for f in $(ls migrations/*.up.sql 2>/dev/null | sort); do
+          echo "==> applying $f"
+          cat "$f" | docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d {{.DB_NAME}} -v ON_ERROR_STOP=1
+        done
+
+  migrate-down:
+    desc: Rollback all migrations in reverse order
+    cmds:
+      - |
+        set -euo pipefail
+        for f in $(ls migrations/*.down.sql 2>/dev/null | sort -r); do
+          echo "==> rolling back $f"
+          cat "$f" | docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d {{.DB_NAME}} -v ON_ERROR_STOP=1
+        done
+
+  migrate-status:
+    desc: Show migration status (list tables)
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d {{.DB_NAME}} -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
+
+  run:
+    desc: Run service locally
+    cmds:
+      - go run ./cmd/ms-go-auth
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run ./...
