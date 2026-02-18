@@ -28,6 +28,7 @@ type Service interface {
 	VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error)
 	SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error)
 	Refresh(ctx context.Context, traceID, refreshToken string) (*Tokens, error)
+	RevokeRefreshToken(ctx context.Context, traceID, refreshToken string) error
 	StartEmailChange(ctx context.Context, traceID, userID, newEmail string) (string, error)
 	VerifyEmailChange(ctx context.Context, traceID, code string) (*domain.AuthUser, error)
 	StartPasswordReset(ctx context.Context, traceID, email string) (string, error)
@@ -102,7 +103,7 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 	if s.rbacClient != nil {
 		_ = s.rbacClient.AssignRole(ctx, user.ID, s.cfg.DefaultRole)
 	}
-	tokens, err := s.issueTokens(user)
+	tokens, err := s.issueTokens(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -122,7 +123,7 @@ func (s *authService) SignIn(ctx context.Context, traceID, email, password strin
 	now := time.Now()
 	user.LastLoginAt = &now
 	_ = s.users.Update(ctx, user)
-	tokens, err := s.issueTokens(user)
+	tokens, err := s.issueTokens(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,7 +159,34 @@ func (s *authService) Refresh(ctx context.Context, traceID, refreshToken string)
 	if err != nil {
 		return nil, errInvalidCredentials
 	}
-	return s.issueTokens(user)
+	if err := s.refresh.RevokeByHash(ctx, hash); err != nil {
+		return nil, err
+	}
+	return s.issueTokens(ctx, user)
+}
+
+func (s *authService) RevokeRefreshToken(ctx context.Context, traceID, refreshToken string) error {
+	if strings.TrimSpace(refreshToken) == "" {
+		return errInvalidCredentials
+	}
+	tok, claims, err := s.signer.Parse(refreshToken)
+	if err != nil || tok == nil || !tok.Valid {
+		return errInvalidCredentials
+	}
+	if typ, _ := claims["typ"].(string); typ != "refresh" {
+		return errInvalidCredentials
+	}
+	jti, _ := claims["jti"].(string)
+	if jti == "" {
+		return errInvalidCredentials
+	}
+
+	if err := s.refresh.RevokeByHash(ctx, hashToken(jti)); err != nil {
+		return err
+	}
+
+	s.logger.Info().Str("trace_id", traceID).Msg("refresh token revoked")
+	return nil
 }
 
 func (s *authService) StartEmailChange(ctx context.Context, traceID, userID, newEmail string) (string, error) {
@@ -266,7 +294,7 @@ func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*
 	return result, nil
 }
 
-func (s *authService) issueTokens(user *domain.AuthUser) (*Tokens, error) {
+func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*Tokens, error) {
 	claims := map[string]interface{}{"email": user.Email}
 	access, err := s.signer.SignAccessToken(user.ID, claims, s.cfg.AccessTTL)
 	if err != nil {
@@ -281,7 +309,13 @@ func (s *authService) issueTokens(user *domain.AuthUser) (*Tokens, error) {
 		return nil, err
 	}
 	// persist refresh
-	s.refresh.Create(context.Background(), &domain.RefreshToken{UserID: user.ID, RefreshTokenHash: hashToken(jti), ExpiresAt: time.Now().Add(s.cfg.RefreshTTL)})
+	if err := s.refresh.Create(ctx, &domain.RefreshToken{
+		UserID:           user.ID,
+		RefreshTokenHash: hashToken(jti),
+		ExpiresAt:        time.Now().Add(s.cfg.RefreshTTL),
+	}); err != nil {
+		return nil, err
+	}
 	return &Tokens{AccessToken: access, RefreshToken: refresh, ExpiresIn: int64(s.cfg.AccessTTL.Seconds())}, nil
 }
 

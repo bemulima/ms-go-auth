@@ -21,6 +21,7 @@ func (r *Router) Register(g *echo.Group) {
 	auth.POST("/signup/verify", r.handlers.SignupVerify)
 	auth.POST("/signin", r.handlers.SignIn)
 	auth.POST("/refresh", r.handlers.Refresh)
+	auth.POST("/revoke", r.handlers.RevokeRefresh)
 	auth.POST("/oauth/:provider/callback", r.handlers.OAuthCallback)
 	auth.POST("/password/reset/start", r.handlers.PasswordResetStart)
 	auth.POST("/password/reset/finish", r.handlers.PasswordResetFinish)

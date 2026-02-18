@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -63,7 +64,8 @@ func (mockIdentityRepo) FindByProvider(_ context.Context, _, _ string) (*domain.
 func (mockIdentityRepo) Create(_ context.Context, _ *domain.AuthIdentity) error { return nil }
 
 type mockRefreshRepo struct {
-	tokens map[string]domain.RefreshToken
+	tokens    map[string]domain.RefreshToken
+	createErr error
 }
 
 func newMockRefreshRepo() *mockRefreshRepo {
@@ -71,6 +73,9 @@ func newMockRefreshRepo() *mockRefreshRepo {
 }
 
 func (r *mockRefreshRepo) Create(_ context.Context, token *domain.RefreshToken) error {
+	if r.createErr != nil {
+		return r.createErr
+	}
 	r.tokens[token.RefreshTokenHash] = *token
 	return nil
 }
@@ -145,17 +150,19 @@ func (m *mockTarantool) VerifyPasswordReset(_ context.Context, _ string, _ strin
 type recordingUserClient struct {
 	calls []struct {
 		userID string
+		email  string
 		source string
 		typ    string
 	}
 }
 
-func (r *recordingUserClient) CreateUser(_ context.Context, userID string, source string, typ string) error {
+func (r *recordingUserClient) CreateUser(_ context.Context, userID string, email string, source string, typ string) error {
 	r.calls = append(r.calls, struct {
 		userID string
+		email  string
 		source string
 		typ    string
-	}{userID: userID, source: source, typ: typ})
+	}{userID: userID, email: email, source: source, typ: typ})
 	return nil
 }
 
@@ -273,7 +280,7 @@ func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
 		t.Fatalf("expected CreateUser to be called once, got %d", len(userClient.calls))
 	}
 	call := userClient.calls[0]
-	if call.userID != user.ID || call.source != "auth" || call.typ != "signup" {
+	if call.userID != user.ID || call.email != user.Email || call.source != "auth" || call.typ != "signup" {
 		t.Fatalf("CreateUser call mismatch: %+v", call)
 	}
 	if len(rbacClient.calls) != 1 {
@@ -322,6 +329,28 @@ func TestRefresh(t *testing.T) {
 	if tokens.AccessToken == "" {
 		t.Fatalf("expected new access token")
 	}
+	oldSession, ok := deps.refresh.tokens[hashToken(jti)]
+	if !ok {
+		t.Fatalf("old refresh session not found")
+	}
+	if oldSession.RevokedAt == nil {
+		t.Fatalf("old refresh session must be revoked after refresh")
+	}
+
+	_, claims, err := deps.signer.Parse(tokens.RefreshToken)
+	if err != nil {
+		t.Fatalf("parse new refresh token: %v", err)
+	}
+	newJTI, _ := claims["jti"].(string)
+	if newJTI == "" {
+		t.Fatalf("new refresh token jti missing")
+	}
+	if newJTI == jti {
+		t.Fatalf("refresh token must be rotated")
+	}
+	if _, ok := deps.refresh.tokens[hashToken(newJTI)]; !ok {
+		t.Fatalf("new refresh session was not persisted")
+	}
 }
 
 func TestRefreshRejectsMismatchedSession(t *testing.T) {
@@ -340,6 +369,55 @@ func TestRefreshRejectsMismatchedSession(t *testing.T) {
 	})
 	if _, err := svc.Refresh(context.Background(), "trace", refreshTok); err == nil {
 		t.Fatalf("expected error for mismatched session")
+	}
+}
+
+func TestRefreshFailsWhenNewSessionPersistFails(t *testing.T) {
+	svc, deps := newTestService(t)
+	user := &domain.AuthUser{ID: "user-1", Email: "user@example.com"}
+	_ = deps.users.Create(context.Background(), user)
+	jti := "jti-3"
+	refreshTok, err := deps.signer.SignRefreshToken(user.ID, jti, deps.cfg.RefreshTTL)
+	if err != nil {
+		t.Fatalf("sign refresh: %v", err)
+	}
+	deps.refresh.Create(context.Background(), &domain.RefreshToken{
+		UserID:           user.ID,
+		RefreshTokenHash: hashToken(jti),
+		ExpiresAt:        time.Now().Add(time.Hour),
+	})
+	deps.refresh.createErr = errors.New("db insert failed")
+
+	if _, err := svc.Refresh(context.Background(), "trace", refreshTok); err == nil {
+		t.Fatalf("expected refresh failure when persisting new session fails")
+	}
+}
+
+func TestRevokeRefreshToken(t *testing.T) {
+	svc, deps := newTestService(t)
+	user := &domain.AuthUser{ID: "user-1", Email: "user@example.com"}
+	_ = deps.users.Create(context.Background(), user)
+	jti := "jti-4"
+	refreshTok, err := deps.signer.SignRefreshToken(user.ID, jti, deps.cfg.RefreshTTL)
+	if err != nil {
+		t.Fatalf("sign refresh: %v", err)
+	}
+	deps.refresh.Create(context.Background(), &domain.RefreshToken{
+		UserID:           user.ID,
+		RefreshTokenHash: hashToken(jti),
+		ExpiresAt:        time.Now().Add(time.Hour),
+	})
+
+	if err := svc.RevokeRefreshToken(context.Background(), "trace", refreshTok); err != nil {
+		t.Fatalf("revoke refresh token: %v", err)
+	}
+
+	session, ok := deps.refresh.tokens[hashToken(jti)]
+	if !ok {
+		t.Fatalf("session not found")
+	}
+	if session.RevokedAt == nil {
+		t.Fatalf("session should be revoked")
 	}
 }
 

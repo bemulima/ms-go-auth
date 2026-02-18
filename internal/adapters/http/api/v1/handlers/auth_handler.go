@@ -34,6 +34,10 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type revokeRefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type emailChangeStartRequest struct {
 	NewEmail string `json:"new_email"`
 }
@@ -110,6 +114,17 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 		return res.ErrorJSON(c, http.StatusUnauthorized, "refresh_failed", err.Error(), requestIDFromCtx(c), nil)
 	}
 	return c.JSON(http.StatusOK, tokens)
+}
+
+func (h *AuthHandler) RevokeRefresh(c echo.Context) error {
+	req := new(revokeRefreshRequest)
+	if err := c.Bind(req); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+	if err := h.service.RevokeRefreshToken(c.Request().Context(), requestIDFromCtx(c), req.RefreshToken); err != nil {
+		return res.ErrorJSON(c, http.StatusUnauthorized, "revoke_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *AuthHandler) EmailChangeStart(c echo.Context) error {

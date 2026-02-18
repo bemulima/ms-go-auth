@@ -22,6 +22,7 @@ type mockAuthService struct {
 	verifySignupFn       func(email, code string) (*domain.AuthUser, *usecase.Tokens, error)
 	signInFn             func(email, password string) (*domain.AuthUser, *usecase.Tokens, error)
 	refreshFn            func(token string) (*usecase.Tokens, error)
+	revokeRefreshFn      func(token string) error
 	startEmailChangeFn   func(userID, email string) (string, error)
 	verifyEmailChangeFn  func(code string) (*domain.AuthUser, error)
 	startPasswordResetFn func(email string) (string, error)
@@ -44,6 +45,13 @@ func (m *mockAuthService) SignIn(_ context.Context, _ string, email, password st
 
 func (m *mockAuthService) Refresh(_ context.Context, _ string, token string) (*usecase.Tokens, error) {
 	return m.refreshFn(token)
+}
+
+func (m *mockAuthService) RevokeRefreshToken(_ context.Context, _ string, token string) error {
+	if m.revokeRefreshFn == nil {
+		return nil
+	}
+	return m.revokeRefreshFn(token)
 }
 
 func (m *mockAuthService) StartEmailChange(_ context.Context, _ string, userID, newEmail string) (string, error) {
@@ -185,6 +193,31 @@ func TestRefreshUnauthorized(t *testing.T) {
 	}
 }
 
+func TestRevokeRefreshNoContent(t *testing.T) {
+	e := echo.New()
+	svc := &mockAuthService{
+		revokeRefreshFn: func(token string) error {
+			if token != "refresh-token" {
+				t.Fatalf("unexpected refresh token: %s", token)
+			}
+			return nil
+		},
+	}
+	h := apihandlers.NewAuthHandler(svc)
+	body, _ := json.Marshal(map[string]string{"refresh_token": "refresh-token"})
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := h.RevokeRefresh(c); err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
 func TestSignupVerifyError(t *testing.T) {
 	e := echo.New()
 	svc := &mockAuthService{
@@ -271,7 +304,7 @@ func TestEmailChangeStart(t *testing.T) {
 	if err := h.EmailChangeStart(c); err != nil {
 		t.Fatalf("handler error: %v", err)
 	}
-	if rec.Code != http.StatusAccepted {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
 }
