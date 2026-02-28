@@ -21,6 +21,7 @@ import (
 
 var (
 	errInvalidCredentials = errors.New("invalid credentials")
+	tokenRoleCandidates   = []string{"admin", "moderator", "teacher", "student", "user", "guest"}
 )
 
 type Service interface {
@@ -296,6 +297,9 @@ func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*
 
 func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*Tokens, error) {
 	claims := map[string]interface{}{"email": user.Email}
+	if role := s.resolveRole(ctx, user.ID); role != "" {
+		claims["role"] = role
+	}
 	access, err := s.signer.SignAccessToken(user.ID, claims, s.cfg.AccessTTL)
 	if err != nil {
 		return nil, err
@@ -317,6 +321,46 @@ func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*
 		return nil, err
 	}
 	return &Tokens{AccessToken: access, RefreshToken: refresh, ExpiresIn: int64(s.cfg.AccessTTL.Seconds())}, nil
+}
+
+func (s *authService) resolveRole(ctx context.Context, userID string) string {
+	if s.rbacClient == nil {
+		return ""
+	}
+	candidates := collectRoleCandidates(s.cfg.DefaultRole)
+	for _, role := range candidates {
+		ok, err := s.rbacClient.CheckRole(ctx, userID, role)
+		if err != nil {
+			return ""
+		}
+		if ok {
+			return role
+		}
+	}
+	return ""
+}
+
+func collectRoleCandidates(defaultRole string) []string {
+	defaultRole = strings.ToLower(strings.TrimSpace(defaultRole))
+	seen := make(map[string]struct{}, len(tokenRoleCandidates)+1)
+	candidates := make([]string, 0, len(tokenRoleCandidates)+1)
+	for _, role := range tokenRoleCandidates {
+		role = strings.ToLower(strings.TrimSpace(role))
+		if role == "" {
+			continue
+		}
+		if _, ok := seen[role]; ok {
+			continue
+		}
+		seen[role] = struct{}{}
+		candidates = append(candidates, role)
+	}
+	if defaultRole != "" {
+		if _, ok := seen[defaultRole]; !ok {
+			candidates = append(candidates, defaultRole)
+		}
+	}
+	return candidates
 }
 
 func normalizeEmail(email string) string { return strings.ToLower(strings.TrimSpace(email)) }

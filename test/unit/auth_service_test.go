@@ -171,6 +171,11 @@ type recordingRBACClient struct {
 		userID string
 		role   string
 	}
+	checkCalls []struct {
+		userID string
+		role   string
+	}
+	roleByUser map[string]string
 }
 
 func (r *recordingRBACClient) AssignRole(_ context.Context, userID, role string) error {
@@ -178,7 +183,43 @@ func (r *recordingRBACClient) AssignRole(_ context.Context, userID, role string)
 		userID string
 		role   string
 	}{userID: userID, role: role})
+	if r.roleByUser == nil {
+		r.roleByUser = make(map[string]string)
+	}
+	r.roleByUser[userID] = role
 	return nil
+}
+
+func (r *recordingRBACClient) CheckRole(_ context.Context, userID, role string) (bool, error) {
+	r.checkCalls = append(r.checkCalls, struct {
+		userID string
+		role   string
+	}{userID: userID, role: role})
+	if r.roleByUser == nil {
+		return false, nil
+	}
+	return r.roleByUser[userID] == role, nil
+}
+
+func TestSignInIncludesRoleInAccessToken(t *testing.T) {
+	rbacClient := &recordingRBACClient{
+		roleByUser: map[string]string{"user-1": "admin"},
+	}
+	svc, deps := newTestServiceWithClients(t, nil, rbacClient)
+	hash, _ := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+	_ = deps.users.Create(context.Background(), &domain.AuthUser{ID: "user-1", Email: "user@example.com", PasswordHash: string(hash)})
+	_, tokens, err := svc.SignIn(context.Background(), "trace", "user@example.com", "secret123")
+	if err != nil {
+		t.Fatalf("signin: %v", err)
+	}
+	_, claims, err := deps.signer.Parse(tokens.AccessToken)
+	if err != nil {
+		t.Fatalf("parse access token: %v", err)
+	}
+	role, _ := claims["role"].(string)
+	if role != "admin" {
+		t.Fatalf("expected role claim admin, got %q", role)
+	}
 }
 
 type testDeps struct {

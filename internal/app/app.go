@@ -67,7 +67,7 @@ func New(ctx context.Context) (*App, error) {
 	var rbacClient natsadapter.RBACClient
 	if nc != nil {
 		userClient = natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
-		rbacClient = natsadapter.NewRBACClient(nc, cfg.NATSAssignRoleSubject)
+		rbacClient = natsadapter.NewRBACClient(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject)
 	}
 
 	signer, err := usecase.NewJWTSigner(cfg)
