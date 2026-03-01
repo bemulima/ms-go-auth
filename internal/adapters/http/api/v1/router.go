@@ -29,6 +29,7 @@ func (r *Router) Register(g *echo.Group) {
 	auth.POST("/email/change/verify", r.handlers.EmailChangeVerify)
 
 	protected := auth.Group("", r.authMW)
+	protected.GET("/me", r.handlers.GetMe)
 	protected.POST("/email/change/start", r.handlers.EmailChangeStart)
 	protected.POST("/password/change", r.handlers.ChangePassword)
 }

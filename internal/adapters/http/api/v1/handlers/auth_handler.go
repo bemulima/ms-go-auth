@@ -140,6 +140,15 @@ func (h *AuthHandler) EmailChangeStart(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "verification code sent to new email"})
 }
 
+func (h *AuthHandler) GetMe(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	me, err := h.service.GetMe(c.Request().Context(), requestIDFromCtx(c), userID)
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusNotFound, "not_found", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return res.JSON(c, http.StatusOK, me)
+}
+
 func (h *AuthHandler) EmailChangeVerify(c echo.Context) error {
 	req := new(emailChangeVerifyRequest)
 	if err := c.Bind(req); err != nil {

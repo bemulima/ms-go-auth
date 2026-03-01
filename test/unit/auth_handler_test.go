@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -23,6 +24,7 @@ type mockAuthService struct {
 	signInFn             func(email, password string) (*domain.AuthUser, *usecase.Tokens, error)
 	refreshFn            func(token string) (*usecase.Tokens, error)
 	revokeRefreshFn      func(token string) error
+	getMeFn              func(userID string) (*usecase.AuthMe, error)
 	startEmailChangeFn   func(userID, email string) (string, error)
 	verifyEmailChangeFn  func(code string) (*domain.AuthUser, error)
 	startPasswordResetFn func(email string) (string, error)
@@ -52,6 +54,13 @@ func (m *mockAuthService) RevokeRefreshToken(_ context.Context, _ string, token 
 		return nil
 	}
 	return m.revokeRefreshFn(token)
+}
+
+func (m *mockAuthService) GetMe(_ context.Context, _ string, userID string) (*usecase.AuthMe, error) {
+	if m.getMeFn == nil {
+		return nil, errors.New("not implemented")
+	}
+	return m.getMeFn(userID)
 }
 
 func (m *mockAuthService) StartEmailChange(_ context.Context, _ string, userID, newEmail string) (string, error) {
@@ -307,4 +316,53 @@ func TestEmailChangeStart(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
+}
+
+func TestGetMe(t *testing.T) {
+	e := echo.New()
+	svc := &mockAuthService{
+		getMeFn: func(userID string) (*usecase.AuthMe, error) {
+			if userID != "u1" {
+				t.Fatalf("unexpected user id: %s", userID)
+			}
+			return &usecase.AuthMe{
+				UserID:            "u1",
+				Email:             "a****@***e.com",
+				PasswordUpdatedAt: mustParseTime("2026-02-28T17:39:12Z"),
+			}, nil
+		},
+	}
+	h := apihandlers.NewAuthHandler(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", "u1")
+
+	if err := h.GetMe(c); err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	data, ok := resp["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected payload: %#v", resp)
+	}
+	if data["email"] != "a****@***e.com" {
+		t.Fatalf("unexpected masked email: %#v", data["email"])
+	}
+}
+
+func mustParseTime(value string) (result time.Time) {
+	result, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		panic(err)
+	}
+	return result
 }

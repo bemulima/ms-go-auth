@@ -30,12 +30,19 @@ type Service interface {
 	SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error)
 	Refresh(ctx context.Context, traceID, refreshToken string) (*Tokens, error)
 	RevokeRefreshToken(ctx context.Context, traceID, refreshToken string) error
+	GetMe(ctx context.Context, traceID, userID string) (*AuthMe, error)
 	StartEmailChange(ctx context.Context, traceID, userID, newEmail string) (string, error)
 	VerifyEmailChange(ctx context.Context, traceID, code string) (*domain.AuthUser, error)
 	StartPasswordReset(ctx context.Context, traceID, email string) (string, error)
 	FinishPasswordReset(ctx context.Context, traceID, email, code, newPassword string) error
 	ChangePassword(ctx context.Context, traceID, userID, oldPassword, newPassword string) error
 	VerifyToken(ctx context.Context, traceID, token string) (*VerificationResult, error)
+}
+
+type AuthMe struct {
+	UserID            string    `json:"user_id"`
+	Email             string    `json:"email"`
+	PasswordUpdatedAt time.Time `json:"password_updated_at"`
 }
 
 type authService struct {
@@ -203,6 +210,21 @@ func (s *authService) StartEmailChange(ctx context.Context, traceID, userID, new
 	return uuid, nil
 }
 
+func (s *authService) GetMe(ctx context.Context, traceID, userID string) (*AuthMe, error) {
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.logger.Info().Str("trace_id", traceID).Str("user_id", userID).Msg("auth me loaded")
+
+	return &AuthMe{
+		UserID:            user.ID,
+		Email:             maskEmail(user.Email),
+		PasswordUpdatedAt: user.PasswordUpdatedAt,
+	}, nil
+}
+
 func (s *authService) VerifyEmailChange(ctx context.Context, traceID, code string) (*domain.AuthUser, error) {
 	userID, newEmail, err := s.tarantoool.VerifyEmailChange(ctx, code)
 	if err != nil {
@@ -364,6 +386,35 @@ func collectRoleCandidates(defaultRole string) []string {
 }
 
 func normalizeEmail(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
+
+func maskEmail(email string) string {
+	normalized := normalizeEmail(email)
+	parts := strings.Split(normalized, "@")
+	if len(parts) != 2 {
+		return normalized
+	}
+
+	localRunes := []rune(parts[0])
+	if len(localRunes) == 0 {
+		return normalized
+	}
+
+	domain := parts[1]
+	domainName := domain
+	domainSuffix := ""
+	if dot := strings.LastIndex(domain, "."); dot > 0 && dot < len(domain)-1 {
+		domainName = domain[:dot]
+		domainSuffix = domain[dot:]
+	}
+
+	maskedDomain := "***"
+	domainRunes := []rune(domainName)
+	if len(domainRunes) > 0 {
+		maskedDomain += string(domainRunes[len(domainRunes)-1])
+	}
+
+	return string(localRunes[0]) + "****@" + maskedDomain + domainSuffix
+}
 
 func validateEmail(email string) error {
 	if !strings.Contains(email, "@") || len(email) > 255 {
