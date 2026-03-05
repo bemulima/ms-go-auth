@@ -54,21 +54,17 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	nc, err := nats.Connect(cfg.NATSURL)
+	nc, err := connectNATSWithRetry(cfg, logger)
 	if err != nil {
-		log.Printf("nats connect failed: %v", err)
+		return nil, err
 	}
 
 	userRepo := repo.NewAuthUserRepository(db)
 	identityRepo := repo.NewAuthIdentityRepository(db)
 	refreshRepo := repo.NewRefreshTokenRepository(db)
 	tarantoool := taraclient.NewHTTPClient(cfg.TarantoolSignupURL, 5*time.Second)
-	var userClient natsadapter.UserClient
-	var rbacClient natsadapter.RBACClient
-	if nc != nil {
-		userClient = natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
-		rbacClient = natsadapter.NewRBACClient(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject)
-	}
+	userClient := natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
+	rbacClient := natsadapter.NewRBACClient(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject)
 
 	signer, err := usecase.NewJWTSigner(cfg)
 	if err != nil {
@@ -80,10 +76,8 @@ func New(ctx context.Context) (*App, error) {
 	authMW := authmw.NewAuthMiddleware(signer)
 	router := httpadapter.NewRouter(cfg, apiv1.NewRouter(handler, authMW.Handler))
 
-	if nc != nil {
-		verifyHandler := natsadapter.NewVerifyHandler(signer)
-		_ = verifyHandler.Subscribe(nc, cfg.NATSVerifySubject, cfg.AppName)
-	}
+	verifyHandler := natsadapter.NewVerifyHandler(signer)
+	_ = verifyHandler.Subscribe(nc, cfg.NATSVerifySubject, cfg.AppName)
 
 	e := echo.New()
 	router.Setup(e)
@@ -126,6 +120,31 @@ func (a *App) Close() {
 
 func buildDSN(cfg *config.Config) string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
+}
+
+func connectNATSWithRetry(cfg *config.Config, logger pkglog.Logger) (*nats.Conn, error) {
+	const (
+		maxAttempts = 30
+		retryDelay  = 2 * time.Second
+	)
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		conn, err := nats.Connect(cfg.NATSURL)
+		if err == nil {
+			return conn, nil
+		}
+
+		lastErr = err
+		log.Printf("nats connect attempt %d/%d failed: %v", attempt, maxAttempts, err)
+
+		if attempt < maxAttempts {
+			time.Sleep(retryDelay)
+		}
+	}
+
+	logger.Error().Err(lastErr).Str("nats_url", cfg.NATSURL).Msg("nats connection failed after retries")
+	return nil, fmt.Errorf("nats connect failed after retries: %w", lastErr)
 }
 
 func loggerForGorm(cfg *config.Config) logger.Interface {
