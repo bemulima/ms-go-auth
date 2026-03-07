@@ -31,6 +31,7 @@ type mockAuthService struct {
 	finishPasswordFn     func(email, code, newPass string) error
 	changePasswordFn     func(userID, oldPassword, newPassword string) error
 	verifyTokenFn        func(token string) (*usecase.VerificationResult, error)
+	oauthCallbackFn      func(provider, code string) (*domain.AuthUser, *usecase.Tokens, error)
 }
 
 func (m *mockAuthService) StartSignup(_ context.Context, _ string, email, password string) error {
@@ -43,6 +44,13 @@ func (m *mockAuthService) VerifySignup(_ context.Context, _ string, email, code 
 
 func (m *mockAuthService) SignIn(_ context.Context, _ string, email, password string) (*domain.AuthUser, *usecase.Tokens, error) {
 	return m.signInFn(email, password)
+}
+
+func (m *mockAuthService) OAuthCallback(_ context.Context, _ string, provider, code string) (*domain.AuthUser, *usecase.Tokens, error) {
+	if m.oauthCallbackFn == nil {
+		return nil, nil, errors.New("not implemented")
+	}
+	return m.oauthCallbackFn(provider, code)
 }
 
 func (m *mockAuthService) Refresh(_ context.Context, _ string, token string) (*usecase.Tokens, error) {

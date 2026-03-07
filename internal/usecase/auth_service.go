@@ -28,6 +28,7 @@ type Service interface {
 	StartSignup(ctx context.Context, traceID, email, password string) error
 	VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error)
 	SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error)
+	OAuthCallback(ctx context.Context, traceID, provider, code string) (*domain.AuthUser, *Tokens, error)
 	Refresh(ctx context.Context, traceID, refreshToken string) (*Tokens, error)
 	RevokeRefreshToken(ctx context.Context, traceID, refreshToken string) error
 	GetMe(ctx context.Context, traceID, userID string) (*AuthMe, error)

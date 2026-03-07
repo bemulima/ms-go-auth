@@ -62,7 +62,8 @@ type changePasswordRequest struct {
 }
 
 type oauthCallbackRequest struct {
-	Code string `json:"code"`
+	Code  string `json:"code"`
+	State string `json:"state"`
 }
 
 type verifyTokenRequest struct {
@@ -198,9 +199,16 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 
 func (h *AuthHandler) OAuthCallback(c echo.Context) error {
 	provider := c.Param("provider")
-	_ = provider
-	// placeholder: oauth exchange would happen here
-	return res.ErrorJSON(c, http.StatusNotImplemented, "oauth_not_implemented", "oauth flow not implemented", requestIDFromCtx(c), nil)
+	req := new(oauthCallbackRequest)
+	if err := c.Bind(req); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+
+	_, tokens, err := h.service.OAuthCallback(c.Request().Context(), requestIDFromCtx(c), provider, req.Code)
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "oauth_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return c.JSON(http.StatusOK, tokens)
 }
 
 func (h *AuthHandler) VerifyToken(c echo.Context) error {

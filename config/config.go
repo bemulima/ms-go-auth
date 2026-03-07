@@ -40,6 +40,14 @@ type Config struct {
 	TarantoolEmailChangeURL string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
 
 	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`
+
+	OAuthGoogleClientID     string `env:"AUTH_OAUTH_GOOGLE_CLIENT_ID"`
+	OAuthGoogleClientSecret string `env:"AUTH_OAUTH_GOOGLE_CLIENT_SECRET"`
+	OAuthGoogleRedirectURL  string `env:"AUTH_OAUTH_GOOGLE_REDIRECT_URL"`
+
+	OAuthGitHubClientID     string `env:"AUTH_OAUTH_GITHUB_CLIENT_ID"`
+	OAuthGitHubClientSecret string `env:"AUTH_OAUTH_GITHUB_CLIENT_SECRET"`
+	OAuthGitHubRedirectURL  string `env:"AUTH_OAUTH_GITHUB_REDIRECT_URL"`
 }
 
 func Load() (*Config, error) {
