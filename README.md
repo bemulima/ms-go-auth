@@ -3,11 +3,17 @@
 User authentication microservice extracted from ms-go-user. Handles credentials, OAuth identities, JWT issuance/verification, and coordination with ms-go-user (profiles) and ms-go-rbac (roles).
 
 ## Features
-- Password-based signup/signin with Tarantool-backed code verification
+- Password-based signup/signin with Tarantool-backed code verification over HTTP
 - JWT access/refresh issuance and NATS RPC `auth.verifyJWT`
 - Email change and password reset flows
 - OAuth callback stub endpoint for future providers
 - NATS RPC calls to `user.create-user` (ms-go-user) and `rbac.assign-role` for default role
+
+## Messaging Boundary
+
+- Retained broker scope for this service is limited to Core NATS RPC: `auth.verifyJWT`, `user.create-user`, `rbac.assign-role`, `rbac.checkRole`.
+- Tarantool signup and related verification flows are HTTP-owned in the target architecture and are not part of the retained broker catalog.
+- Retained Core NATS RPC subjects are request/reply only and are expected to run queue-group-safe under multi-instance deployment. `auth.verifyJWT` is the read/check owner endpoint used by other services.
 
 ## HTTP API (base path `/api/v1/auth`)
 - `POST /signup/start` — start signup, send code via Tarantool

@@ -25,6 +25,8 @@ type httpClient struct {
 	client  *http.Client
 }
 
+// NewHTTPClient builds the canonical HTTP transport for signup and related
+// Tarantool flows in the target architecture.
 func NewHTTPClient(baseURL string, timeout time.Duration) Client {
 	return &httpClient{baseURL: baseURL, client: &http.Client{Timeout: timeout}}
 }
