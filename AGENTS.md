@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+<!-- codex-agent-bootstrap:start -->
+## Agent Bootstrap
+- Before planning or changing files, read all available project instructions:
+  - `docs/*`
+  - `prompts/*`
+- Treat `prompts/git-workflow.md` as the required workflow for issue, branch, commit, push, Pull Request, merge, and issue-closing behavior.
+- If a listed directory does not exist, continue with the instructions that are present.
+<!-- codex-agent-bootstrap:end -->
+
 <!-- codex-shared-policy:start -->
 ## Codex Shared Policy (Managed)
 
