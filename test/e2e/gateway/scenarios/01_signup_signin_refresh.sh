@@ -31,7 +31,7 @@ tara_status="$(printf '%s\n' "${tara_raw}" | extract_status)"
 tara_resp="$(printf '%s\n' "${tara_raw}" | extract_body)"
 
 if [[ "${tara_status}" != "200" ]]; then
-  record_mismatch "ms-go-tarantool" "${wiki_ref} (Регистрация: код)" "HTTP 200 от tarantool (test hook)" "HTTP ${tara_status}" "POST ${TARANTOOL_API}/set-new-user resp=${tara_resp}" "blocker" "ms-go-tarantool/ms-getway"
+  record_mismatch "ms-go-tarantool" "${wiki_ref} (Регистрация: код)" "HTTP 200 от tarantool (test hook)" "HTTP ${tara_status}" "POST ${TARANTOOL_API}/set-new-user resp=${tara_resp}" "blocker" "ms-go-tarantool/ms-gateway"
   return 1
 fi
 record_ok "tarantool set-new-user returns 200"

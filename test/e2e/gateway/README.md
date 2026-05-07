@@ -1,6 +1,6 @@
 # E2E (Gateway) — ms-go-auth
 
-Тесты проверяют флоу из `wiki/AUTHENTICATION.md`, выполняя реальные запросы только через `ms-getway`.
+Тесты проверяют флоу из `wiki/AUTHENTICATION.md`, выполняя реальные запросы только через `ms-gateway`.
 
 ## Требования
 - Запущены контейнеры (gateway + auth + зависимости).
