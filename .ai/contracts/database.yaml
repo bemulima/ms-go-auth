@@ -1,0 +1,37 @@
+schema_version: 1
+contracts:
+    - name: database_schema
+      value: auth_identity
+      confidence: 0.95
+      source_path: migrations/0001_init.up.sql
+      explanation: Semantic proposal with a verified repository quote. The migration authoritatively defines the identity schema and foreign key.
+    - name: database_schema
+      value: auth_refresh_token
+      confidence: 0.95
+      source_path: migrations/0001_init.up.sql
+      explanation: Semantic proposal with a verified repository quote. The migration authoritatively defines the refresh-token schema and foreign key.
+    - name: database_schema
+      value: auth_user
+      confidence: 0.95
+      source_path: migrations/0001_init.up.sql
+      explanation: Semantic proposal with a verified repository quote. The migration authoritatively defines the auth-user schema.
+    - name: database_schema
+      value: migrations/0001_init.up.sql
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: The SQL file creates database resources owned by the project.
+    - name: database_table
+      value: auth_identity
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
+    - name: database_table
+      value: auth_refresh_token
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
+    - name: database_table
+      value: auth_user
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.

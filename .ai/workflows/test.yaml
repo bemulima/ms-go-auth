@@ -1,0 +1,7 @@
+schema_version: 1
+name: test
+requires_approval: false
+steps:
+    - go test ./...
+    - golangci-lint run ./...
+    - make test

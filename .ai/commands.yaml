@@ -1,0 +1,44 @@
+schema_version: 1
+commands:
+    - name: migrate-down
+      run: make migrate-down
+      source_path: Makefile
+      confidence: 0.92
+      requires_approval: true
+      risk: state_change
+    - name: migrate-up
+      run: make migrate-up
+      source_path: Makefile
+      confidence: 0.92
+      requires_approval: true
+      risk: state_change
+    - name: run
+      run: make run
+      source_path: Makefile
+      confidence: 0.92
+      requires_approval: true
+      risk: lifecycle
+    - name: run_linter
+      run: golangci-lint run ./...
+      source_path: Taskfile.yml
+      confidence: 0.93
+      requires_approval: false
+      risk: verification
+    - name: run_service
+      run: go run ./cmd/ms-go-auth
+      source_path: Makefile
+      confidence: 0.95
+      requires_approval: true
+      risk: lifecycle
+    - name: run_tests
+      run: go test ./...
+      source_path: Makefile
+      confidence: 0.95
+      requires_approval: false
+      risk: verification
+    - name: test
+      run: make test
+      source_path: Makefile
+      confidence: 0.92
+      requires_approval: false
+      risk: verification

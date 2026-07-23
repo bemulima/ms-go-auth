@@ -1,0 +1,450 @@
+schema_version: 1
+name: ms-go-auth
+service_kind: backend_service
+repository_role: service
+repository:
+    git_url: https://github.com/bemulima/ms-go-auth.git
+    default_branch: main
+    commit: be65dde851816f49085a0994f02e7c8da3daf942
+purpose: User authentication microservice extracted from ms-go-user. Handles credentials, OAuth identities, JWT issuance/verification, and coordination with ms-go-user (profiles) and ms-go-rbac (roles).
+stack:
+    - name: framework
+      value: echo
+      confidence: 0.98
+      source_path: go.mod
+      explanation: go.mod declares dependency github.com/labstack/echo.
+    - name: framework
+      value: nats
+      confidence: 0.98
+      source_path: go.mod
+      explanation: go.mod declares dependency github.com/nats-io/nats.go.
+    - name: framework
+      value: pgx
+      confidence: 0.98
+      source_path: go.mod
+      explanation: go.mod declares dependency github.com/jackc/pgx.
+    - name: language
+      value: go
+      confidence: 1
+      source_path: go.mod
+      explanation: go.mod is the canonical Go module manifest.
+    - name: orchestration
+      value: docker_compose
+      confidence: 0.98
+      source_path: docker-compose.yml
+      explanation: A Docker Compose manifest defines local infrastructure or runtime services.
+capabilities:
+    - name: business capability
+      value: Password authentication, token issuance, email change, and password reset
+      confidence: 0.93
+      source_path: README.md
+      explanation: Semantic proposal with a verified repository quote. The README explicitly lists these authentication capabilities.
+    - name: event_subject
+      value: auth.verifyJWT
+      confidence: 0.72
+      source_path: README.md
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: auth.verifyJWT
+      confidence: 0.72
+      source_path: config/config.go
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: rbac.assign-role
+      confidence: 0.72
+      source_path: README.md
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: rbac.assign-role
+      confidence: 0.72
+      source_path: config/config.go
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: rbac.checkRole
+      confidence: 0.72
+      source_path: README.md
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: rbac.checkRole
+      confidence: 0.72
+      source_path: config/config.go
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: user.create-user
+      confidence: 0.72
+      source_path: README.md
+      explanation: A NATS/event-related source line references this subject.
+    - name: event_subject
+      value: user.create-user
+      confidence: 0.72
+      source_path: config/config.go
+      explanation: A NATS/event-related source line references this subject.
+    - name: http_route
+      value: GET /health
+      confidence: 0.84
+      source_path: internal/adapters/http/internal/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: GET /internal/health
+      confidence: 0.95
+      source_path: internal/adapters/http/internal/router.go
+      explanation: Semantic proposal with a verified repository quote. The internal production router provides a health operation.
+    - name: http_route
+      value: GET /me
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /email/change/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /email/change/verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /oauth/:provider/callback
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /password/change
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /password/reset/finish
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /password/reset/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /refresh
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /revoke
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /signin
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /signup/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /signup/verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+ownership:
+    - name: database_table
+      value: auth_identity
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
+    - name: database_table
+      value: auth_refresh_token
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
+    - name: database_table
+      value: auth_user
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
+dependencies:
+    - name: depends_on
+      value: ms-go-rbac
+      confidence: 0.93
+      source_path: README.md
+      explanation: Semantic proposal with a verified repository quote. Authoritative runtime documentation explicitly names the connected roles service.
+    - name: depends_on
+      value: ms-go-user
+      confidence: 0.93
+      source_path: README.md
+      explanation: Semantic proposal with a verified repository quote. Authoritative runtime documentation explicitly names the connected profile service.
+    - name: depends_on
+      value: postgres
+      confidence: 0.9
+      source_path: docker-compose.yml
+      explanation: Docker Compose declares this service dependency.
+contracts:
+    - name: database_schema
+      value: auth_identity
+      confidence: 0.95
+      source_path: migrations/0001_init.up.sql
+      explanation: Semantic proposal with a verified repository quote. The migration authoritatively defines the identity schema and foreign key.
+    - name: database_schema
+      value: auth_refresh_token
+      confidence: 0.95
+      source_path: migrations/0001_init.up.sql
+      explanation: Semantic proposal with a verified repository quote. The migration authoritatively defines the refresh-token schema and foreign key.
+    - name: database_schema
+      value: auth_user
+      confidence: 0.95
+      source_path: migrations/0001_init.up.sql
+      explanation: Semantic proposal with a verified repository quote. The migration authoritatively defines the auth-user schema.
+    - name: database_schema
+      value: migrations/0001_init.up.sql
+      confidence: 0.96
+      source_path: migrations/0001_init.up.sql
+      explanation: The SQL file creates database resources owned by the project.
+    - name: event_publish
+      value: 'rbac.assign-role payload: user_id, role'
+      confidence: 0.94
+      source_path: internal/adapters/nats/client.go
+      explanation: Semantic proposal with a verified repository quote. Production code defines the outbound role-assignment payload.
+    - name: event_publish
+      value: rbac.assign-role
+      confidence: 0.93
+      source_path: config/config.go
+      explanation: Semantic proposal with a verified repository quote. Production configuration defines an outbound NATS RPC subject.
+    - name: event_publish
+      value: 'rbac.checkRole payload: user_id, role'
+      confidence: 0.94
+      source_path: internal/adapters/nats/client.go
+      explanation: Semantic proposal with a verified repository quote. Production code defines the outbound role-check payload.
+    - name: event_publish
+      value: rbac.checkRole
+      confidence: 0.93
+      source_path: config/config.go
+      explanation: Semantic proposal with a verified repository quote. Production configuration defines an outbound NATS RPC subject.
+    - name: event_publish
+      value: 'user.create-user payload: id, email, source, type'
+      confidence: 0.94
+      source_path: internal/adapters/nats/client.go
+      explanation: Semantic proposal with a verified repository quote. Production code defines the outbound create-user payload.
+    - name: event_publish
+      value: user.create-user
+      confidence: 0.93
+      source_path: config/config.go
+      explanation: Semantic proposal with a verified repository quote. Production configuration defines an outbound NATS RPC subject.
+    - name: event_subscribe
+      value: NATS queue request/reply
+      confidence: 0.94
+      source_path: internal/adapters/nats/server.go
+      explanation: Semantic proposal with a verified repository quote. Production code implements the verification subject with a queue subscription.
+    - name: event_subscribe
+      value: auth.verifyJWT
+      confidence: 0.95
+      source_path: README.md
+      explanation: Semantic proposal with a verified repository quote. The messaging documentation identifies a request/reply contract owned by this service.
+    - name: event_subscribe
+      value: auth.verifyJWT
+      confidence: 0.93
+      source_path: config/config.go
+      explanation: Semantic proposal with a verified repository quote. Production configuration defines the default verification subject.
+    - name: http_definition
+      value: Base path /api/v1/auth
+      confidence: 0.95
+      source_path: README.md
+      explanation: Semantic proposal with a verified repository quote. Authoritative runtime documentation supplies the externally visible base path.
+    - name: http_produce
+      value: GET /health
+      confidence: 0.84
+      source_path: internal/adapters/http/internal/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: GET /me
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /email/change/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /email/change/verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /oauth/:provider/callback
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /password/change
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /password/reset/finish
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /password/reset/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /refresh
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /revoke
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /signin
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /signup/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /signup/verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+    - name: http_produce
+      value: POST /verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: The service implementation provides this HTTP contract.
+infrastructure:
+    - name: Echo
+      value: HTTP server framework
+      confidence: 0.95
+      source_path: internal/app/app.go
+      explanation: Semantic proposal with a verified repository quote. Production startup builds the HTTP server with Echo.
+    - name: NATS
+      value: RPC messaging broker
+      confidence: 0.95
+      source_path: internal/app/app.go
+      explanation: Semantic proposal with a verified repository quote. Production startup code connects to NATS.
+    - name: PostgreSQL
+      value: Primary persistence database
+      confidence: 0.95
+      source_path: internal/app/app.go
+      explanation: Semantic proposal with a verified repository quote. Production startup code opens a PostgreSQL-backed GORM connection.
+    - name: Tarantool HTTP service
+      value: Verification-flow dependency
+      confidence: 0.94
+      source_path: internal/app/app.go
+      explanation: Semantic proposal with a verified repository quote. Production composition creates an HTTP client for Tarantool-backed flows.
+    - name: compose_service
+      value: ms-go-auth=golang:1.24-alpine
+      confidence: 0.96
+      source_path: docker-compose.yml
+      explanation: Docker Compose declares this service.
+    - name: compose_service
+      value: postgres=postgres:16-alpine
+      confidence: 0.96
+      source_path: docker-compose.yml
+      explanation: Docker Compose declares this service.
+    - name: ms-go-auth container
+      value: golang:1.24-alpine
+      confidence: 0.95
+      source_path: docker-compose.yml
+      explanation: Semantic proposal with a verified repository quote. Docker Compose declares the service container image.
+    - name: ms-net
+      value: External Docker network
+      confidence: 0.94
+      source_path: docker-compose.yml
+      explanation: Semantic proposal with a verified repository quote. Docker Compose declares an external network.
+    - name: postgres container
+      value: postgres:16-alpine
+      confidence: 0.95
+      source_path: docker-compose.yml
+      explanation: Semantic proposal with a verified repository quote. Docker Compose declares a PostgreSQL container.
+business_rules:
+    - name: email_validation
+      value: Email must contain @ and be no longer than 255 bytes
+      confidence: 0.94
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Production validation requires an at-sign and limits email length.
+    - name: password_minimum_length
+      value: Passwords must contain at least 8 bytes
+      confidence: 0.95
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Production validation enforces a minimum password length.
+    - name: refresh_token_type_required
+      value: Refresh token typ claim must equal refresh
+      confidence: 0.95
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Refresh processing accepts only tokens marked as refresh tokens.
+    - name: supported_oauth_providers
+      value: google and github
+      confidence: 0.94
+      source_path: internal/usecase/oauth.go
+      explanation: Semantic proposal with a verified repository quote. Production OAuth handling limits accepted providers.
+business_processes:
+    - name: password_reset_completion
+      value: Replace password hash and update password timestamp
+      confidence: 0.94
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Production password reset updates both the hash and password timestamp.
+    - name: refresh_token_rotation
+      value: Revoke used refresh session and issue new tokens
+      confidence: 0.95
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Production refresh rotation revokes the used session before issuing replacement tokens.
+    - name: signup_coordination
+      value: Create profile and assign default role after auth-user creation
+      confidence: 0.94
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Production signup coordinates profile creation and default-role assignment.
+    - name: signup_verification
+      value: Verify code, create auth user, coordinate profile and role, issue tokens
+      confidence: 0.94
+      source_path: internal/usecase/auth_service.go
+      explanation: Semantic proposal with a verified repository quote. Signup verification first retrieves a verified password hash from the verification dependency.
+entities:
+    - name: AuthIdentity
+      value: OAuth identity
+      confidence: 0.95
+      source_path: internal/domain/auth_user.go
+      explanation: Semantic proposal with a verified repository quote. Production domain code defines this entity.
+    - name: AuthUser
+      value: Authentication user
+      confidence: 0.95
+      source_path: internal/domain/auth_user.go
+      explanation: Semantic proposal with a verified repository quote. Production domain code defines this entity.
+    - name: RefreshToken
+      value: Persisted refresh session
+      confidence: 0.95
+      source_path: internal/domain/auth_user.go
+      explanation: Semantic proposal with a verified repository quote. Production domain code describes this persisted entity.
+instructions:
+    - AGENTS.md
+    - prompts/git-workflow.md
+commands:
+    - migrate-down
+    - migrate-up
+    - run
+    - run_linter
+    - run_service
+    - run_tests
+    - test
+discovery:
+    snapshot_id: f929b001-c2fc-4f6f-ba19-97487b6c52e4
+    commit: be65dde851816f49085a0994f02e7c8da3daf942
+    branch: main
+    dirty: false
+    content_checksum: c960d052123c27426d1616f0f81dc59a88da114395da53bcd0b57edd6ed71e5e

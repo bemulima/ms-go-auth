@@ -44,3 +44,9 @@ git-backed repositories under `/Users/marat/Developments/microservices`.
 
 ## Repository-Specific Notes
 - Add repo-specific instructions here when needed.
+
+<!-- agent-orchestrator:start -->
+## Agent Orchestrator (Managed)
+
+Read `.ai/service.yaml` before repository work. Follow every linked repository instruction and prompt. Do not edit files outside an explicitly approved write scope.
+<!-- agent-orchestrator:end -->
