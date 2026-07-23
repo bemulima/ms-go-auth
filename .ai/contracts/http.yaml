@@ -1,0 +1,82 @@
+schema_version: 1
+contracts:
+    - name: http_definition
+      value: Base path /api/v1/auth
+      confidence: 0.95
+      source_path: README.md
+      explanation: Semantic proposal with a verified repository quote. Authoritative runtime documentation supplies the externally visible base path.
+    - name: http_route
+      value: GET /health
+      confidence: 0.84
+      source_path: internal/adapters/http/internal/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: GET /internal/health
+      confidence: 0.95
+      source_path: internal/adapters/http/internal/router.go
+      explanation: Semantic proposal with a verified repository quote. The internal production router provides a health operation.
+    - name: http_route
+      value: GET /me
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /email/change/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /email/change/verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /oauth/:provider/callback
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /password/change
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /password/reset/finish
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /password/reset/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /refresh
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /revoke
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /signin
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /signup/start
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /signup/verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.
+    - name: http_route
+      value: POST /verify
+      confidence: 0.84
+      source_path: internal/adapters/http/api/v1/router.go
+      explanation: A route registration or controller decorator exposes this HTTP operation.

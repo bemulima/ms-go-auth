@@ -1,0 +1,557 @@
+{
+  "schema_version": 1,
+  "project_id": "db9a17d7-c30a-4e0f-ad2e-5e81744d8476",
+  "project_name": "ms-go-auth",
+  "base_commit": "be65dde851816f49085a0994f02e7c8da3daf942",
+  "summary": "ms-go-auth is a Go authentication backend using Echo, PostgreSQL/GORM, Core NATS request/reply, and Tarantool-backed HTTP verification flows. It owns auth users, OAuth identities, and persisted refresh sessions; exposes signup, signin, JWT lifecycle, profile, password, email-change, OAuth, verification, and health operations; and coordinates with ms-go-user and ms-go-rbac. The main onboarding ambiguities are stale API/OAuth documentation, competing local database workflows, unnamed Tarantool endpoint ownership, discarded coordination errors, and absent CI configuration.",
+  "facts": [
+    {
+      "category": "business_process",
+      "name": "password_reset_completion",
+      "value": "Replace password hash and update password timestamp",
+      "confidence": 0.94,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "user.PasswordHash = string(hash)\n\tuser.PasswordUpdatedAt = time.Now()\n\tif err := s.users.Update(ctx, user); err != nil {\n\t\treturn err\n\t}",
+      "explanation": "Production password reset updates both the hash and password timestamp."
+    },
+    {
+      "category": "business_process",
+      "name": "refresh_token_rotation",
+      "value": "Revoke used refresh session and issue new tokens",
+      "confidence": 0.95,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "if err := s.refresh.RevokeByHash(ctx, hash); err != nil {\n\t\treturn nil, err\n\t}\n\treturn s.issueTokens(ctx, user)",
+      "explanation": "Production refresh rotation revokes the used session before issuing replacement tokens."
+    },
+    {
+      "category": "business_process",
+      "name": "signup_coordination",
+      "value": "Create profile and assign default role after auth-user creation",
+      "confidence": 0.94,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "if s.userClient != nil {\n\t\t_ = s.userClient.CreateUser(ctx, user.ID, user.Email, \"auth\", \"signup\")\n\t}\n\tif s.rbacClient != nil {\n\t\t_ = s.rbacClient.AssignRole(ctx, user.ID, s.cfg.DefaultRole)\n\t}",
+      "explanation": "Production signup coordinates profile creation and default-role assignment."
+    },
+    {
+      "category": "business_process",
+      "name": "signup_verification",
+      "value": "Verify code, create auth user, coordinate profile and role, issue tokens",
+      "confidence": 0.94,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "passwordHash, err := s.tarantoool.VerifySignup(ctx, norm, code)\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}",
+      "explanation": "Signup verification first retrieves a verified password hash from the verification dependency."
+    },
+    {
+      "category": "business_rule",
+      "name": "email_validation",
+      "value": "Email must contain @ and be no longer than 255 bytes",
+      "confidence": 0.94,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "func validateEmail(email string) error {\n\tif !strings.Contains(email, \"@\") || len(email) \u003e 255 {\n\t\treturn fmt.Errorf(\"invalid email\")",
+      "explanation": "Production validation requires an at-sign and limits email length."
+    },
+    {
+      "category": "business_rule",
+      "name": "password_minimum_length",
+      "value": "Passwords must contain at least 8 bytes",
+      "confidence": 0.95,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "func validatePassword(password string) error {\n\tif len(password) \u003c 8 {\n\t\treturn fmt.Errorf(\"password too short\")",
+      "explanation": "Production validation enforces a minimum password length."
+    },
+    {
+      "category": "business_rule",
+      "name": "refresh_token_type_required",
+      "value": "Refresh token typ claim must equal refresh",
+      "confidence": 0.95,
+      "source_path": "internal/usecase/auth_service.go",
+      "evidence_quote": "if typ, _ := claims[\"typ\"].(string); typ != \"refresh\" {\n\t\treturn nil, errInvalidCredentials\n\t}",
+      "explanation": "Refresh processing accepts only tokens marked as refresh tokens."
+    },
+    {
+      "category": "business_rule",
+      "name": "supported_oauth_providers",
+      "value": "google and github",
+      "confidence": 0.94,
+      "source_path": "internal/usecase/oauth.go",
+      "evidence_quote": "if normalizedProvider != \"google\" \u0026\u0026 normalizedProvider != \"github\" {\n\t\treturn nil, nil, fmt.Errorf(\"unsupported oauth provider\")\n\t}",
+      "explanation": "Production OAuth handling limits accepted providers."
+    },
+    {
+      "category": "capability",
+      "name": "business capability",
+      "value": "Password authentication, token issuance, email change, and password reset",
+      "confidence": 0.93,
+      "source_path": "README.md",
+      "evidence_quote": "- Password-based signup/signin with Tarantool-backed code verification over HTTP\n- JWT access/refresh issuance and NATS RPC `auth.verifyJWT`\n- Email change and password reset flows",
+      "explanation": "The README explicitly lists these authentication capabilities."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "GET /internal/health",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/internal/router.go",
+      "evidence_quote": "g.GET(\"/health\", func(c echo.Context) error {\n\t\treturn c.JSON(http.StatusOK, map[string]string{\"status\": \"ok\"})\n\t})",
+      "explanation": "The internal production router provides a health operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "GET /me",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "protected.GET(\"/me\", r.handlers.GetMe)",
+      "explanation": "Production router registration exposes this authenticated operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /email/change/start",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "protected.POST(\"/email/change/start\", r.handlers.EmailChangeStart)",
+      "explanation": "Production router registration exposes this authenticated operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /email/change/verify",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/email/change/verify\", r.handlers.EmailChangeVerify)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /oauth/:provider/callback",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/oauth/:provider/callback\", r.handlers.OAuthCallback)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /password/change",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "protected.POST(\"/password/change\", r.handlers.ChangePassword)",
+      "explanation": "Production router registration exposes this authenticated operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /password/reset/finish",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/password/reset/finish\", r.handlers.PasswordResetFinish)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /password/reset/start",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/password/reset/start\", r.handlers.PasswordResetStart)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /refresh",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/refresh\", r.handlers.Refresh)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /revoke",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/revoke\", r.handlers.RevokeRefresh)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /signin",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/signin\", r.handlers.SignIn)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /signup/start",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/signup/start\", r.handlers.SignupStart)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /signup/verify",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/signup/verify\", r.handlers.SignupVerify)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "capability",
+      "name": "http_route",
+      "value": "POST /verify",
+      "confidence": 0.95,
+      "source_path": "internal/adapters/http/api/v1/router.go",
+      "evidence_quote": "auth.POST(\"/verify\", r.handlers.VerifyToken)",
+      "explanation": "Production router registration exposes the operation."
+    },
+    {
+      "category": "command",
+      "name": "run_linter",
+      "value": "golangci-lint run ./...",
+      "confidence": 0.93,
+      "source_path": "Taskfile.yml",
+      "evidence_quote": "lint:\n    desc: Run linter\n    cmds:\n      - golangci-lint run ./...",
+      "explanation": "The Taskfile documents the local lint command."
+    },
+    {
+      "category": "command",
+      "name": "run_service",
+      "value": "go run ./cmd/ms-go-auth",
+      "confidence": 0.95,
+      "source_path": "Makefile",
+      "evidence_quote": "run:\n\tgo run ./cmd/ms-go-auth",
+      "explanation": "The Makefile documents the local service command."
+    },
+    {
+      "category": "command",
+      "name": "run_tests",
+      "value": "go test ./...",
+      "confidence": 0.95,
+      "source_path": "Makefile",
+      "evidence_quote": "test:\n\tgo test ./...",
+      "explanation": "The Makefile documents the local test command."
+    },
+    {
+      "category": "contract",
+      "name": "database_schema",
+      "value": "auth_identity",
+      "confidence": 0.95,
+      "source_path": "migrations/0001_init.up.sql",
+      "evidence_quote": "CREATE TABLE IF NOT EXISTS auth_identity (\n    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n    user_id uuid NOT NULL REFERENCES auth_user(id) ON DELETE CASCADE,",
+      "explanation": "The migration authoritatively defines the identity schema and foreign key."
+    },
+    {
+      "category": "contract",
+      "name": "database_schema",
+      "value": "auth_refresh_token",
+      "confidence": 0.95,
+      "source_path": "migrations/0001_init.up.sql",
+      "evidence_quote": "CREATE TABLE IF NOT EXISTS auth_refresh_token (\n    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n    user_id uuid NOT NULL REFERENCES auth_user(id) ON DELETE CASCADE,",
+      "explanation": "The migration authoritatively defines the refresh-token schema and foreign key."
+    },
+    {
+      "category": "contract",
+      "name": "database_schema",
+      "value": "auth_user",
+      "confidence": 0.95,
+      "source_path": "migrations/0001_init.up.sql",
+      "evidence_quote": "CREATE TABLE IF NOT EXISTS auth_user (\n    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),\n    email text UNIQUE NOT NULL,\n    password_hash text NOT NULL,",
+      "explanation": "The migration authoritatively defines the auth-user schema."
+    },
+    {
+      "category": "contract",
+      "name": "event_publish",
+      "value": "rbac.assign-role payload: user_id, role",
+      "confidence": 0.94,
+      "source_path": "internal/adapters/nats/client.go",
+      "evidence_quote": "func (c *rbacClient) AssignRole(ctx context.Context, userID, role string) error {\n\tpayload := map[string]interface{}{\"user_id\": userID, \"role\": role}",
+      "explanation": "Production code defines the outbound role-assignment payload."
+    },
+    {
+      "category": "contract",
+      "name": "event_publish",
+      "value": "rbac.assign-role",
+      "confidence": 0.93,
+      "source_path": "config/config.go",
+      "evidence_quote": "NATSAssignRoleSubject string `env:\"NATS_SUBJECT_ASSIGN_ROLE\" envDefault:\"rbac.assign-role\"`",
+      "explanation": "Production configuration defines an outbound NATS RPC subject."
+    },
+    {
+      "category": "contract",
+      "name": "event_publish",
+      "value": "rbac.checkRole payload: user_id, role",
+      "confidence": 0.94,
+      "source_path": "internal/adapters/nats/client.go",
+      "evidence_quote": "func (c *rbacClient) CheckRole(ctx context.Context, userID, role string) (bool, error) {\n\tpayload := map[string]interface{}{\"user_id\": userID, \"role\": role}",
+      "explanation": "Production code defines the outbound role-check payload."
+    },
+    {
+      "category": "contract",
+      "name": "event_publish",
+      "value": "rbac.checkRole",
+      "confidence": 0.93,
+      "source_path": "config/config.go",
+      "evidence_quote": "NATSCheckRoleSubject  string `env:\"NATS_SUBJECT_CHECK_ROLE\" envDefault:\"rbac.checkRole\"`",
+      "explanation": "Production configuration defines an outbound NATS RPC subject."
+    },
+    {
+      "category": "contract",
+      "name": "event_publish",
+      "value": "user.create-user payload: id, email, source, type",
+      "confidence": 0.94,
+      "source_path": "internal/adapters/nats/client.go",
+      "evidence_quote": "func (c *userClient) CreateUser(ctx context.Context, userID string, email string, source string, typ string) error {\n\tpayload := map[string]interface{}{\"id\": userID, \"email\": email, \"source\": source, \"type\": typ}",
+      "explanation": "Production code defines the outbound create-user payload."
+    },
+    {
+      "category": "contract",
+      "name": "event_publish",
+      "value": "user.create-user",
+      "confidence": 0.93,
+      "source_path": "config/config.go",
+      "evidence_quote": "NATSUserCreateSubject string `env:\"NATS_SUBJECT_USER_CREATE\" envDefault:\"user.create-user\"`",
+      "explanation": "Production configuration defines an outbound NATS RPC subject."
+    },
+    {
+      "category": "contract",
+      "name": "event_subscribe",
+      "value": "NATS queue request/reply",
+      "confidence": 0.94,
+      "source_path": "internal/adapters/nats/server.go",
+      "evidence_quote": "func (h *VerifyHandler) Subscribe(conn *nats.Conn, subject, queue string) error {\n\tif conn == nil {\n\t\treturn errors.New(\"nats connection is nil\")\n\t}\n\t_, err := conn.QueueSubscribe(subject, queue, h.Handle)",
+      "explanation": "Production code implements the verification subject with a queue subscription."
+    },
+    {
+      "category": "contract",
+      "name": "event_subscribe",
+      "value": "auth.verifyJWT",
+      "confidence": 0.95,
+      "source_path": "README.md",
+      "evidence_quote": "- Retained Core NATS RPC subjects are request/reply only and are expected to run queue-group-safe under multi-instance deployment. `auth.verifyJWT` is the read/check owner endpoint used by other services.",
+      "explanation": "The messaging documentation identifies a request/reply contract owned by this service."
+    },
+    {
+      "category": "contract",
+      "name": "event_subscribe",
+      "value": "auth.verifyJWT",
+      "confidence": 0.93,
+      "source_path": "config/config.go",
+      "evidence_quote": "NATSVerifySubject     string `env:\"NATS_SUBJECT_VERIFY_JWT\" envDefault:\"auth.verifyJWT\"`",
+      "explanation": "Production configuration defines the default verification subject."
+    },
+    {
+      "category": "contract",
+      "name": "http_definition",
+      "value": "Base path /api/v1/auth",
+      "confidence": 0.95,
+      "source_path": "README.md",
+      "evidence_quote": "## HTTP API (base path `/api/v1/auth`)\n- `POST /signup/start` — start signup, send code via Tarantool",
+      "explanation": "Authoritative runtime documentation supplies the externally visible base path."
+    },
+    {
+      "category": "entity",
+      "name": "AuthIdentity",
+      "value": "OAuth identity",
+      "confidence": 0.95,
+      "source_path": "internal/domain/auth_user.go",
+      "evidence_quote": "type AuthIdentity struct {\n\tID             string    `gorm:\"type:uuid;default:uuid_generate_v4();primaryKey\" json:\"id\"`",
+      "explanation": "Production domain code defines this entity."
+    },
+    {
+      "category": "entity",
+      "name": "AuthUser",
+      "value": "Authentication user",
+      "confidence": 0.95,
+      "source_path": "internal/domain/auth_user.go",
+      "evidence_quote": "type AuthUser struct {\n\tID                string    `gorm:\"type:uuid;default:uuid_generate_v4();primaryKey\" json:\"id\"`",
+      "explanation": "Production domain code defines this entity."
+    },
+    {
+      "category": "entity",
+      "name": "RefreshToken",
+      "value": "Persisted refresh session",
+      "confidence": 0.95,
+      "source_path": "internal/domain/auth_user.go",
+      "evidence_quote": "// RefreshToken represents a persisted refresh session.\ntype RefreshToken struct {",
+      "explanation": "Production domain code describes this persisted entity."
+    },
+    {
+      "category": "infrastructure",
+      "name": "Echo",
+      "value": "HTTP server framework",
+      "confidence": 0.95,
+      "source_path": "internal/app/app.go",
+      "evidence_quote": "e := echo.New()\n\trouter.Setup(e)\n\n\treturn \u0026App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e}, nil",
+      "explanation": "Production startup builds the HTTP server with Echo."
+    },
+    {
+      "category": "infrastructure",
+      "name": "NATS",
+      "value": "RPC messaging broker",
+      "confidence": 0.95,
+      "source_path": "internal/app/app.go",
+      "evidence_quote": "conn, err := nats.Connect(cfg.NATSURL)\n\t\tif err == nil {\n\t\t\treturn conn, nil",
+      "explanation": "Production startup code connects to NATS."
+    },
+    {
+      "category": "infrastructure",
+      "name": "PostgreSQL",
+      "value": "Primary persistence database",
+      "confidence": 0.95,
+      "source_path": "internal/app/app.go",
+      "evidence_quote": "db, err := gorm.Open(postgres.Open(buildDSN(cfg)), \u0026gorm.Config{",
+      "explanation": "Production startup code opens a PostgreSQL-backed GORM connection."
+    },
+    {
+      "category": "infrastructure",
+      "name": "Tarantool HTTP service",
+      "value": "Verification-flow dependency",
+      "confidence": 0.94,
+      "source_path": "internal/app/app.go",
+      "evidence_quote": "tarantoool := taraclient.NewHTTPClient(cfg.TarantoolSignupURL, 5*time.Second)",
+      "explanation": "Production composition creates an HTTP client for Tarantool-backed flows."
+    },
+    {
+      "category": "infrastructure",
+      "name": "ms-go-auth container",
+      "value": "golang:1.24-alpine",
+      "confidence": 0.95,
+      "source_path": "docker-compose.yml",
+      "evidence_quote": "ms-go-auth:\n    container_name: ms-go-auth\n    image: golang:1.24-alpine",
+      "explanation": "Docker Compose declares the service container image."
+    },
+    {
+      "category": "infrastructure",
+      "name": "ms-net",
+      "value": "External Docker network",
+      "confidence": 0.94,
+      "source_path": "docker-compose.yml",
+      "evidence_quote": "networks:\n  ms-net:\n    external: true",
+      "explanation": "Docker Compose declares an external network."
+    },
+    {
+      "category": "infrastructure",
+      "name": "postgres container",
+      "value": "postgres:16-alpine",
+      "confidence": 0.95,
+      "source_path": "docker-compose.yml",
+      "evidence_quote": "postgres:\n    container_name: ms-go-auth-postgres\n    image: postgres:16-alpine",
+      "explanation": "Docker Compose declares a PostgreSQL container."
+    },
+    {
+      "category": "ownership",
+      "name": "database_table",
+      "value": "auth_identity",
+      "confidence": 0.95,
+      "source_path": "migrations/0001_init.up.sql",
+      "evidence_quote": "CREATE TABLE IF NOT EXISTS auth_identity (\n    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),",
+      "explanation": "A checked-in production migration creates this table."
+    },
+    {
+      "category": "ownership",
+      "name": "database_table",
+      "value": "auth_refresh_token",
+      "confidence": 0.95,
+      "source_path": "migrations/0001_init.up.sql",
+      "evidence_quote": "CREATE TABLE IF NOT EXISTS auth_refresh_token (\n    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),",
+      "explanation": "A checked-in production migration creates this table."
+    },
+    {
+      "category": "ownership",
+      "name": "database_table",
+      "value": "auth_user",
+      "confidence": 0.95,
+      "source_path": "migrations/0001_init.up.sql",
+      "evidence_quote": "CREATE TABLE IF NOT EXISTS auth_user (\n    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),",
+      "explanation": "A checked-in production migration creates this table."
+    },
+    {
+      "category": "purpose",
+      "name": "summary",
+      "value": "Authentication service for credentials, OAuth identities, JWTs, profiles, and roles",
+      "confidence": 0.95,
+      "source_path": "README.md",
+      "evidence_quote": "User authentication microservice extracted from ms-go-user. Handles credentials, OAuth identities, JWT issuance/verification, and coordination with ms-go-user (profiles) and ms-go-rbac (roles).",
+      "explanation": "The README directly defines the service purpose and boundaries."
+    },
+    {
+      "category": "relation",
+      "name": "depends_on",
+      "value": "ms-go-rbac",
+      "confidence": 0.93,
+      "source_path": "README.md",
+      "evidence_quote": "Handles credentials, OAuth identities, JWT issuance/verification, and coordination with ms-go-user (profiles) and ms-go-rbac (roles).",
+      "explanation": "Authoritative runtime documentation explicitly names the connected roles service."
+    },
+    {
+      "category": "relation",
+      "name": "depends_on",
+      "value": "ms-go-user",
+      "confidence": 0.93,
+      "source_path": "README.md",
+      "evidence_quote": "NATS RPC calls to `user.create-user` (ms-go-user) and `rbac.assign-role` for default role",
+      "explanation": "Authoritative runtime documentation explicitly names the connected profile service."
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "Is OAuth intended to remain a stub, or should the README be updated to reflect the implemented Google and GitHub code exchange and profile retrieval?",
+      "reason": "README.md calls the callback a future-provider stub, while production OAuth code implements Google and GitHub providers.",
+      "source_paths": [
+        "README.md",
+        "internal/usecase/oauth.go"
+      ]
+    },
+    {
+      "question": "Should the documented HTTP API include the implemented /revoke, /verify, /me, and /password/change operations?",
+      "reason": "These operations are registered in the production router but absent from the README HTTP API list.",
+      "source_paths": [
+        "README.md",
+        "internal/adapters/http/api/v1/router.go"
+      ]
+    },
+    {
+      "question": "What is the intended canonical local migration workflow: Makefile against the configured database, or Taskfile against the ms-go-user shared Compose database?",
+      "reason": "Makefile and Taskfile document materially different database and migration execution paths.",
+      "source_paths": [
+        "Makefile",
+        "Taskfile.yml"
+      ]
+    },
+    {
+      "question": "Is the standalone PostgreSQL service in docker-compose.yml authoritative, or is the shared PostgreSQL deployment described in Taskfile.yml authoritative?",
+      "reason": "The repository contains both a local ms-go-auth-postgres service and a Taskfile statement that ms-go-auth uses the database from ms-go-user.",
+      "source_paths": [
+        "Taskfile.yml",
+        "docker-compose.yml"
+      ]
+    },
+    {
+      "question": "Which connected project owns the Tarantool HTTP endpoints used by signup, email-change, and password-reset flows?",
+      "reason": "Production code identifies Tarantool HTTP paths but does not name one of the connected projects as their owner.",
+      "source_paths": [
+        "internal/adapters/tarantool/client.go"
+      ]
+    },
+    {
+      "question": "Should failures from profile creation or default-role assignment fail signup instead of being discarded?",
+      "reason": "Production signup invokes both clients with `_ =`, so their returned errors do not affect the completed signup flow.",
+      "source_paths": [
+        "internal/usecase/auth_service.go"
+      ]
+    },
+    {
+      "question": "Should the repository add a CI workflow?",
+      "reason": "No CI workflow file was found in the inspected repository files.",
+      "source_paths": []
+    }
+  ]
+}
