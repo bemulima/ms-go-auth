@@ -62,6 +62,10 @@ func (p *GoogleOAuth2) Authenticate(ctx context.Context, code, verifier string) 
 		Sub           string `json:"sub"`
 		Email         string `json:"email"`
 		Name          string `json:"name"`
+		GivenName     string `json:"given_name"`
+		FamilyName    string `json:"family_name"`
+		Birthdate     string `json:"birthdate"`
+		Gender        string `json:"gender"`
 		EmailVerified bool   `json:"email_verified"`
 		Picture       string `json:"picture"`
 	}
@@ -74,10 +78,19 @@ func (p *GoogleOAuth2) Authenticate(ctx context.Context, code, verifier string) 
 		Email:          strings.TrimSpace(payload.Email),
 		EmailVerified:  payload.EmailVerified,
 		DisplayName:    strings.TrimSpace(payload.Name),
+		FirstName:      strings.TrimSpace(payload.GivenName),
+		LastName:       strings.TrimSpace(payload.FamilyName),
+		BirthYear:      birthYearFromClaim(payload.Birthdate),
+		Gender:         strings.ToLower(strings.TrimSpace(payload.Gender)),
+		AvatarURL:      strings.TrimSpace(payload.Picture),
 		RawProfile: map[string]interface{}{
 			"sub":            payload.Sub,
 			"email":          payload.Email,
 			"name":           payload.Name,
+			"given_name":     payload.GivenName,
+			"family_name":    payload.FamilyName,
+			"birthdate":      payload.Birthdate,
+			"gender":         payload.Gender,
 			"email_verified": payload.EmailVerified,
 			"picture":        payload.Picture,
 		},

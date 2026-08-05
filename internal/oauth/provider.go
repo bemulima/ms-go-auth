@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,11 @@ type Profile struct {
 	Email          string
 	EmailVerified  bool
 	DisplayName    string
+	FirstName      string
+	LastName       string
+	BirthYear      *int
+	Gender         string
+	AvatarURL      string
 	RawProfile     map[string]interface{}
 }
 
@@ -96,4 +102,16 @@ func (b *OAuth2Base) Client(ctx context.Context, token *oauth2.Token) *http.Clie
 
 func defaultHTTPClient() *http.Client {
 	return &http.Client{Timeout: 15 * time.Second}
+}
+
+func birthYearFromClaim(value string) *int {
+	value = strings.TrimSpace(value)
+	if len(value) < 4 || value[:4] == "0000" {
+		return nil
+	}
+	year, err := strconv.Atoi(value[:4])
+	if err != nil || year < 1900 || year > time.Now().UTC().Year() {
+		return nil
+	}
+	return &year
 }

@@ -123,11 +123,16 @@ func TestOAuthFlowLinksProvidersByVerifiedEmailAndSetsPassword(t *testing.T) {
 	users := newMockUserRepo()
 	identities := newLinkingIdentityRepo(users)
 	refresh := newMockRefreshRepo()
+	userClient := &recordingUserClient{}
+	birthYear := 1998
 	google := &fakeOAuthProvider{name: oauthprovider.ProviderGoogle, profile: &oauthprovider.Profile{
 		ProviderUserID: "google-user", Email: "Student@Example.com", EmailVerified: true,
+		FirstName: "Ada", LastName: "Lovelace", BirthYear: &birthYear, Gender: "female",
+		AvatarURL: "https://lh3.googleusercontent.com/a/avatar",
 	}}
 	github := &fakeOAuthProvider{name: oauthprovider.ProviderGitHub, profile: &oauthprovider.Profile{
 		ProviderUserID: "github-user", Email: "student@example.com", EmailVerified: true,
+		AvatarURL: "https://avatars.githubusercontent.com/u/1?v=4",
 	}}
 	registry := oauthprovider.NewRegistry(google, github)
 	cfg := &config.Config{
@@ -142,7 +147,7 @@ func TestOAuthFlowLinksProvidersByVerifiedEmailAndSetsPassword(t *testing.T) {
 	startAndFinish := func(provider *fakeOAuthProvider) (*domain.AuthUser, *usecase.Tokens) {
 		t.Helper()
 		txRepo := &memoryOAuthTransactionRepo{}
-		service := usecase.NewAuthService(cfg, pkglog.New("test"), users, identities, txRepo, registry, refresh, &mockTarantool{}, nil, nil, signer)
+		service := usecase.NewAuthService(cfg, pkglog.New("test"), users, identities, txRepo, registry, refresh, &mockTarantool{}, userClient, nil, signer)
 		start, err := service.OAuthStart(context.Background(), "trace", string(provider.name), "/student/courses?tab=active")
 		if err != nil {
 			t.Fatalf("oauth start: %v", err)
@@ -179,6 +184,13 @@ func TestOAuthFlowLinksProvidersByVerifiedEmailAndSetsPassword(t *testing.T) {
 	}
 	if len(identities.identities) != 2 {
 		t.Fatalf("expected two linked identities, got %d", len(identities.identities))
+	}
+	if len(userClient.calls) != 2 {
+		t.Fatalf("expected two user provisioning calls, got %d", len(userClient.calls))
+	}
+	googleProfile := userClient.calls[0].OAuthProfile
+	if googleProfile == nil || googleProfile.Provider != "google" || googleProfile.FirstName != "Ada" || googleProfile.LastName != "Lovelace" || googleProfile.BirthYear == nil || *googleProfile.BirthYear != birthYear || googleProfile.Gender != "female" || googleProfile.AvatarURL == "" {
+		t.Fatalf("google OAuth profile was not forwarded: %+v", googleProfile)
 	}
 
 	service := usecase.NewAuthService(cfg, pkglog.New("test"), users, identities, &memoryOAuthTransactionRepo{}, registry, refresh, &mockTarantool{}, nil, nil, signer)
