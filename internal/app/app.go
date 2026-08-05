@@ -24,6 +24,7 @@ import (
 	repo "github.com/example/auth-service/internal/adapters/postgres"
 	taraclient "github.com/example/auth-service/internal/adapters/tarantool"
 	"github.com/example/auth-service/internal/domain"
+	oauthprovider "github.com/example/auth-service/internal/oauth"
 	"github.com/example/auth-service/internal/usecase"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
@@ -50,7 +51,14 @@ func New(ctx context.Context) (*App, error) {
 	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`).Error; err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&domain.AuthUser{}, &domain.AuthIdentity{}, &domain.RefreshToken{}); err != nil {
+	if err := db.Exec(`
+		ALTER TABLE IF EXISTS auth_user
+			ALTER COLUMN password_hash DROP NOT NULL,
+			ALTER COLUMN password_updated_at DROP NOT NULL
+	`).Error; err != nil {
+		return nil, err
+	}
+	if err := db.AutoMigrate(&domain.AuthUser{}, &domain.AuthIdentity{}, &domain.RefreshToken{}, &domain.OAuthTransaction{}); err != nil {
 		return nil, err
 	}
 
@@ -61,6 +69,7 @@ func New(ctx context.Context) (*App, error) {
 
 	userRepo := repo.NewAuthUserRepository(db)
 	identityRepo := repo.NewAuthIdentityRepository(db)
+	oauthTxRepo := repo.NewOAuthTransactionRepository(db)
 	refreshRepo := repo.NewRefreshTokenRepository(db)
 	tarantoool := taraclient.NewHTTPClient(cfg.TarantoolSignupURL, 5*time.Second)
 	userClient := natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
@@ -71,7 +80,11 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	service := usecase.NewAuthService(cfg, logger, userRepo, identityRepo, refreshRepo, tarantoool, userClient, rbacClient, signer)
+	oauthRegistry := oauthprovider.NewRegistry(
+		oauthprovider.NewGoogleOAuth2(cfg.OAuthGoogleClientID, cfg.OAuthGoogleClientSecret, cfg.OAuthGoogleRedirectURL),
+		oauthprovider.NewGitHubOAuth2(cfg.OAuthGitHubClientID, cfg.OAuthGitHubClientSecret, cfg.OAuthGitHubRedirectURL),
+	)
+	service := usecase.NewAuthService(cfg, logger, userRepo, identityRepo, oauthTxRepo, oauthRegistry, refreshRepo, tarantoool, userClient, rbacClient, signer)
 	handler := handlers.NewAuthHandler(service)
 	authMW := authmw.NewAuthMiddleware(signer)
 	router := httpadapter.NewRouter(cfg, apiv1.NewRouter(handler, authMW.Handler))

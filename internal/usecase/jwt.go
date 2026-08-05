@@ -17,6 +17,7 @@ type Tokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"`
+	ReturnTo     string `json:"return_to,omitempty"`
 }
 
 // VerificationResult is returned by token verification routines.

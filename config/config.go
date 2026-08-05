@@ -48,6 +48,8 @@ type Config struct {
 	OAuthGitHubClientID     string `env:"AUTH_OAUTH_GITHUB_CLIENT_ID"`
 	OAuthGitHubClientSecret string `env:"AUTH_OAUTH_GITHUB_CLIENT_SECRET"`
 	OAuthGitHubRedirectURL  string `env:"AUTH_OAUTH_GITHUB_REDIRECT_URL"`
+
+	OAuthTransactionTTL time.Duration `env:"AUTH_OAUTH_TRANSACTION_TTL" envDefault:"10m"`
 }
 
 func Load() (*Config, error) {

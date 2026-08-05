@@ -61,6 +61,14 @@ type changePasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type setPasswordRequest struct {
+	NewPassword string `json:"new_password"`
+}
+
+type oauthStartRequest struct {
+	ReturnTo string `json:"return_to"`
+}
+
 type oauthCallbackRequest struct {
 	Code  string `json:"code"`
 	State string `json:"state"`
@@ -197,6 +205,48 @@ func (h *AuthHandler) ChangePassword(c echo.Context) error {
 	return res.JSON(c, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (h *AuthHandler) SetPassword(c echo.Context) error {
+	req := new(setPasswordRequest)
+	if err := c.Bind(req); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+	userID := c.Get("user_id").(string)
+	if err := h.service.SetPassword(c.Request().Context(), requestIDFromCtx(c), userID, req.NewPassword); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "password_set_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return res.JSON(c, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *AuthHandler) ListIdentities(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	identities, err := h.service.ListIdentities(c.Request().Context(), requestIDFromCtx(c), userID)
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "identity_list_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return res.JSON(c, http.StatusOK, map[string]interface{}{"identities": identities})
+}
+
+func (h *AuthHandler) RemoveIdentity(c echo.Context) error {
+	userID := c.Get("user_id").(string)
+	if err := h.service.RemoveIdentity(c.Request().Context(), requestIDFromCtx(c), userID, c.Param("provider"), c.Param("provider_user_id")); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "identity_remove_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *AuthHandler) OAuthStart(c echo.Context) error {
+	provider := c.Param("provider")
+	req := new(oauthStartRequest)
+	if err := c.Bind(req); err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+	result, err := h.service.OAuthStart(c.Request().Context(), requestIDFromCtx(c), provider, req.ReturnTo)
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "oauth_start_failed", err.Error(), requestIDFromCtx(c), nil)
+	}
+	return c.JSON(http.StatusOK, result)
+}
+
 func (h *AuthHandler) OAuthCallback(c echo.Context) error {
 	provider := c.Param("provider")
 	req := new(oauthCallbackRequest)
@@ -204,7 +254,7 @@ func (h *AuthHandler) OAuthCallback(c echo.Context) error {
 		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
 	}
 
-	_, tokens, err := h.service.OAuthCallback(c.Request().Context(), requestIDFromCtx(c), provider, req.Code)
+	_, tokens, err := h.service.OAuthCallback(c.Request().Context(), requestIDFromCtx(c), provider, req.Code, req.State)
 	if err != nil {
 		return res.ErrorJSON(c, http.StatusBadRequest, "oauth_failed", err.Error(), requestIDFromCtx(c), nil)
 	}

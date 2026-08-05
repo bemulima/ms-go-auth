@@ -13,11 +13,13 @@ require (
 	github.com/nats-io/nats.go v1.47.0
 	github.com/rs/zerolog v1.31.0
 	golang.org/x/crypto v0.37.0
+	golang.org/x/oauth2 v0.30.0
 	gorm.io/driver/postgres v1.5.7
 	gorm.io/gorm v1.25.10
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect

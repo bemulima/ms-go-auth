@@ -62,6 +62,13 @@ func (mockIdentityRepo) FindByProvider(_ context.Context, _, _ string) (*domain.
 	return nil, gorm.ErrRecordNotFound
 }
 func (mockIdentityRepo) Create(_ context.Context, _ *domain.AuthIdentity) error { return nil }
+func (mockIdentityRepo) ResolveUser(_ context.Context, _ *domain.AuthIdentity) (*domain.AuthUser, bool, error) {
+	return nil, false, gorm.ErrRecordNotFound
+}
+func (mockIdentityRepo) ListByUser(_ context.Context, _ string) ([]domain.AuthIdentity, error) {
+	return nil, nil
+}
+func (mockIdentityRepo) Delete(_ context.Context, _, _, _ string) error { return nil }
 
 type mockRefreshRepo struct {
 	tokens    map[string]domain.RefreshToken
@@ -207,7 +214,7 @@ func TestSignInIncludesRoleInAccessToken(t *testing.T) {
 	}
 	svc, deps := newTestServiceWithClients(t, nil, rbacClient)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
-	_ = deps.users.Create(context.Background(), &domain.AuthUser{ID: "user-1", Email: "user@example.com", PasswordHash: string(hash)})
+	_ = deps.users.Create(context.Background(), &domain.AuthUser{ID: "user-1", Email: "user@example.com", PasswordHash: stringPtr(string(hash))})
 	_, tokens, err := svc.SignIn(context.Background(), "trace", "user@example.com", "secret123")
 	if err != nil {
 		t.Fatalf("signin: %v", err)
@@ -258,7 +265,7 @@ func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, 
 		verifyEmailChangeUserID: "user-1",
 		verifyEmailChangeEmail:  "new@example.com",
 	}
-	svc := usecase.NewAuthService(cfg, pkglog.New("test"), users, mockIdentityRepo{}, refresh, tara, userClient, rbacClient, signer)
+	svc := usecase.NewAuthService(cfg, pkglog.New("test"), users, mockIdentityRepo{}, nil, nil, refresh, tara, userClient, rbacClient, signer)
 	return svc, &testDeps{users: users, refresh: refresh, tara: tara, signer: signer, cfg: cfg, userClient: userClient, rbacClient: rbacClient}
 }
 
@@ -336,7 +343,7 @@ func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
 func TestSignIn(t *testing.T) {
 	svc, deps := newTestService(t)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
-	_ = deps.users.Create(context.Background(), &domain.AuthUser{Email: "user@example.com", PasswordHash: string(hash)})
+	_ = deps.users.Create(context.Background(), &domain.AuthUser{Email: "user@example.com", PasswordHash: stringPtr(string(hash))})
 	user, tokens, err := svc.SignIn(context.Background(), "trace", "user@example.com", "secret123")
 	if err != nil {
 		t.Fatalf("signin: %v", err)
@@ -490,7 +497,7 @@ func TestEmailChangeFlow(t *testing.T) {
 func TestPasswordResetFlow(t *testing.T) {
 	svc, deps := newTestService(t)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("oldpass123"), bcrypt.DefaultCost)
-	_ = deps.users.Create(context.Background(), &domain.AuthUser{Email: "user@example.com", PasswordHash: string(hash)})
+	_ = deps.users.Create(context.Background(), &domain.AuthUser{Email: "user@example.com", PasswordHash: stringPtr(string(hash))})
 
 	uuid, err := svc.StartPasswordReset(context.Background(), "trace", "user@example.com")
 	if err != nil {
@@ -507,7 +514,7 @@ func TestPasswordResetFlow(t *testing.T) {
 		t.Fatalf("finish password reset: %v", err)
 	}
 	updated, _ := deps.users.FindByEmail(context.Background(), "user@example.com")
-	if bcrypt.CompareHashAndPassword([]byte(updated.PasswordHash), []byte("newpass123")) != nil {
+	if updated.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*updated.PasswordHash), []byte("newpass123")) != nil {
 		t.Fatalf("password was not updated")
 	}
 }
@@ -515,3 +522,5 @@ func TestPasswordResetFlow(t *testing.T) {
 func hashToken(jti string) string {
 	return fmt.Sprintf("rt:%s", jti)
 }
+
+func stringPtr(value string) *string { return &value }

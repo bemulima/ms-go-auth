@@ -15,6 +15,7 @@ import (
 	"github.com/example/auth-service/internal/adapters/postgres"
 	taraclient "github.com/example/auth-service/internal/adapters/tarantool"
 	"github.com/example/auth-service/internal/domain"
+	oauthprovider "github.com/example/auth-service/internal/oauth"
 	"github.com/example/auth-service/internal/tokenverify"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
@@ -28,7 +29,8 @@ type Service interface {
 	StartSignup(ctx context.Context, traceID, email, password string) error
 	VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error)
 	SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error)
-	OAuthCallback(ctx context.Context, traceID, provider, code string) (*domain.AuthUser, *Tokens, error)
+	OAuthStart(ctx context.Context, traceID, provider, returnTo string) (*OAuthStartResult, error)
+	OAuthCallback(ctx context.Context, traceID, provider, code, state string) (*domain.AuthUser, *Tokens, error)
 	Refresh(ctx context.Context, traceID, refreshToken string) (*Tokens, error)
 	RevokeRefreshToken(ctx context.Context, traceID, refreshToken string) error
 	GetMe(ctx context.Context, traceID, userID string) (*AuthMe, error)
@@ -37,13 +39,16 @@ type Service interface {
 	StartPasswordReset(ctx context.Context, traceID, email string) (string, error)
 	FinishPasswordReset(ctx context.Context, traceID, email, code, newPassword string) error
 	ChangePassword(ctx context.Context, traceID, userID, oldPassword, newPassword string) error
+	SetPassword(ctx context.Context, traceID, userID, newPassword string) error
+	ListIdentities(ctx context.Context, traceID, userID string) ([]domain.AuthIdentity, error)
+	RemoveIdentity(ctx context.Context, traceID, userID, provider, providerUserID string) error
 	VerifyToken(ctx context.Context, traceID, token string) (*VerificationResult, error)
 }
 
 type AuthMe struct {
-	UserID            string    `json:"user_id"`
-	Email             string    `json:"email"`
-	PasswordUpdatedAt time.Time `json:"password_updated_at"`
+	UserID            string     `json:"user_id"`
+	Email             string     `json:"email"`
+	PasswordUpdatedAt *time.Time `json:"password_updated_at"`
 }
 
 type authService struct {
@@ -51,6 +56,8 @@ type authService struct {
 	logger     pkglog.Logger
 	users      repo.AuthUserRepository
 	identities repo.AuthIdentityRepository
+	oauthTx    repo.OAuthTransactionRepository
+	oauth      *oauthprovider.Registry
 	refresh    repo.RefreshTokenRepository
 	tarantoool taraclient.Client
 	userClient natsadapter.UserClient
@@ -58,8 +65,8 @@ type authService struct {
 	signer     JWTSigner
 }
 
-func NewAuthService(cfg *config.Config, logger pkglog.Logger, users repo.AuthUserRepository, identities repo.AuthIdentityRepository, refresh repo.RefreshTokenRepository, tara taraclient.Client, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient, signer JWTSigner) Service {
-	return &authService{cfg: cfg, logger: logger, users: users, identities: identities, refresh: refresh, tarantoool: tara, userClient: userClient, rbacClient: rbacClient, signer: signer}
+func NewAuthService(cfg *config.Config, logger pkglog.Logger, users repo.AuthUserRepository, identities repo.AuthIdentityRepository, oauthTx repo.OAuthTransactionRepository, oauthRegistry *oauthprovider.Registry, refresh repo.RefreshTokenRepository, tara taraclient.Client, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient, signer JWTSigner) Service {
+	return &authService{cfg: cfg, logger: logger, users: users, identities: identities, oauthTx: oauthTx, oauth: oauthRegistry, refresh: refresh, tarantoool: tara, userClient: userClient, rbacClient: rbacClient, signer: signer}
 }
 
 func (s *authService) StartSignup(ctx context.Context, traceID, email, password string) error {
@@ -102,7 +109,8 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 		return nil, nil, fmt.Errorf("password hash missing")
 	}
 
-	user := &domain.AuthUser{Email: norm, PasswordHash: passwordHash}
+	now := time.Now().UTC()
+	user := &domain.AuthUser{Email: norm, PasswordHash: &passwordHash, PasswordUpdatedAt: &now}
 	if err := s.users.Create(ctx, user); err != nil {
 		return nil, nil, err
 	}
@@ -126,7 +134,7 @@ func (s *authService) SignIn(ctx context.Context, traceID, email, password strin
 	if err != nil {
 		return nil, nil, errInvalidCredentials
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+	if user.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)) != nil {
 		return nil, nil, errInvalidCredentials
 	}
 	now := time.Now()
@@ -276,8 +284,10 @@ func (s *authService) FinishPasswordReset(ctx context.Context, traceID, email, c
 	if err != nil {
 		return err
 	}
-	user.PasswordHash = string(hash)
-	user.PasswordUpdatedAt = time.Now()
+	hashString := string(hash)
+	now := time.Now().UTC()
+	user.PasswordHash = &hashString
+	user.PasswordUpdatedAt = &now
 	if err := s.users.Update(ctx, user); err != nil {
 		return err
 	}
@@ -293,19 +303,47 @@ func (s *authService) ChangePassword(ctx context.Context, traceID, userID, oldPa
 	if err != nil {
 		return errInvalidCredentials
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+	if user.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(oldPassword)) != nil {
 		return errInvalidCredentials
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	user.PasswordHash = string(hash)
-	user.PasswordUpdatedAt = time.Now()
+	hashString := string(hash)
+	now := time.Now().UTC()
+	user.PasswordHash = &hashString
+	user.PasswordUpdatedAt = &now
 	if err := s.users.Update(ctx, user); err != nil {
 		return err
 	}
 	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("password changed")
+	return nil
+}
+
+func (s *authService) SetPassword(ctx context.Context, traceID, userID, newPassword string) error {
+	if err := validatePassword(newPassword); err != nil {
+		return err
+	}
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return errInvalidCredentials
+	}
+	if user.PasswordHash != nil {
+		return fmt.Errorf("password is already set; use password change")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	hashString := string(hash)
+	now := time.Now().UTC()
+	user.PasswordHash = &hashString
+	user.PasswordUpdatedAt = &now
+	if err := s.users.Update(ctx, user); err != nil {
+		return err
+	}
+	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("password set")
 	return nil
 }
 
