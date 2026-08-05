@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 
+	natsadapter "github.com/example/auth-service/internal/adapters/nats"
 	"github.com/example/auth-service/internal/domain"
 )
 
@@ -107,7 +108,17 @@ func (s *authService) OAuthCallback(ctx context.Context, traceID, providerName, 
 		return nil, nil, err
 	}
 	if s.userClient != nil {
-		if err := s.userClient.CreateUser(ctx, user.ID, user.Email, "auth", "oauth"); err != nil {
+		if err := s.userClient.CreateUser(ctx, natsadapter.UserProvisionRequest{
+			ID: user.ID, Email: user.Email, Source: "auth", Type: "oauth",
+			OAuthProfile: &natsadapter.OAuthProfile{
+				Provider:  string(provider.Name()),
+				FirstName: profile.FirstName,
+				LastName:  profile.LastName,
+				BirthYear: profile.BirthYear,
+				Gender:    profile.Gender,
+				AvatarURL: profile.AvatarURL,
+			},
+		}); err != nil {
 			return nil, nil, fmt.Errorf("provision oauth user: %w", err)
 		}
 	}

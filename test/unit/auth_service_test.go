@@ -155,21 +155,11 @@ func (m *mockTarantool) VerifyPasswordReset(_ context.Context, _ string, _ strin
 }
 
 type recordingUserClient struct {
-	calls []struct {
-		userID string
-		email  string
-		source string
-		typ    string
-	}
+	calls []natsadapter.UserProvisionRequest
 }
 
-func (r *recordingUserClient) CreateUser(_ context.Context, userID string, email string, source string, typ string) error {
-	r.calls = append(r.calls, struct {
-		userID string
-		email  string
-		source string
-		typ    string
-	}{userID: userID, email: email, source: source, typ: typ})
+func (r *recordingUserClient) CreateUser(_ context.Context, request natsadapter.UserProvisionRequest) error {
+	r.calls = append(r.calls, request)
 	return nil
 }
 
@@ -328,7 +318,7 @@ func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
 		t.Fatalf("expected CreateUser to be called once, got %d", len(userClient.calls))
 	}
 	call := userClient.calls[0]
-	if call.userID != user.ID || call.email != user.Email || call.source != "auth" || call.typ != "signup" {
+	if call.ID != user.ID || call.Email != user.Email || call.Source != "auth" || call.Type != "signup" || call.OAuthProfile != nil {
 		t.Fatalf("CreateUser call mismatch: %+v", call)
 	}
 	if len(rbacClient.calls) != 1 {

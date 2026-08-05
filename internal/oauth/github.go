@@ -93,6 +93,7 @@ func (p *GitHubOAuth2) Authenticate(ctx context.Context, code, verifier string) 
 		Email:          email,
 		EmailVerified:  email != "",
 		DisplayName:    displayName,
+		AvatarURL:      strings.TrimSpace(userPayload.AvatarURL),
 		RawProfile: map[string]interface{}{
 			"id":         userPayload.ID,
 			"login":      userPayload.Login,

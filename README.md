@@ -10,6 +10,7 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 - Automatic identity linking by normalized verified email
 - OAuth-only accounts with an optional password that can be set later
 - NATS RPC calls to `user.create-user` (ms-go-user) and `rbac.assign-role` for default role
+- Forwarding optional OAuth profile data to ms-go-user for first-name, last-name, birth-year, gender, and local avatar import
 
 ## Messaging Boundary
 
@@ -37,6 +38,23 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 - RPC handler `auth.verifyJWT`
 - Clients: `user.create-user`, `rbac.assign-role`
 
+For OAuth provisioning, `user.create-user` keeps the existing `id`, `email`, `source`, and `type` fields and optionally includes:
+
+```json
+{
+  "oauth_profile": {
+    "provider": "google",
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "birth_year": 1998,
+    "gender": "female",
+    "avatar_url": "https://provider.example/avatar"
+  }
+}
+```
+
+Providers leave unavailable fields empty. GitHub's combined `name` is not heuristically split into first and last name.
+
 ## Migrations
 `migrations/0001_init.up.sql` creates `auth_user`, `auth_identity`, `auth_refresh_token`.
 `migrations/0003_oauth_flow.up.sql` makes passwords optional, enforces one identity per provider per account, and creates the one-time OAuth transaction table.
@@ -54,8 +72,8 @@ Direct provider setup pages:
 - Google Cloud credentials: https://console.cloud.google.com/apis/credentials
 - GitHub OAuth App: https://github.com/settings/applications/new
 
-The Go provider contract is `internal/oauth.Provider`. `OAuth2Base` contains the shared OAuth2 config, PKCE exchange, HTTP client, and validation; `GoogleOAuth2` and `GitHubOAuth2` embed it and implement provider-specific profile loading. Adding another standards-compatible provider means implementing the interface and registering it in `internal/app/app.go`. Telegram login is not a regular OAuth2 provider and should use a separate adapter behind the same application-level identity contract.
+The Go provider contract is `internal/oauth.Provider`. Its normalized `Profile` supports optional `FirstName`, `LastName`, `BirthYear`, `Gender`, and `AvatarURL` values. `OAuth2Base` contains the shared OAuth2 config, PKCE exchange, HTTP client, and validation; `GoogleOAuth2` and `GitHubOAuth2` embed it and implement provider-specific profile loading. Adding another standards-compatible provider means implementing the interface and registering it in `internal/app/app.go`. Telegram login is not a regular OAuth2 provider and should use a separate adapter behind the same application-level identity contract.
 
 ## Testing
-- Unit/handler tests: `GOCACHE=../.gocache go test ./...`
+- Unit/handler tests: `XDG_CACHE_HOME=$PWD/.cache GOCACHE=$PWD/.cache/go-build GOMODCACHE=$PWD/.cache/gomod go test ./...`
 - External deps are mocked (no DB/NATS required). Default role used in tests is `user` (configurable via `AUTH_DEFAULT_ROLE`).

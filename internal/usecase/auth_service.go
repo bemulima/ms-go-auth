@@ -115,7 +115,9 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 		return nil, nil, err
 	}
 	if s.userClient != nil {
-		_ = s.userClient.CreateUser(ctx, user.ID, user.Email, "auth", "signup")
+		_ = s.userClient.CreateUser(ctx, natsadapter.UserProvisionRequest{
+			ID: user.ID, Email: user.Email, Source: "auth", Type: "signup",
+		})
 	}
 	if s.rbacClient != nil {
 		_ = s.rbacClient.AssignRole(ctx, user.ID, s.cfg.DefaultRole)
