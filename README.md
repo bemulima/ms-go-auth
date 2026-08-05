@@ -6,7 +6,9 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 - Password-based signup/signin with Tarantool-backed code verification over HTTP
 - JWT access/refresh issuance and NATS RPC `auth.verifyJWT`
 - Email change and password reset flows
-- OAuth callback stub endpoint for future providers
+- Server-owned OAuth2 Authorization Code flow with state, PKCE, Google, and GitHub
+- Automatic identity linking by normalized verified email
+- OAuth-only accounts with an optional password that can be set later
 - NATS RPC calls to `user.create-user` (ms-go-user) and `rbac.assign-role` for default role
 
 ## Messaging Boundary
@@ -24,7 +26,12 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 - `POST /password/reset/finish` — finish reset
 - `POST /email/change/start` (JWT) — start email change
 - `POST /email/change/verify` — verify email change
-- `POST /oauth/:provider/callback` — OAuth callback stub
+- `POST /oauth/:provider/start` — create one-time state + PKCE transaction and return the provider authorization URL
+- `POST /oauth/:provider/callback` — consume state, exchange code, link/create identity, and return application tokens
+- `GET /identities` (JWT) — list linked OAuth identities
+- `DELETE /identities/:provider/:provider_user_id` (JWT) — remove an identity while preserving at least one login method
+- `POST /password/set` (JWT) — set the first password for an OAuth-only account
+- `POST /password/change` (JWT) — change an existing password
 
 ## NATS
 - RPC handler `auth.verifyJWT`
@@ -32,9 +39,22 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 
 ## Migrations
 `migrations/0001_init.up.sql` creates `auth_user`, `auth_identity`, `auth_refresh_token`.
+`migrations/0003_oauth_flow.up.sql` makes passwords optional, enforces one identity per provider per account, and creates the one-time OAuth transaction table.
 
 ## Config (.env)
-See `config/config.go` for variables: DB, JWT, NATS subjects, Tarantool URLs, default role, HTTP host/port/base path.
+See `.env.example` and `config/config.go`. Real client secrets belong in the ignored `.env` or a secret store, never in `.env.example`.
+
+For local frontend development on port 3001, register these exact callbacks:
+
+- Google: `http://localhost:3001/api/oauth/google/callback`
+- GitHub: `http://localhost:3001/api/oauth/github/callback`
+
+Direct provider setup pages:
+
+- Google Cloud credentials: https://console.cloud.google.com/apis/credentials
+- GitHub OAuth App: https://github.com/settings/applications/new
+
+The Go provider contract is `internal/oauth.Provider`. `OAuth2Base` contains the shared OAuth2 config, PKCE exchange, HTTP client, and validation; `GoogleOAuth2` and `GitHubOAuth2` embed it and implement provider-specific profile loading. Adding another standards-compatible provider means implementing the interface and registering it in `internal/app/app.go`. Telegram login is not a regular OAuth2 provider and should use a separate adapter behind the same application-level identity contract.
 
 ## Testing
 - Unit/handler tests: `GOCACHE=../.gocache go test ./...`

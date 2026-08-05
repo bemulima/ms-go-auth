@@ -22,6 +22,7 @@ func (r *Router) Register(g *echo.Group) {
 	auth.POST("/signin", r.handlers.SignIn)
 	auth.POST("/refresh", r.handlers.Refresh)
 	auth.POST("/revoke", r.handlers.RevokeRefresh)
+	auth.POST("/oauth/:provider/start", r.handlers.OAuthStart)
 	auth.POST("/oauth/:provider/callback", r.handlers.OAuthCallback)
 	auth.POST("/password/reset/start", r.handlers.PasswordResetStart)
 	auth.POST("/password/reset/finish", r.handlers.PasswordResetFinish)
@@ -32,4 +33,7 @@ func (r *Router) Register(g *echo.Group) {
 	protected.GET("/me", r.handlers.GetMe)
 	protected.POST("/email/change/start", r.handlers.EmailChangeStart)
 	protected.POST("/password/change", r.handlers.ChangePassword)
+	protected.POST("/password/set", r.handlers.SetPassword)
+	protected.GET("/identities", r.handlers.ListIdentities)
+	protected.DELETE("/identities/:provider/:provider_user_id", r.handlers.RemoveIdentity)
 }

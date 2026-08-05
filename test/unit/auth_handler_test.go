@@ -32,6 +32,8 @@ type mockAuthService struct {
 	changePasswordFn     func(userID, oldPassword, newPassword string) error
 	verifyTokenFn        func(token string) (*usecase.VerificationResult, error)
 	oauthCallbackFn      func(provider, code string) (*domain.AuthUser, *usecase.Tokens, error)
+	oauthStartFn         func(provider, returnTo string) (*usecase.OAuthStartResult, error)
+	setPasswordFn        func(userID, newPassword string) error
 }
 
 func (m *mockAuthService) StartSignup(_ context.Context, _ string, email, password string) error {
@@ -46,7 +48,14 @@ func (m *mockAuthService) SignIn(_ context.Context, _ string, email, password st
 	return m.signInFn(email, password)
 }
 
-func (m *mockAuthService) OAuthCallback(_ context.Context, _ string, provider, code string) (*domain.AuthUser, *usecase.Tokens, error) {
+func (m *mockAuthService) OAuthStart(_ context.Context, _ string, provider, returnTo string) (*usecase.OAuthStartResult, error) {
+	if m.oauthStartFn == nil {
+		return nil, errors.New("not implemented")
+	}
+	return m.oauthStartFn(provider, returnTo)
+}
+
+func (m *mockAuthService) OAuthCallback(_ context.Context, _ string, provider, code, _ string) (*domain.AuthUser, *usecase.Tokens, error) {
 	if m.oauthCallbackFn == nil {
 		return nil, nil, errors.New("not implemented")
 	}
@@ -92,6 +101,21 @@ func (m *mockAuthService) ChangePassword(_ context.Context, _ string, userID, ol
 		return nil
 	}
 	return m.changePasswordFn(userID, oldPassword, newPassword)
+}
+
+func (m *mockAuthService) SetPassword(_ context.Context, _ string, userID, newPassword string) error {
+	if m.setPasswordFn == nil {
+		return nil
+	}
+	return m.setPasswordFn(userID, newPassword)
+}
+
+func (m *mockAuthService) ListIdentities(_ context.Context, _, _ string) ([]domain.AuthIdentity, error) {
+	return nil, nil
+}
+
+func (m *mockAuthService) RemoveIdentity(_ context.Context, _, _, _, _ string) error {
+	return nil
 }
 
 func (m *mockAuthService) VerifyToken(_ context.Context, _ string, token string) (*usecase.VerificationResult, error) {
@@ -336,7 +360,7 @@ func TestGetMe(t *testing.T) {
 			return &usecase.AuthMe{
 				UserID:            "u1",
 				Email:             "a****@***e.com",
-				PasswordUpdatedAt: mustParseTime("2026-02-28T17:39:12Z"),
+				PasswordUpdatedAt: timePtr(mustParseTime("2026-02-28T17:39:12Z")),
 			}, nil
 		},
 	}
@@ -374,3 +398,5 @@ func mustParseTime(value string) (result time.Time) {
 	}
 	return result
 }
+
+func timePtr(value time.Time) *time.Time { return &value }
