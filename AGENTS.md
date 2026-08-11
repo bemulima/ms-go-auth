@@ -1,52 +1,20 @@
 # Repository Guidelines
 
-<!-- codex-agent-bootstrap:start -->
-## Agent Bootstrap
-- Before planning or changing files, read all available project instructions:
-  - `docs/*`
-  - `prompts/*`
-- Treat `prompts/git-workflow.md` as the required workflow for issue, branch, commit, push, Pull Request, merge, and issue-closing behavior.
-- If a listed directory does not exist, continue with the instructions that are present.
-<!-- codex-agent-bootstrap:end -->
+## Agent bootstrap
 
-<!-- codex-shared-policy:start -->
-## Codex Shared Policy (Managed)
+Read .ai/rules/common.md, .ai/service.yaml, docs/README.md, and every affected owned contract before changing files. Issues and linked pull requests are the durable task record; code, migrations, tests, and repository-owned docs are authoritative.
 
-Source of truth: `prompts/codex-shared-agents.md`
+## Architecture invariants
 
-This file is the canonical shared policy for repo-level `AGENTS.md` files in
-git-backed repositories under `/Users/marat/Developments/microservices`.
+- internal/domain owns auth persistence models; internal/usecase owns signup, credentials, OAuth, refresh sessions, identity linking, and JWT behavior.
+- internal/adapters owns HTTP, PostgreSQL, Tarantool, NATS, and OAuth-provider details; internal/app is the composition root.
+- ms-go-auth owns credentials, auth identities, OAuth transactions, refresh sessions, and token issuance/verification. ms-go-user owns user/profile data; ms-go-rbac owns roles.
+- Core NATS subjects are request/reply. Signup user/role provisioning is currently best-effort; OAuth provisioning is stricter. Preserve or deliberately change this distinction with tests and docs.
+- Secrets, token material, authorization codes, PKCE verifiers, and password hashes must never be logged or committed.
 
-## Cache policy
-- Use only repo-local `.cache` for temporary build and tool artifacts.
-- Do not create or rely on repo-local `.gocache`.
-- For Go commands, prefer these locations:
-  - `XDG_CACHE_HOME=$PWD/.cache`
-  - `GOCACHE=$PWD/.cache/go-build`
-  - `GOMODCACHE=$PWD/.cache/gomod`
-  - `GOBIN=$PWD/.cache/bin`
-- Put disposable local binaries in `.cache/bin`.
-- Treat `.cache` as disposable local state. Do not commit it.
+## Verification and delivery
 
-## Workspace hygiene
-- Do not introduce extra cache directories when `.cache` can be used instead.
-- Keep temporary logs, generated reports, and ad-hoc tooling output under
-  `.cache` when practical.
-- Do not store persistent project data in `.cache`.
-- If a repo has stricter local requirements, document them in that repo's
-  `AGENTS.md` below the managed shared block.
-
-## Scope
-- This policy is synced into repo-level `AGENTS.md` files by
-  `prompts/scripts/sync_agents.py`.
-- The canonical source of truth is this file, not the generated copies.
-<!-- codex-shared-policy:end -->
-
-## Repository-Specific Notes
-- Add repo-specific instructions here when needed.
-
-<!-- agent-orchestrator:start -->
-## Agent Orchestrator (Managed)
-
-Read `.ai/service.yaml` before repository work. Follow every linked repository instruction and prompt. Do not edit files outside an explicitly approved write scope.
-<!-- agent-orchestrator:end -->
+- Use commands in .ai/commands.yaml and keep caches in .cache.
+- Run agent policy, tracked-file gofmt, go vet ./..., and go test ./....
+- Migrations, OAuth redirects, JWT claims/TTL, HTTP routes, and NATS payloads are compatibility-sensitive and must update code, tests, docs, and machine contracts together.
+- Do not run migrations, start services, publish GitHub changes, or deploy without the required authorization.

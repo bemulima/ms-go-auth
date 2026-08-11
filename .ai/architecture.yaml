@@ -1,105 +1,13 @@
 schema_version: 1
-stack:
-    - name: framework
-      value: echo
-      confidence: 0.98
-      source_path: go.mod
-      explanation: go.mod declares dependency github.com/labstack/echo.
-    - name: framework
-      value: nats
-      confidence: 0.98
-      source_path: go.mod
-      explanation: go.mod declares dependency github.com/nats-io/nats.go.
-    - name: framework
-      value: pgx
-      confidence: 0.98
-      source_path: go.mod
-      explanation: go.mod declares dependency github.com/jackc/pgx.
-    - name: language
-      value: go
-      confidence: 1
-      source_path: go.mod
-      explanation: go.mod is the canonical Go module manifest.
-    - name: orchestration
-      value: docker_compose
-      confidence: 0.98
-      source_path: docker-compose.yml
-      explanation: A Docker Compose manifest defines local infrastructure or runtime services.
+layers:
+  domain: internal/domain
+  usecase: internal/usecase
+  ports_and_adapters: internal/adapters
+  composition_root: internal/app
 ownership:
-    - name: database_table
-      value: auth_identity
-      confidence: 0.96
-      source_path: migrations/0001_init.up.sql
-      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
-    - name: database_table
-      value: auth_refresh_token
-      confidence: 0.96
-      source_path: migrations/0001_init.up.sql
-      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
-    - name: database_table
-      value: auth_user
-      confidence: 0.96
-      source_path: migrations/0001_init.up.sql
-      explanation: A checked-in SQL schema file creates this table, indicating schema ownership.
-relations:
-    - name: depends_on
-      value: ms-go-rbac
-      confidence: 0.93
-      source_path: README.md
-      explanation: Semantic proposal with a verified repository quote. Authoritative runtime documentation explicitly names the connected roles service.
-    - name: depends_on
-      value: ms-go-user
-      confidence: 0.93
-      source_path: README.md
-      explanation: Semantic proposal with a verified repository quote. Authoritative runtime documentation explicitly names the connected profile service.
-    - name: depends_on
-      value: postgres
-      confidence: 0.9
-      source_path: docker-compose.yml
-      explanation: Docker Compose declares this service dependency.
-infrastructure:
-    - name: Echo
-      value: HTTP server framework
-      confidence: 0.95
-      source_path: internal/app/app.go
-      explanation: Semantic proposal with a verified repository quote. Production startup builds the HTTP server with Echo.
-    - name: NATS
-      value: RPC messaging broker
-      confidence: 0.95
-      source_path: internal/app/app.go
-      explanation: Semantic proposal with a verified repository quote. Production startup code connects to NATS.
-    - name: PostgreSQL
-      value: Primary persistence database
-      confidence: 0.95
-      source_path: internal/app/app.go
-      explanation: Semantic proposal with a verified repository quote. Production startup code opens a PostgreSQL-backed GORM connection.
-    - name: Tarantool HTTP service
-      value: Verification-flow dependency
-      confidence: 0.94
-      source_path: internal/app/app.go
-      explanation: Semantic proposal with a verified repository quote. Production composition creates an HTTP client for Tarantool-backed flows.
-    - name: compose_service
-      value: ms-go-auth=golang:1.24-alpine
-      confidence: 0.96
-      source_path: docker-compose.yml
-      explanation: Docker Compose declares this service.
-    - name: compose_service
-      value: postgres=postgres:16-alpine
-      confidence: 0.96
-      source_path: docker-compose.yml
-      explanation: Docker Compose declares this service.
-    - name: ms-go-auth container
-      value: golang:1.24-alpine
-      confidence: 0.95
-      source_path: docker-compose.yml
-      explanation: Semantic proposal with a verified repository quote. Docker Compose declares the service container image.
-    - name: ms-net
-      value: External Docker network
-      confidence: 0.94
-      source_path: docker-compose.yml
-      explanation: Semantic proposal with a verified repository quote. Docker Compose declares an external network.
-    - name: postgres container
-      value: postgres:16-alpine
-      confidence: 0.95
-      source_path: docker-compose.yml
-      explanation: Semantic proposal with a verified repository quote. Docker Compose declares a PostgreSQL container.
+  auth: [credentials, auth identities, OAuth transactions, JWT issuance and verification, refresh sessions]
+  external: [user profiles, roles and permissions, verification-code transport]
+invariants:
+  - OAuth state is one-time and PKCE-protected.
+  - Refresh rotation revokes the consumed session before issuing a replacement.
+  - Password and token secrets never cross response or logging boundaries.

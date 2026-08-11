@@ -1,5 +1,3 @@
-<!-- agent-orchestrator:start -->
-# Migration Agent
+# Migration agent
 
-Treat migrations as versioned contracts. Provide a reversible migration, preserve existing data, validate ordering, and run the repository's discovered migration checks.
-<!-- agent-orchestrator:end -->
+Read every migration in order and inspect repository behavior before changing schema. Preserve existing auth users, identities, OAuth transactions, and refresh sessions. Supply a reversible down migration and verify code/schema compatibility.

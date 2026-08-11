@@ -1,0 +1,6 @@
+schema_version: 1
+documentation: docs/messaging-contract.md
+core_nats_rpc:
+  consumes: [{subject: auth.verifyJWT, queue: auth-service}]
+  produces: [user.create-user, rbac.assign-role, rbac.checkRole]
+delivery_note: Signup profile and role calls are best-effort; OAuth coordination returns failures.

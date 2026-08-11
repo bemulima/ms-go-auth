@@ -1,44 +1,10 @@
 schema_version: 1
 commands:
-    - name: migrate-down
-      run: make migrate-down
-      source_path: Makefile
-      confidence: 0.92
-      requires_approval: true
-      risk: state_change
-    - name: migrate-up
-      run: make migrate-up
-      source_path: Makefile
-      confidence: 0.92
-      requires_approval: true
-      risk: state_change
-    - name: run
-      run: make run
-      source_path: Makefile
-      confidence: 0.92
-      requires_approval: true
-      risk: lifecycle
-    - name: run_linter
-      run: golangci-lint run ./...
-      source_path: Taskfile.yml
-      confidence: 0.93
-      requires_approval: false
-      risk: verification
-    - name: run_service
-      run: go run ./cmd/ms-go-auth
-      source_path: Makefile
-      confidence: 0.95
-      requires_approval: true
-      risk: lifecycle
-    - name: run_tests
-      run: go test ./...
-      source_path: Makefile
-      confidence: 0.95
-      requires_approval: false
-      risk: verification
-    - name: test
-      run: make test
-      source_path: Makefile
-      confidence: 0.92
-      requires_approval: false
-      risk: verification
+  - {name: agent-policy, run: ./scripts/check-agent-policy.sh, requires_approval: false, risk: verification}
+  - {name: format-check, run: 'test -z "$(gofmt -l $(git ls-files ''*.go''))"', requires_approval: false, risk: verification}
+  - {name: vet, run: go vet ./..., requires_approval: false, risk: verification}
+  - {name: test, run: go test ./..., requires_approval: false, risk: verification}
+  - {name: lint, run: golangci-lint run ./..., requires_approval: false, risk: verification}
+  - {name: run, run: go run ./cmd/ms-go-auth, requires_approval: true, risk: lifecycle}
+  - {name: migrate-up, run: task migrate-up, requires_approval: true, risk: database-write}
+  - {name: migrate-down, run: task migrate-down, requires_approval: true, risk: destructive-database-write}

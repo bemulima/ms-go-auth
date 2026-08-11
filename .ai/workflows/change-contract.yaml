@@ -1,9 +1,4 @@
 schema_version: 1
 name: change-contract
-requires_approval: true
-steps:
-    - identify producers and consumers
-    - update versioned contract evidence
-    - check compatibility and drift
-    - run repository verification
-    - request independent review
+requires_approval: false
+steps: [identify owners and consumers, define compatibility, update code machine contract docs and tests, run formatting vet tests and policy, review for undocumented breaking changes]
