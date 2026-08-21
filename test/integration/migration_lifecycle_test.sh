@@ -223,13 +223,15 @@ docker compose -p "$project-legacy" -f "$legacy_compose" up -d postgres >/dev/nu
 wait_for_db "$legacy_compose" "$project-legacy"
 apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0001_init.up.sql"
 apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0003_oauth_flow.up.sql"
-query "$legacy_compose" "$project-legacy" \
-  "INSERT INTO auth_user (email, password_hash, password_updated_at) VALUES ('student1@example.com', 'pre-existing', now())" >/dev/null
 apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_auth_users.up.sql"
 assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "7"
+query "$legacy_compose" "$project-legacy" \
+  "DELETE FROM auth_user WHERE id = '00000000-0000-0000-0000-0000000000b1';
+   INSERT INTO auth_user (id, email, password_hash, password_updated_at)
+   VALUES ('10000000-0000-0000-0000-0000000000b1', 'student1@example.com', 'replacement-account', now())" >/dev/null
 apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_auth_users.down.sql"
 assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "1"
-assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_user WHERE email = 'student1@example.com'")" "1"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_user WHERE id = '10000000-0000-0000-0000-0000000000b1' AND email = 'student1@example.com'")" "1"
 set +e
 legacy_down_output=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-down 2>&1)
 legacy_down_status=$?

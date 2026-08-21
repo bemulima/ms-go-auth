@@ -60,7 +60,7 @@ Providers leave unavailable fields empty. GitHub's combined `name` is not heuris
 `task migrate-up` applies ordered migrations to the dedicated `postgres` service in this repository's `docker-compose.yml`; `task migrate-status` shows filename/checksum evidence. The safe default applies schema only. Local alpha fixtures require an explicit environment:
 
 ```sh
-task migrate-up MIGRATION_ENV=local
+MIGRATION_ENV=local task migrate-up
 ```
 
 `MIGRATION_ENV=dev` also enables the local fixture; other values, including the production default, exclude it. The database service must already be running, and the migration task does not start or restart compose services. Infrastructure callers may override `COMPOSE_FILE`, `COMPOSE_PROJECT_NAME`, and `DB_SERVICE` while keeping this canonical command.

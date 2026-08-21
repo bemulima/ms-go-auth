@@ -10,10 +10,10 @@ Databases created by the former untracked migration path are adopted by running 
 
 The `0002_seed_auth_users` fixture is local-development data, not production data. It is applied only when callers explicitly set `MIGRATION_ENV=local` or `MIGRATION_ENV=dev`. The safe default is `production`, which applies schema migrations while reporting the seed as excluded; if local-seed evidence already exists, non-local migration commands fail closed instead of accepting fixture identities. Do not log or expose fixture credential material.
 
-The local alpha stack canonical invocation is:
+Downstream infrastructure for the local alpha stack must use this canonical invocation:
 
 ```sh
-task migrate-up MIGRATION_ENV=local
+MIGRATION_ENV=local task migrate-up
 ```
 
 An infrastructure orchestrator may override `COMPOSE_FILE`, `COMPOSE_PROJECT_NAME`, or `DB_SERVICE` while invoking the same task. The Postgres service must already be running; migration commands do not start or restart services.
