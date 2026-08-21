@@ -79,6 +79,17 @@ apply_sql() {
     psql -X -q -U app -d authdb -v ON_ERROR_STOP=1 < "$sql_file"
 }
 
+reset_schema() {
+  local compose_file=$1 compose_project=$2
+  query "$compose_file" "$compose_project" 'DROP SCHEMA public CASCADE; CREATE SCHEMA public' >/dev/null
+}
+
+prepare_auth_schema() {
+  local compose_file=$1 compose_project=$2
+  apply_sql "$compose_file" "$compose_project" "$repo_root/migrations/0001_init.up.sql"
+  apply_sql "$compose_file" "$compose_project" "$repo_root/migrations/0003_oauth_flow.up.sql"
+}
+
 assert_contains() {
   local value=$1 expected=$2
   if [[ $value != *"$expected"* ]]; then
@@ -221,17 +232,198 @@ assert_contains "$unknown_down_output" "unknown applied migration 9999_removed.u
 
 docker compose -p "$project-legacy" -f "$legacy_compose" up -d postgres >/dev/null
 wait_for_db "$legacy_compose" "$project-legacy"
-apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0001_init.up.sql"
-apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0003_oauth_flow.up.sql"
+
+# Exact legacy fixtures are safe to adopt locally without duplication.
+prepare_auth_schema "$legacy_compose" "$project-legacy"
 apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_auth_users.up.sql"
+legacy_exact_adopt=$(run_task "$legacy_compose" "$project-legacy" local migrate-up)
+assert_contains "$legacy_exact_adopt" "applied 0002_seed_auth_users.up.sql"
 assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "7"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "3"
+seed_hash=$(file_checksum "$repo_root/migrations/0002_seed_auth_users.up.sql")
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT checksum FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "$seed_hash"
+
+# A fixture email attached to a different ID must fail before seed evidence.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
 query "$legacy_compose" "$project-legacy" \
-  "DELETE FROM auth_user WHERE id = '00000000-0000-0000-0000-0000000000b1';
-   INSERT INTO auth_user (id, email, password_hash, password_updated_at)
-   VALUES ('10000000-0000-0000-0000-0000000000b1', 'student1@example.com', 'replacement-account', now())" >/dev/null
-apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_auth_users.down.sql"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "1"
-assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_user WHERE id = '10000000-0000-0000-0000-0000000000b1' AND email = 'student1@example.com'")" "1"
+  "INSERT INTO auth_user (id, email) VALUES ('10000000-0000-0000-0000-0000000000a1', E'\\tAdmin@Example.com\\t')" >/dev/null
+set +e
+conflicting_email_output=$(run_task "$legacy_compose" "$project-legacy" local migrate-up 2>&1)
+conflicting_email_status=$?
+set -e
+if [[ $conflicting_email_status == 0 ]]; then
+  echo "local migration unexpectedly accepted a fixture email with a different ID" >&2
+  exit 1
+fi
+assert_contains "$conflicting_email_output" "fixture identity conflict"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_user WHERE id = '10000000-0000-0000-0000-0000000000a1' AND email = E'\\tAdmin@Example.com\\t'")" "1"
+
+# A fixture ID attached to a different email must also fail closed.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+query "$legacy_compose" "$project-legacy" \
+  "INSERT INTO auth_user (id, email) VALUES ('00000000-0000-0000-0000-0000000000a1', 'other-admin@example.com')" >/dev/null
+set +e
+conflicting_id_output=$(run_task "$legacy_compose" "$project-legacy" dev migrate-up 2>&1)
+conflicting_id_status=$?
+set -e
+if [[ $conflicting_id_status == 0 ]]; then
+  echo "local migration unexpectedly accepted a fixture ID with a different email" >&2
+  exit 1
+fi
+assert_contains "$conflicting_id_output" "fixture identity conflict"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_user WHERE id = '00000000-0000-0000-0000-0000000000a1' AND email = 'other-admin@example.com'")" "1"
+
+# A partial exact set is completed without duplicate or mismatched identities.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+query "$legacy_compose" "$project-legacy" "
+  INSERT INTO auth_user (id, email) VALUES
+    ('00000000-0000-0000-0000-0000000000a1', 'admin@example.com'),
+    ('00000000-0000-0000-0000-0000000000b1', 'student1@example.com'),
+    ('00000000-0000-0000-0000-0000000000c1', 'user@example.com')
+" >/dev/null
+partial_adopt=$(run_task "$legacy_compose" "$project-legacy" local migrate-up)
+assert_contains "$partial_adopt" "applied 0002_seed_auth_users.up.sql"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "7"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "1"
+
+# Sabotage one insert: post-apply verification must roll back rows and evidence.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+query "$legacy_compose" "$project-legacy" "
+  CREATE FUNCTION discard_one_fixture() RETURNS trigger LANGUAGE plpgsql AS \$\$
+  BEGIN
+    IF NEW.id = '00000000-0000-0000-0000-0000000000c1' THEN
+      RETURN NULL;
+    END IF;
+    RETURN NEW;
+  END
+  \$\$;
+  CREATE TRIGGER sabotage_fixture_insert BEFORE INSERT ON auth_user
+  FOR EACH ROW EXECUTE FUNCTION discard_one_fixture()
+" >/dev/null
+set +e
+sabotage_output=$(run_task "$legacy_compose" "$project-legacy" local migrate-up 2>&1)
+sabotage_status=$?
+set -e
+if [[ $sabotage_status == 0 ]]; then
+  echo "sabotaged seed migration unexpectedly recorded evidence" >&2
+  exit 1
+fi
+assert_contains "$sabotage_output" "fixture seed verification failed"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "0"
+
+# Evidence-time local sabotage must roll back normalized duplicates and seed evidence.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+query "$legacy_compose" "$project-legacy" "
+  CREATE TABLE auth_schema_migration (
+    name text PRIMARY KEY,
+    checksum text NOT NULL,
+    down_checksum text,
+    kind text NOT NULL CHECK (kind IN ('schema', 'local_seed')),
+    applied_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE FUNCTION inject_local_fixture_on_evidence() RETURNS trigger LANGUAGE plpgsql AS \$\$
+  BEGIN
+    IF NEW.name = '0002_seed_auth_users.up.sql' THEN
+      INSERT INTO auth_user (id, email)
+      VALUES ('10000000-0000-0000-0000-0000000000a1', ' Admin@Example.com ');
+    END IF;
+    RETURN NEW;
+  END
+  \$\$;
+  CREATE TRIGGER sabotage_local_evidence_insert BEFORE INSERT ON auth_schema_migration
+  FOR EACH ROW EXECUTE FUNCTION inject_local_fixture_on_evidence()
+" >/dev/null
+set +e
+local_evidence_sabotage_output=$(run_task "$legacy_compose" "$project-legacy" local migrate-up 2>&1)
+local_evidence_sabotage_status=$?
+set -e
+if [[ $local_evidence_sabotage_status == 0 ]]; then
+  echo "local evidence-time fixture sabotage unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_contains "$local_evidence_sabotage_output" "fixture identity conflict"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "0"
+
+# Production must reject exact legacy fixtures before adopting schema evidence.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_auth_users.up.sql"
+set +e
+prod_exact_fixture_output=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-up 2>&1)
+prod_exact_fixture_status=$?
+set -e
+if [[ $prod_exact_fixture_status == 0 ]]; then
+  echo "production migration unexpectedly adopted exact fixture identities" >&2
+  exit 1
+fi
+assert_contains "$prod_exact_fixture_output" "fixture identities are not allowed outside MIGRATION_ENV=local or dev"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "7"
+
+# Production must also reject a Unicode-space-normalized fixture email on a noncanonical ID.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+query "$legacy_compose" "$project-legacy" \
+  "INSERT INTO auth_user (id, email) VALUES ('10000000-0000-0000-0000-0000000000a1', U&'\\00A0Admin@Example.com\\00A0')" >/dev/null
+set +e
+prod_fixture_email_output=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-up 2>&1)
+prod_fixture_email_status=$?
+set -e
+if [[ $prod_fixture_email_status == 0 ]]; then
+  echo "production migration unexpectedly adopted a noncanonical fixture email" >&2
+  exit 1
+fi
+assert_contains "$prod_fixture_email_output" "fixture identities are not allowed outside MIGRATION_ENV=local or dev"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT count(*) FROM auth_user WHERE id = '10000000-0000-0000-0000-0000000000a1' AND email = U&'\\00A0Admin@Example.com\\00A0'")" "1"
+
+# Evidence-time sabotage must not create a production fixture/evidence split state.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
+query "$legacy_compose" "$project-legacy" "
+  CREATE TABLE auth_schema_migration (
+    name text PRIMARY KEY,
+    checksum text NOT NULL,
+    down_checksum text,
+    kind text NOT NULL CHECK (kind IN ('schema', 'local_seed')),
+    applied_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE FUNCTION inject_fixture_on_evidence() RETURNS trigger LANGUAGE plpgsql AS \$\$
+  BEGIN
+    IF NEW.name = '0001_init.up.sql' THEN
+      INSERT INTO auth_user (id, email)
+      VALUES ('10000000-0000-0000-0000-0000000000a1', 'admin@example.com');
+    END IF;
+    RETURN NEW;
+  END
+  \$\$;
+  CREATE TRIGGER sabotage_evidence_insert BEFORE INSERT ON auth_schema_migration
+  FOR EACH ROW EXECUTE FUNCTION inject_fixture_on_evidence()
+" >/dev/null
+set +e
+prod_evidence_sabotage_output=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-up 2>&1)
+prod_evidence_sabotage_status=$?
+set -e
+if [[ $prod_evidence_sabotage_status == 0 ]]; then
+  echo "production evidence-time fixture sabotage unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_contains "$prod_evidence_sabotage_output" "fixture identities are not allowed outside MIGRATION_ENV=local or dev"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "0"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "0"
+
+# Preserve untracked-down and rollback-checksum fail-closed protections.
+reset_schema "$legacy_compose" "$project-legacy"
+prepare_auth_schema "$legacy_compose" "$project-legacy"
 set +e
 legacy_down_output=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-down 2>&1)
 legacy_down_status=$?
