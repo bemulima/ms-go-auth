@@ -21,6 +21,10 @@ type Config struct {
 	DBPassword string `env:"AUTH_DB_PASSWORD" envDefault:"app_password"`
 	DBName     string `env:"AUTH_DB_NAME" envDefault:"authdb"`
 	DBSSLMode  string `env:"AUTH_DB_SSLMODE" envDefault:"disable"`
+	// DBMigrateOnStart preserves the historical startup behavior by default.
+	// Rollout environments can disable all schema-changing startup statements
+	// and apply owner migrations explicitly before starting the service.
+	DBMigrateOnStart bool `env:"AUTH_DB_MIGRATE_ON_START" envDefault:"true"`
 
 	JWTSecret     string        `env:"AUTH_JWT_SECRET"`
 	JWTPrivateKey string        `env:"AUTH_JWT_PRIVATE_KEY"`

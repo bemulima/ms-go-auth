@@ -48,17 +48,7 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`).Error; err != nil {
-		return nil, err
-	}
-	if err := db.Exec(`
-		ALTER TABLE IF EXISTS auth_user
-			ALTER COLUMN password_hash DROP NOT NULL,
-			ALTER COLUMN password_updated_at DROP NOT NULL
-	`).Error; err != nil {
-		return nil, err
-	}
-	if err := db.AutoMigrate(&domain.AuthUser{}, &domain.AuthIdentity{}, &domain.RefreshToken{}, &domain.OAuthTransaction{}); err != nil {
+	if err := applyDatabaseMigrations(db, cfg); err != nil {
 		return nil, err
 	}
 
@@ -96,6 +86,26 @@ func New(ctx context.Context) (*App, error) {
 	router.Setup(e)
 
 	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e}, nil
+}
+
+// applyDatabaseMigrations is intentionally a single gate around every
+// schema-changing startup statement. The explicit owner migration helper can
+// be used when AUTH_DB_MIGRATE_ON_START is false.
+func applyDatabaseMigrations(db *gorm.DB, cfg *config.Config) error {
+	if !cfg.DBMigrateOnStart {
+		return nil
+	}
+	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`
+		ALTER TABLE IF EXISTS auth_user
+			ALTER COLUMN password_hash DROP NOT NULL,
+			ALTER COLUMN password_updated_at DROP NOT NULL
+	`).Error; err != nil {
+		return err
+	}
+	return db.AutoMigrate(&domain.AuthUser{}, &domain.AuthIdentity{}, &domain.RefreshToken{}, &domain.OAuthTransaction{})
 }
 
 func (a *App) Run(ctx context.Context) error {
