@@ -3,50 +3,37 @@ version: '3'
 dotenv: ['.env']
 
 vars:
-  # ms-go-auth использует БД из ms-go-user (shared postgres)
-  COMPOSE_FILE: '../ms-go-user/docker-compose.yml'
-  DB_CONTAINER: postgres
-  DB_USER: '{{.AUTH_DB_USER | default "app"}}'
-  DB_NAME: '{{.AUTH_DB_NAME | default "authdb"}}'
+  COMPOSE_FILE: '{{.COMPOSE_FILE | default "docker-compose.yml"}}'
+  COMPOSE_PROJECT_NAME: '{{.COMPOSE_PROJECT_NAME | default "ms-go-auth"}}'
+  DB_SERVICE: '{{.DB_SERVICE | default "postgres"}}'
+  MIGRATION_ENV: '{{.MIGRATION_ENV | default "production"}}'
+
+env:
+  COMPOSE_FILE: '{{.COMPOSE_FILE}}'
+  COMPOSE_PROJECT_NAME: '{{.COMPOSE_PROJECT_NAME}}'
+  DB_SERVICE: '{{.DB_SERVICE}}'
+  MIGRATION_ENV: '{{.MIGRATION_ENV}}'
 
 tasks:
-  create-db:
-    desc: Create auth database in shared Postgres (ms-go-user)
-    cmds:
-      - |
-        existing=$(docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='{{.DB_NAME}}'")
-        if [ -z "$existing" ]; then
-          docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d postgres -c "CREATE DATABASE {{.DB_NAME}}"
-          echo "Created database {{.DB_NAME}}"
-        else
-          echo "Database {{.DB_NAME}} already exists"
-        fi
-
   migrate-up:
-    desc: Apply all migrations
-    deps: [create-db]
+    desc: Apply ordered auth migrations; local seeds require MIGRATION_ENV=local or dev
     cmds:
-      - |
-        set -euo pipefail
-        for f in $(ls migrations/*.up.sql 2>/dev/null | sort); do
-          echo "==> applying $f"
-          cat "$f" | docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d {{.DB_NAME}} -v ON_ERROR_STOP=1
-        done
+      - bash ./scripts/migrate.sh up
 
   migrate-down:
-    desc: Rollback all migrations in reverse order
+    desc: Roll back applied auth migrations in reverse order
     cmds:
-      - |
-        set -euo pipefail
-        for f in $(ls migrations/*.down.sql 2>/dev/null | sort -r); do
-          echo "==> rolling back $f"
-          cat "$f" | docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d {{.DB_NAME}} -v ON_ERROR_STOP=1
-        done
+      - bash ./scripts/migrate.sh down
 
   migrate-status:
-    desc: Show migration status (list tables)
+    desc: Show applied, pending, excluded, and checksum-mismatched migrations
     cmds:
-      - docker compose -f {{.COMPOSE_FILE}} exec -T {{.DB_CONTAINER}} psql -U {{.DB_USER}} -d {{.DB_NAME}} -c "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
+      - bash ./scripts/migrate.sh status
+
+  migration-integration-test:
+    desc: Verify migrations and environment-gated seeds against disposable Postgres databases
+    cmds:
+      - bash ./test/integration/migration_lifecycle_test.sh
 
   run:
     desc: Run service locally
