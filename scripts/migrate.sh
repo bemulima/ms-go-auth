@@ -10,6 +10,22 @@ db_name=${AUTH_DB_NAME:-authdb}
 migration_env=${MIGRATION_ENV:-production}
 action=${1:-}
 evidence_available=false
+fixture_values_sql="
+  ('00000000-0000-0000-0000-0000000000a1'::uuid, 'admin@example.com'::text),
+  ('00000000-0000-0000-0000-0000000000a2'::uuid, 'manager@example.com'::text),
+  ('00000000-0000-0000-0000-0000000000a3'::uuid, 'teacher@example.com'::text),
+  ('00000000-0000-0000-0000-0000000000b1'::uuid, 'student1@example.com'::text),
+  ('00000000-0000-0000-0000-0000000000b2'::uuid, 'student2@example.com'::text),
+  ('00000000-0000-0000-0000-0000000000b3'::uuid, 'student3@example.com'::text),
+  ('00000000-0000-0000-0000-0000000000c1'::uuid, 'user@example.com'::text)
+"
+fixture_trim_chars_sql="
+  ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13) ||
+  chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) ||
+  chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) ||
+  chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) ||
+  chr(8233) || chr(8239) || chr(8287) || chr(12288)
+"
 
 compose=(docker compose -p "$compose_project" -f "$compose_file")
 psql=("${compose[@]}" exec -T "$db_service" psql -X -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1)
@@ -33,6 +49,18 @@ is_local_seed() {
 
 seed_enabled() {
   [[ $migration_env == local || $migration_env == dev ]]
+}
+
+write_fixture_preflight_sql() {
+  printf '\nDO $fixture_preflight$\nBEGIN\n  LOCK TABLE auth_user IN SHARE ROW EXCLUSIVE MODE;\n  IF EXISTS (\n    WITH fixture(id, email) AS (VALUES %s)\n    SELECT 1\n    FROM auth_user AS auth\n    JOIN fixture ON auth.id = fixture.id OR lower(btrim(auth.email, %s)) = fixture.email\n    WHERE auth.id <> fixture.id OR auth.email <> fixture.email\n  ) THEN\n    RAISE EXCEPTION '\''fixture identity conflict: canonical seed IDs and emails must match exactly'\'';\n  END IF;\nEND\n$fixture_preflight$;\n' "$fixture_values_sql" "$fixture_trim_chars_sql"
+}
+
+write_fixture_verification_sql() {
+  printf '\nDO $fixture_verify$\nBEGIN\n  IF (\n    WITH fixture(id, email) AS (VALUES %s)\n    SELECT count(*)\n    FROM fixture\n    JOIN auth_user AS auth ON auth.id = fixture.id AND auth.email = fixture.email\n  ) <> 7 THEN\n    RAISE EXCEPTION '\''fixture seed verification failed: all seven canonical identities must exist'\'';\n  END IF;\nEND\n$fixture_verify$;\n' "$fixture_values_sql"
+}
+
+write_production_fixture_guard_sql() {
+  printf '\nDO $production_fixture_guard$\nBEGIN\n  IF to_regclass('\''public.auth_user'\'') IS NOT NULL THEN\n    EXECUTE '\''LOCK TABLE auth_user IN SHARE ROW EXCLUSIVE MODE'\'';\n    IF EXISTS (\n      WITH fixture(id, email) AS (VALUES %s)\n      SELECT 1\n      FROM auth_user AS auth\n      JOIN fixture ON auth.id = fixture.id OR lower(btrim(auth.email, %s)) = fixture.email\n    ) THEN\n      RAISE EXCEPTION '\''fixture identities are not allowed outside MIGRATION_ENV=local or dev'\'';\n    END IF;\n  END IF;\nEND\n$production_fixture_guard$;\n' "$fixture_values_sql" "$fixture_trim_chars_sql"
 }
 
 ensure_connection() {
@@ -151,8 +179,28 @@ apply_file() {
 
   {
     printf 'BEGIN;\n'
+    if [[ $kind == schema ]] && ! seed_enabled; then
+      write_production_fixture_guard_sql
+    fi
+    if [[ $kind == local_seed ]]; then
+      write_fixture_preflight_sql
+    fi
     command cat "$file"
-    printf "\nINSERT INTO auth_schema_migration (name, checksum, down_checksum, kind) VALUES (:'migration_name', :'migration_checksum', :'down_checksum', :'migration_kind');\nCOMMIT;\n"
+    if [[ $kind == local_seed ]]; then
+      write_fixture_verification_sql
+    fi
+    if [[ $kind == schema ]] && ! seed_enabled; then
+      write_production_fixture_guard_sql
+    fi
+    printf "\nINSERT INTO auth_schema_migration (name, checksum, down_checksum, kind) VALUES (:'migration_name', :'migration_checksum', :'down_checksum', :'migration_kind');\n"
+    if [[ $kind == local_seed ]]; then
+      write_fixture_preflight_sql
+      write_fixture_verification_sql
+    fi
+    if [[ $kind == schema ]] && ! seed_enabled; then
+      write_production_fixture_guard_sql
+    fi
+    printf 'COMMIT;\n'
   } | "${psql[@]}" -q \
       -v migration_name="$name" \
       -v migration_checksum="$expected" \
