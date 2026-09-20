@@ -1,4 +1,4 @@
-package app
+package main
 
 import (
 	"context"
@@ -16,15 +16,15 @@ import (
 	"gorm.io/gorm/schema"
 
 	"github.com/example/auth-service/config"
-	httpadapter "github.com/example/auth-service/internal/adapters/http"
-	apiv1 "github.com/example/auth-service/internal/adapters/http/api/v1"
-	handlers "github.com/example/auth-service/internal/adapters/http/api/v1/handlers"
-	authmw "github.com/example/auth-service/internal/adapters/http/middleware"
-	natsadapter "github.com/example/auth-service/internal/adapters/nats"
-	repo "github.com/example/auth-service/internal/adapters/postgres"
-	taraclient "github.com/example/auth-service/internal/adapters/tarantool"
 	"github.com/example/auth-service/internal/domain"
-	oauthprovider "github.com/example/auth-service/internal/oauth"
+	taraclient "github.com/example/auth-service/internal/infrastructure/http/tarantool"
+	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
+	oauthprovider "github.com/example/auth-service/internal/infrastructure/oauth"
+	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
+	httpadapter "github.com/example/auth-service/internal/transport/http"
+	apiv1 "github.com/example/auth-service/internal/transport/http/api/v1"
+	handlers "github.com/example/auth-service/internal/transport/http/api/v1/handlers"
+	authmw "github.com/example/auth-service/internal/transport/http/api/v1/middleware"
 	"github.com/example/auth-service/internal/usecase"
 	pkglog "github.com/example/auth-service/pkg/log"
 )

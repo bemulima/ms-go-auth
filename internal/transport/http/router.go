@@ -5,8 +5,9 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 
 	"github.com/example/auth-service/config"
-	v1 "github.com/example/auth-service/internal/adapters/http/api/v1"
-	internalhttp "github.com/example/auth-service/internal/adapters/http/internal"
+	adminv1 "github.com/example/auth-service/internal/transport/http/admin/v1"
+	v1 "github.com/example/auth-service/internal/transport/http/api/v1"
+	privatehttp "github.com/example/auth-service/internal/transport/http/private"
 )
 
 type Router struct {
@@ -25,8 +26,9 @@ func (r *Router) Setup(e *echo.Echo) {
 	e.Use(middleware.Logger())
 
 	internalGroup := e.Group("/internal")
-	internalhttp.Register(internalGroup)
+	privatehttp.Register(internalGroup)
 
 	apiGroup := e.Group(r.cfg.HTTPBasePath)
 	r.apiRouter.Register(apiGroup)
+	adminv1.Register(e.Group(r.cfg.HTTPBasePath + "/admin"))
 }

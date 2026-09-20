@@ -11,33 +11,6 @@ import (
 	"github.com/example/auth-service/internal/domain"
 )
 
-type AuthUserRepository interface {
-	Create(ctx context.Context, user *domain.AuthUser) error
-	FindByEmail(ctx context.Context, email string) (*domain.AuthUser, error)
-	FindByID(ctx context.Context, id string) (*domain.AuthUser, error)
-	Update(ctx context.Context, user *domain.AuthUser) error
-}
-
-type AuthIdentityRepository interface {
-	FindByProvider(ctx context.Context, provider, providerUserID string) (*domain.AuthIdentity, error)
-	Create(ctx context.Context, identity *domain.AuthIdentity) error
-	ResolveUser(ctx context.Context, identity *domain.AuthIdentity) (*domain.AuthUser, bool, error)
-	ListByUser(ctx context.Context, userID string) ([]domain.AuthIdentity, error)
-	Delete(ctx context.Context, userID, provider, providerUserID string) error
-}
-
-type OAuthTransactionRepository interface {
-	Create(ctx context.Context, transaction *domain.OAuthTransaction) error
-	Consume(ctx context.Context, stateHash, provider string, now time.Time) (*domain.OAuthTransaction, error)
-	DeleteExpired(ctx context.Context, now time.Time) error
-}
-
-type RefreshTokenRepository interface {
-	Create(ctx context.Context, token *domain.RefreshToken) error
-	FindActive(ctx context.Context, hash string) (*domain.RefreshToken, error)
-	RevokeByHash(ctx context.Context, hash string) error
-}
-
 type authUserRepo struct{ db *gorm.DB }
 
 type authIdentityRepo struct{ db *gorm.DB }
@@ -46,10 +19,14 @@ type refreshTokenRepo struct{ db *gorm.DB }
 
 type oauthTransactionRepo struct{ db *gorm.DB }
 
-func NewAuthUserRepository(db *gorm.DB) AuthUserRepository         { return &authUserRepo{db: db} }
-func NewAuthIdentityRepository(db *gorm.DB) AuthIdentityRepository { return &authIdentityRepo{db: db} }
-func NewRefreshTokenRepository(db *gorm.DB) RefreshTokenRepository { return &refreshTokenRepo{db: db} }
-func NewOAuthTransactionRepository(db *gorm.DB) OAuthTransactionRepository {
+func NewAuthUserRepository(db *gorm.DB) domain.AuthUserRepository { return &authUserRepo{db: db} }
+func NewAuthIdentityRepository(db *gorm.DB) domain.AuthIdentityRepository {
+	return &authIdentityRepo{db: db}
+}
+func NewRefreshTokenRepository(db *gorm.DB) domain.RefreshTokenRepository {
+	return &refreshTokenRepo{db: db}
+}
+func NewOAuthTransactionRepository(db *gorm.DB) domain.OAuthTransactionRepository {
 	return &oauthTransactionRepo{db: db}
 }
 
@@ -60,7 +37,7 @@ func (r *authUserRepo) Create(ctx context.Context, user *domain.AuthUser) error 
 func (r *authUserRepo) FindByEmail(ctx context.Context, email string) (*domain.AuthUser, error) {
 	var user domain.AuthUser
 	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err
+		return nil, normalizeError(err)
 	}
 	return &user, nil
 }
@@ -68,7 +45,7 @@ func (r *authUserRepo) FindByEmail(ctx context.Context, email string) (*domain.A
 func (r *authUserRepo) FindByID(ctx context.Context, id string) (*domain.AuthUser, error) {
 	var user domain.AuthUser
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error; err != nil {
-		return nil, err
+		return nil, normalizeError(err)
 	}
 	return &user, nil
 }
@@ -80,7 +57,7 @@ func (r *authUserRepo) Update(ctx context.Context, user *domain.AuthUser) error 
 func (r *authIdentityRepo) FindByProvider(ctx context.Context, provider, providerUserID string) (*domain.AuthIdentity, error) {
 	var identity domain.AuthIdentity
 	if err := r.db.WithContext(ctx).Where("provider = ? AND provider_user_id = ?", provider, providerUserID).First(&identity).Error; err != nil {
-		return nil, err
+		return nil, normalizeError(err)
 	}
 	return &identity, nil
 }
@@ -157,7 +134,7 @@ func (r *authIdentityRepo) Delete(ctx context.Context, userID, provider, provide
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		return domain.ErrNotFound
 	}
 	return nil
 }
@@ -203,9 +180,16 @@ func (r *oauthTransactionRepo) Consume(ctx context.Context, stateHash, provider 
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 || transaction.ID == "" {
-		return nil, gorm.ErrRecordNotFound
+		return nil, domain.ErrNotFound
 	}
 	return &transaction, nil
+}
+
+func normalizeError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return domain.ErrNotFound
+	}
+	return err
 }
 
 func (r *oauthTransactionRepo) DeleteExpired(ctx context.Context, now time.Time) error {

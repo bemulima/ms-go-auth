@@ -3,7 +3,7 @@ package v1
 import (
 	"github.com/labstack/echo/v4"
 
-	"github.com/example/auth-service/internal/adapters/http/api/v1/handlers"
+	"github.com/example/auth-service/internal/transport/http/api/v1/handlers"
 )
 
 type Router struct {

@@ -9,40 +9,25 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"github.com/example/auth-service/internal/domain"
 )
 
-type ProviderName string
+type ProviderName = domain.OAuthProviderName
 
 const (
 	ProviderGoogle ProviderName = "google"
 	ProviderGitHub ProviderName = "github"
 )
 
-type Profile struct {
-	ProviderUserID string
-	Email          string
-	EmailVerified  bool
-	DisplayName    string
-	FirstName      string
-	LastName       string
-	BirthYear      *int
-	Gender         string
-	AvatarURL      string
-	RawProfile     map[string]interface{}
-}
-
-type Provider interface {
-	Name() ProviderName
-	Validate() error
-	AuthorizationURL(state, verifier string) string
-	Authenticate(ctx context.Context, code, verifier string) (*Profile, error)
-}
+type Profile = domain.OAuthProfileData
+type Provider = domain.OAuthProvider
 
 type Registry struct {
 	providers map[ProviderName]Provider
 }
 
-func NewRegistry(providers ...Provider) *Registry {
+func NewRegistry(providers ...domain.OAuthProvider) *Registry {
 	registry := &Registry{providers: make(map[ProviderName]Provider, len(providers))}
 	for _, provider := range providers {
 		if provider != nil {
@@ -52,7 +37,7 @@ func NewRegistry(providers ...Provider) *Registry {
 	return registry
 }
 
-func (r *Registry) Get(name string) (Provider, error) {
+func (r *Registry) Get(name string) (domain.OAuthProvider, error) {
 	normalized := ProviderName(strings.ToLower(strings.TrimSpace(name)))
 	provider, ok := r.providers[normalized]
 	if !ok {

@@ -7,17 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
-
 	"github.com/example/auth-service/config"
-	"github.com/example/auth-service/internal/adapters/nats"
-	"github.com/example/auth-service/internal/adapters/postgres"
-	taraclient "github.com/example/auth-service/internal/adapters/tarantool"
 	"github.com/example/auth-service/internal/domain"
-	oauthprovider "github.com/example/auth-service/internal/oauth"
 	"github.com/example/auth-service/internal/tokenverify"
 	pkglog "github.com/example/auth-service/pkg/log"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -54,18 +48,18 @@ type AuthMe struct {
 type authService struct {
 	cfg        *config.Config
 	logger     pkglog.Logger
-	users      repo.AuthUserRepository
-	identities repo.AuthIdentityRepository
-	oauthTx    repo.OAuthTransactionRepository
-	oauth      *oauthprovider.Registry
-	refresh    repo.RefreshTokenRepository
-	tarantoool taraclient.Client
-	userClient natsadapter.UserClient
-	rbacClient natsadapter.RBACClient
+	users      domain.AuthUserRepository
+	identities domain.AuthIdentityRepository
+	oauthTx    domain.OAuthTransactionRepository
+	oauth      domain.OAuthRegistry
+	refresh    domain.RefreshTokenRepository
+	tarantoool domain.VerificationClient
+	userClient domain.UserProvisioner
+	rbacClient domain.RoleClient
 	signer     JWTSigner
 }
 
-func NewAuthService(cfg *config.Config, logger pkglog.Logger, users repo.AuthUserRepository, identities repo.AuthIdentityRepository, oauthTx repo.OAuthTransactionRepository, oauthRegistry *oauthprovider.Registry, refresh repo.RefreshTokenRepository, tara taraclient.Client, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient, signer JWTSigner) Service {
+func NewAuthService(cfg *config.Config, logger pkglog.Logger, users domain.AuthUserRepository, identities domain.AuthIdentityRepository, oauthTx domain.OAuthTransactionRepository, oauthRegistry domain.OAuthRegistry, refresh domain.RefreshTokenRepository, tara domain.VerificationClient, userClient domain.UserProvisioner, rbacClient domain.RoleClient, signer JWTSigner) Service {
 	return &authService{cfg: cfg, logger: logger, users: users, identities: identities, oauthTx: oauthTx, oauth: oauthRegistry, refresh: refresh, tarantoool: tara, userClient: userClient, rbacClient: rbacClient, signer: signer}
 }
 
@@ -79,7 +73,7 @@ func (s *authService) StartSignup(ctx context.Context, traceID, email, password 
 	}
 	if _, err := s.users.FindByEmail(ctx, norm); err == nil {
 		return fmt.Errorf("user already exists")
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, domain.ErrNotFound) {
 		return err
 	}
 
@@ -115,7 +109,7 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 		return nil, nil, err
 	}
 	if s.userClient != nil {
-		_ = s.userClient.CreateUser(ctx, natsadapter.UserProvisionRequest{
+		_ = s.userClient.CreateUser(ctx, domain.UserProvisionRequest{
 			ID: user.ID, Email: user.Email, Source: "auth", Type: "signup",
 		})
 	}

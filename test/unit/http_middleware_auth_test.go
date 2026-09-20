@@ -11,7 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 
-	authmiddleware "github.com/example/auth-service/internal/adapters/http/middleware"
+	authmiddleware "github.com/example/auth-service/internal/transport/http/api/v1/middleware"
 	res "github.com/example/auth-service/pkg/http"
 )
 

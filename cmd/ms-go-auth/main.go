@@ -5,15 +5,13 @@ import (
 	"log"
 	"os/signal"
 	"syscall"
-
-	"github.com/example/auth-service/internal/app"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	application, err := app.New(ctx)
+	application, err := New(ctx)
 	if err != nil {
 		log.Fatalf("failed to init app: %v", err)
 	}

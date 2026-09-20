@@ -12,11 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/oauth2"
-	"gorm.io/gorm"
-
-	natsadapter "github.com/example/auth-service/internal/adapters/nats"
 	"github.com/example/auth-service/internal/domain"
+	"golang.org/x/oauth2"
 )
 
 const defaultOAuthReturnTo = "/student"
@@ -76,7 +73,7 @@ func (s *authService) OAuthCallback(ctx context.Context, traceID, providerName, 
 	}
 	transaction, err := s.oauthTx.Consume(ctx, hashOAuthState(state), string(provider.Name()), time.Now().UTC())
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return nil, nil, fmt.Errorf("oauth state is invalid, expired, or already used")
 		}
 		return nil, nil, err
@@ -108,9 +105,9 @@ func (s *authService) OAuthCallback(ctx context.Context, traceID, providerName, 
 		return nil, nil, err
 	}
 	if s.userClient != nil {
-		if err := s.userClient.CreateUser(ctx, natsadapter.UserProvisionRequest{
+		if err := s.userClient.CreateUser(ctx, domain.UserProvisionRequest{
 			ID: user.ID, Email: user.Email, Source: "auth", Type: "oauth",
-			OAuthProfile: &natsadapter.OAuthProfile{
+			OAuthProfile: &domain.OAuthProfile{
 				Provider:  string(provider.Name()),
 				FirstName: profile.FirstName,
 				LastName:  profile.LastName,

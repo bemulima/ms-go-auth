@@ -7,11 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/domain"
-	oauthprovider "github.com/example/auth-service/internal/oauth"
+	oauthprovider "github.com/example/auth-service/internal/infrastructure/oauth"
 	"github.com/example/auth-service/internal/usecase"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
@@ -51,7 +49,7 @@ func (r *memoryOAuthTransactionRepo) Create(_ context.Context, transaction *doma
 }
 func (r *memoryOAuthTransactionRepo) Consume(_ context.Context, stateHash, provider string, now time.Time) (*domain.OAuthTransaction, error) {
 	if r.transaction == nil || r.transaction.StateHash != stateHash || r.transaction.Provider != provider || r.transaction.ConsumedAt != nil || !r.transaction.ExpiresAt.After(now) {
-		return nil, gorm.ErrRecordNotFound
+		return nil, domain.ErrNotFound
 	}
 	r.transaction.ConsumedAt = &now
 	copy := *r.transaction
@@ -70,7 +68,7 @@ func newLinkingIdentityRepo(users *mockUserRepo) *linkingIdentityRepo {
 func (r *linkingIdentityRepo) FindByProvider(_ context.Context, provider, providerUserID string) (*domain.AuthIdentity, error) {
 	identity, ok := r.identities[provider+":"+providerUserID]
 	if !ok {
-		return nil, gorm.ErrRecordNotFound
+		return nil, domain.ErrNotFound
 	}
 	return identity, nil
 }
@@ -86,7 +84,7 @@ func (r *linkingIdentityRepo) ResolveUser(ctx context.Context, identity *domain.
 	}
 	user, err := r.users.FindByEmail(ctx, identity.Email)
 	created := false
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, domain.ErrNotFound) {
 		user = &domain.AuthUser{Email: identity.Email}
 		if err := r.users.Create(ctx, user); err != nil {
 			return nil, false, err
@@ -113,7 +111,7 @@ func (r *linkingIdentityRepo) Delete(_ context.Context, userID, provider, provid
 	key := provider + ":" + providerUserID
 	identity, ok := r.identities[key]
 	if !ok || identity.UserID != userID {
-		return gorm.ErrRecordNotFound
+		return domain.ErrNotFound
 	}
 	delete(r.identities, key)
 	return nil

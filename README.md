@@ -81,7 +81,7 @@ Direct provider setup pages:
 - Google Cloud credentials: https://console.cloud.google.com/apis/credentials
 - GitHub OAuth App: https://github.com/settings/applications/new
 
-The Go provider contract is `internal/oauth.Provider`. Its normalized `Profile` supports optional `FirstName`, `LastName`, `BirthYear`, `Gender`, and `AvatarURL` values. `OAuth2Base` contains the shared OAuth2 config, PKCE exchange, HTTP client, and validation; `GoogleOAuth2` and `GitHubOAuth2` embed it and implement provider-specific profile loading. Adding another standards-compatible provider means implementing the interface and registering it in `internal/app/app.go`. Telegram login is not a regular OAuth2 provider and should use a separate adapter behind the same application-level identity contract.
+The Go provider contract is `internal/domain.OAuthProvider`. Its normalized profile supports optional `FirstName`, `LastName`, `BirthYear`, `Gender`, and `AvatarURL` values. `OAuth2Base` in `internal/infrastructure/oauth` contains the shared OAuth2 config, PKCE exchange, HTTP client, and validation; `GoogleOAuth2` and `GitHubOAuth2` embed it and implement provider-specific profile loading. Adding another standards-compatible provider means implementing the port and registering it in `cmd/ms-go-auth/app.go`. Telegram login is not a regular OAuth2 provider and should use a separate infrastructure implementation behind the same application-level identity contract.
 
 ## Testing
 - Unit/handler tests: `XDG_CACHE_HOME=$PWD/.cache GOCACHE=$PWD/.cache/go-build GOMODCACHE=$PWD/.cache/gomod go test ./...`

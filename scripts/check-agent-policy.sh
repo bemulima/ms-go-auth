@@ -4,4 +4,13 @@ required_files="AGENTS.md .ai/manifest.yaml .ai/template.yaml .ai/rules/common.m
 for policy_file in $required_files; do test -f "$policy_file" || { echo "agent-policy: missing $policy_file" >&2; exit 1; }; done
 obsolete_paths='prom''pts/|prom''ps/|jour''nal/|microservices/wi''ki|/wi''ki/|/Users/marat/Developments'
 if grep -R -n -E "$obsolete_paths" AGENTS.md .ai docs README.md 2>/dev/null; then echo "agent-policy: obsolete external knowledge reference found" >&2; exit 1; fi
+test ! -e internal/adapters || { echo "agent-policy: internal/adapters is forbidden" >&2; exit 1; }
+test ! -e internal/app || { echo "agent-policy: internal/app is forbidden; cmd is the composition root" >&2; exit 1; }
+for architecture_dir in internal/transport/http/api/v1 internal/transport/http/admin/v1 internal/transport/http/private internal/infrastructure/persistence/postgres internal/infrastructure/messaging/nats internal/infrastructure/http/tarantool internal/infrastructure/oauth; do
+  test -d "$architecture_dir" || { echo "agent-policy: missing required architecture directory: $architecture_dir" >&2; exit 1; }
+done
+if grep -R -n -E 'gorm\.io/gorm|internal/(transport|infrastructure)' internal/domain internal/usecase --include='*.go'; then
+  echo "agent-policy: domain/usecase imports an outer implementation or GORM" >&2
+  exit 1
+fi
 echo "agent-policy: ok"

@@ -12,8 +12,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	apihandlers "github.com/example/auth-service/internal/adapters/http/api/v1/handlers"
 	"github.com/example/auth-service/internal/domain"
+	apihandlers "github.com/example/auth-service/internal/transport/http/api/v1/handlers"
 	"github.com/example/auth-service/internal/usecase"
 	res "github.com/example/auth-service/pkg/http"
 )

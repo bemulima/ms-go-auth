@@ -7,14 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
-
 	"github.com/example/auth-service/config"
-	"github.com/example/auth-service/internal/adapters/nats"
 	"github.com/example/auth-service/internal/domain"
 	"github.com/example/auth-service/internal/usecase"
 	pkglog "github.com/example/auth-service/pkg/log"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type mockUserRepo struct {
@@ -41,14 +38,14 @@ func (r *mockUserRepo) FindByEmail(_ context.Context, email string) (*domain.Aut
 			return u, nil
 		}
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, domain.ErrNotFound
 }
 
 func (r *mockUserRepo) FindByID(_ context.Context, id string) (*domain.AuthUser, error) {
 	if u, ok := r.users[id]; ok {
 		return u, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, domain.ErrNotFound
 }
 
 func (r *mockUserRepo) Update(_ context.Context, user *domain.AuthUser) error {
@@ -59,11 +56,11 @@ func (r *mockUserRepo) Update(_ context.Context, user *domain.AuthUser) error {
 type mockIdentityRepo struct{}
 
 func (mockIdentityRepo) FindByProvider(_ context.Context, _, _ string) (*domain.AuthIdentity, error) {
-	return nil, gorm.ErrRecordNotFound
+	return nil, domain.ErrNotFound
 }
 func (mockIdentityRepo) Create(_ context.Context, _ *domain.AuthIdentity) error { return nil }
 func (mockIdentityRepo) ResolveUser(_ context.Context, _ *domain.AuthIdentity) (*domain.AuthUser, bool, error) {
-	return nil, false, gorm.ErrRecordNotFound
+	return nil, false, domain.ErrNotFound
 }
 func (mockIdentityRepo) ListByUser(_ context.Context, _ string) ([]domain.AuthIdentity, error) {
 	return nil, nil
@@ -90,7 +87,7 @@ func (r *mockRefreshRepo) Create(_ context.Context, token *domain.RefreshToken) 
 func (r *mockRefreshRepo) FindActive(_ context.Context, hash string) (*domain.RefreshToken, error) {
 	tok, ok := r.tokens[hash]
 	if !ok || tok.RevokedAt != nil || tok.ExpiresAt.Before(time.Now()) {
-		return nil, gorm.ErrRecordNotFound
+		return nil, domain.ErrNotFound
 	}
 	return &tok, nil
 }
@@ -155,10 +152,10 @@ func (m *mockTarantool) VerifyPasswordReset(_ context.Context, _ string, _ strin
 }
 
 type recordingUserClient struct {
-	calls []natsadapter.UserProvisionRequest
+	calls []domain.UserProvisionRequest
 }
 
-func (r *recordingUserClient) CreateUser(_ context.Context, request natsadapter.UserProvisionRequest) error {
+func (r *recordingUserClient) CreateUser(_ context.Context, request domain.UserProvisionRequest) error {
 	r.calls = append(r.calls, request)
 	return nil
 }
@@ -225,15 +222,15 @@ type testDeps struct {
 	tara       *mockTarantool
 	signer     usecase.JWTSigner
 	cfg        *config.Config
-	userClient natsadapter.UserClient
-	rbacClient natsadapter.RBACClient
+	userClient domain.UserProvisioner
+	rbacClient domain.RoleClient
 }
 
 func newTestService(t *testing.T) (usecase.Service, *testDeps) {
 	return newTestServiceWithClients(t, nil, nil)
 }
 
-func newTestServiceWithClients(t *testing.T, userClient natsadapter.UserClient, rbacClient natsadapter.RBACClient) (usecase.Service, *testDeps) {
+func newTestServiceWithClients(t *testing.T, userClient domain.UserProvisioner, rbacClient domain.RoleClient) (usecase.Service, *testDeps) {
 	t.Helper()
 	cfg := &config.Config{
 		JWTSecret:   "test-secret",

@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/nats-io/nats.go"
 
-	natsadapter "github.com/example/auth-service/internal/adapters/nats"
+	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 )
 
 type stubParser struct {

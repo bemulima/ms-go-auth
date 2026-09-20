@@ -9,16 +9,9 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-)
 
-type Client interface {
-	StartSignup(ctx context.Context, email, passwordHash string) error
-	VerifySignup(ctx context.Context, email, code string) (string, error)
-	StartEmailChange(ctx context.Context, userID, newEmail string) (string, error)
-	VerifyEmailChange(ctx context.Context, code string) (string, string, error)
-	StartPasswordReset(ctx context.Context, email string) (string, error)
-	VerifyPasswordReset(ctx context.Context, email, code string) error
-}
+	"github.com/example/auth-service/internal/domain"
+)
 
 type httpClient struct {
 	baseURL string
@@ -27,7 +20,7 @@ type httpClient struct {
 
 // NewHTTPClient builds the canonical HTTP transport for signup and related
 // Tarantool flows in the target architecture.
-func NewHTTPClient(baseURL string, timeout time.Duration) Client {
+func NewHTTPClient(baseURL string, timeout time.Duration) domain.VerificationClient {
 	return &httpClient{baseURL: baseURL, client: &http.Client{Timeout: timeout}}
 }
 

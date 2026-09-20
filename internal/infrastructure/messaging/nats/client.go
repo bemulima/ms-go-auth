@@ -7,33 +7,9 @@ import (
 	"time"
 
 	nats "github.com/nats-io/nats.go"
+
+	"github.com/example/auth-service/internal/domain"
 )
-
-type UserClient interface {
-	CreateUser(ctx context.Context, request UserProvisionRequest) error
-}
-
-type UserProvisionRequest struct {
-	ID           string        `json:"id"`
-	Email        string        `json:"email"`
-	Source       string        `json:"source"`
-	Type         string        `json:"type"`
-	OAuthProfile *OAuthProfile `json:"oauth_profile,omitempty"`
-}
-
-type OAuthProfile struct {
-	Provider  string `json:"provider"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`
-	BirthYear *int   `json:"birth_year,omitempty"`
-	Gender    string `json:"gender,omitempty"`
-	AvatarURL string `json:"avatar_url,omitempty"`
-}
-
-type RBACClient interface {
-	AssignRole(ctx context.Context, userID, role string) error
-	CheckRole(ctx context.Context, userID, role string) (bool, error)
-}
 
 type userClient struct {
 	conn    *nats.Conn
@@ -46,15 +22,15 @@ type rbacClient struct {
 	checkRoleSubject string
 }
 
-func NewUserClient(conn *nats.Conn, subject string) UserClient {
+func NewUserClient(conn *nats.Conn, subject string) domain.UserProvisioner {
 	return &userClient{conn: conn, subject: subject}
 }
 
-func NewRBACClient(conn *nats.Conn, assignSubject, checkRoleSubject string) RBACClient {
+func NewRBACClient(conn *nats.Conn, assignSubject, checkRoleSubject string) domain.RoleClient {
 	return &rbacClient{conn: conn, assignSubject: assignSubject, checkRoleSubject: checkRoleSubject}
 }
 
-func (c *userClient) CreateUser(ctx context.Context, request UserProvisionRequest) error {
+func (c *userClient) CreateUser(ctx context.Context, request domain.UserProvisionRequest) error {
 	return requestAckWithTimeout(ctx, c.conn, c.subject, request, 12*time.Second)
 }
 
