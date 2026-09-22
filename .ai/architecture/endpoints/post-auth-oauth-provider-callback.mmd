@@ -1,0 +1,32 @@
+%% GENERATED — READ-ONLY PRESENTATION
+%% Do not edit; source of truth is the architecture manifest.
+flowchart TD
+  operation["post-auth-oauth-provider-callback — http"]
+  identity["identity: http / POST / /api/v1/auth/oauth/:provider/callback"]
+  operation --> identity
+  access["access: unauthenticated caller / no route-level authentication middleware / none / no explicit caller idempotency mechanism is registered by this handler"]
+  operation --> access
+  trigger["trigger: POST /api/v1/auth/oauth/:provider/callback invokes OAuthCallback"]
+  operation --> trigger
+  input["input: unknown"]
+  operation --> input
+  business_task["business task: OAuth callback completion and token issuance"]
+  operation --> business_task
+  business_process["business process: handler / OAuthCallback validates the request and delegates application behavior"]
+  operation --> business_process
+  business_rules["business rule: unknown"]
+  operation --> business_rules
+  implementation["implementation: router=internal/transport/http/api/v1/router.go / Register; handler=internal/transport/http/api/v1/handlers/auth_handler.go / OAuthCallback; use_cases=unknown; domain_services=unknown; repositories=unknown"]
+  operation --> implementation
+  data_access["data access: unknown"]
+  operation --> data_access
+  external_interactions["external interactions: unknown"]
+  operation --> external_interactions
+  side_effects["side effects: unknown"]
+  operation --> side_effects
+  output["output: unknown"]
+  operation --> output
+  errors["errors: unknown"]
+  operation --> errors
+  evidence["evidence: internal/transport/http/api/v1/handlers/auth_handler.go / OAuthCallback; confidence: 0.9"]
+  operation --> evidence

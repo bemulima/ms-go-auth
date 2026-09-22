@@ -1,0 +1,52 @@
+%% GENERATED — READ-ONLY PRESENTATION
+%% Do not edit; source of truth is the architecture manifest.
+flowchart LR
+  svc["ms-go-auth / ms-go-auth"]
+  svcInfo["purpose: Own credentials, OAuth login identities, JWTs, and refresh sessions.<br/>confidence: 0.95"]
+  svc --> svcInfo
+  service_responsibilities["responsibilities: Own credentials, OAuth login identities, JWTs, and refresh sessions."]
+  svc --> service_responsibilities
+  service_capabilities["capabilities: Serve the registered runtime operations listed below."]
+  svc --> service_capabilities
+  inbound_0["inbound http: /api/v1/auth and /internal/health — Echo HTTP API and health contour"]
+  inbound_0 -->|inbound| svc
+  inbound_1["inbound nats: auth.verifyJWT — JWT verification request/reply consumer"]
+  inbound_1 -->|inbound| svc
+  operation_0["operation: delete-auth-identities-provider-user (http)"]
+  svc --> operation_0
+  operation_1["operation: get-auth-identities (http)"]
+  svc --> operation_1
+  operation_2["operation: get-auth-me (http)"]
+  svc --> operation_2
+  operation_3["operation: get-internal-health (http)"]
+  svc --> operation_3
+  operation_4["operation: post-auth-email-change-start (http)"]
+  svc --> operation_4
+  operation_5["operation: post-auth-email-change-verify (http)"]
+  svc --> operation_5
+  operation_6["operation: post-auth-oauth-provider-callback (http)"]
+  svc --> operation_6
+  operation_7["operation: post-auth-oauth-provider-start (http)"]
+  svc --> operation_7
+  operation_8["operation: post-auth-password-change (http)"]
+  svc --> operation_8
+  operation_9["operation: post-auth-password-reset-finish (http)"]
+  svc --> operation_9
+  operation_10["operation: post-auth-password-reset-start (http)"]
+  svc --> operation_10
+  operation_11["operation: post-auth-password-set (http)"]
+  svc --> operation_11
+  operation_12["operation: post-auth-refresh (http)"]
+  svc --> operation_12
+  operation_13["operation: post-auth-revoke (http)"]
+  svc --> operation_13
+  operation_14["operation: post-auth-signin (http)"]
+  svc --> operation_14
+  operation_15["operation: post-auth-signup-start (http)"]
+  svc --> operation_15
+  operation_16["operation: post-auth-signup-verify (http)"]
+  svc --> operation_16
+  operation_17["operation: post-auth-verify (http)"]
+  svc --> operation_17
+  operation_18["operation: nats-auth-verify-jwt (nats_request_reply)"]
+  svc --> operation_18

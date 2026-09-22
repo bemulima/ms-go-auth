@@ -1,0 +1,32 @@
+%% GENERATED — READ-ONLY PRESENTATION
+%% Do not edit; source of truth is the architecture manifest.
+flowchart TD
+  operation["delete-auth-identities-provider-user — http"]
+  identity["identity: http / DELETE / /api/v1/auth/identities/:provider/:provider_user_id"]
+  operation --> identity
+  access["access: authenticated caller / JWT authentication middleware / authenticated user context / no explicit caller idempotency mechanism is registered by this handler"]
+  operation --> access
+  trigger["trigger: DELETE /api/v1/auth/identities/:provider/:provider_user_id invokes RemoveIdentity"]
+  operation --> trigger
+  input["input: unknown"]
+  operation --> input
+  business_task["business task: authenticated identity removal"]
+  operation --> business_task
+  business_process["business process: handler / RemoveIdentity validates the request and delegates application behavior"]
+  operation --> business_process
+  business_rules["business rule: unknown"]
+  operation --> business_rules
+  implementation["implementation: router=internal/transport/http/api/v1/router.go / Register; handler=internal/transport/http/api/v1/handlers/auth_handler.go / RemoveIdentity; use_cases=unknown; domain_services=unknown; repositories=unknown"]
+  operation --> implementation
+  data_access["data access: unknown"]
+  operation --> data_access
+  external_interactions["external interactions: unknown"]
+  operation --> external_interactions
+  side_effects["side effects: unknown"]
+  operation --> side_effects
+  output["output: unknown"]
+  operation --> output
+  errors["errors: unknown"]
+  operation --> errors
+  evidence["evidence: internal/transport/http/api/v1/handlers/auth_handler.go / RemoveIdentity; confidence: 0.9"]
+  operation --> evidence

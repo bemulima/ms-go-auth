@@ -1,0 +1,61 @@
+schema: architecture/v1
+kind: service
+id: ms-go-auth
+manifest_revision: 1
+identity:
+  name: ms-go-auth
+  kind: go_backend_service
+purpose:
+  value: "Own credentials, OAuth login identities, JWTs, and refresh sessions."
+  confidence: 1
+  evidence: [{source_path: .ai/service.yaml, symbol: purpose}]
+responsibilities:
+  - value: "Own credentials, OAuth login identities, JWTs, and refresh sessions."
+    confidence: 1
+    evidence: [{source_path: .ai/service.yaml, symbol: purpose}]
+capabilities:
+  - value: "Serve the registered runtime operations listed below."
+    confidence: 1
+    evidence: [{source_path: internal/transport/http/api/v1/router.go, symbol: Register}]
+owned_resources: []
+inbound_interfaces:
+  - transport: http
+    name: "/api/v1/auth and /internal/health"
+    description: {value: "Echo HTTP API and health contour", confidence: 1, evidence: [{source_path: internal/transport/http/api/v1/router.go, symbol: Register}]}
+  - transport: nats
+    name: "auth.verifyJWT"
+    description: {value: "JWT verification request/reply consumer", confidence: 1, evidence: [{source_path: internal/transport/http/api/v1/router.go, symbol: Register}]}
+outbound_dependencies: []
+endpoint_groups: []
+produced_contracts: []
+consumed_contracts: []
+published_events: []
+subscribed_events: []
+business_rules: []
+operation_manifests:
+  - endpoints/post-auth-signup-start.yaml
+  - endpoints/post-auth-signup-verify.yaml
+  - endpoints/post-auth-signin.yaml
+  - endpoints/post-auth-refresh.yaml
+  - endpoints/post-auth-revoke.yaml
+  - endpoints/post-auth-oauth-provider-start.yaml
+  - endpoints/post-auth-oauth-provider-callback.yaml
+  - endpoints/post-auth-password-reset-start.yaml
+  - endpoints/post-auth-password-reset-finish.yaml
+  - endpoints/post-auth-verify.yaml
+  - endpoints/post-auth-email-change-verify.yaml
+  - endpoints/get-auth-me.yaml
+  - endpoints/post-auth-email-change-start.yaml
+  - endpoints/post-auth-password-change.yaml
+  - endpoints/post-auth-password-set.yaml
+  - endpoints/get-auth-identities.yaml
+  - endpoints/delete-auth-identities-provider-user.yaml
+  - endpoints/get-internal-health.yaml
+  - operations/nats-auth-verify-jwt.yaml
+evidence:
+  - source_path: internal/transport/http/api/v1/router.go
+    symbol: Register
+  - source_path: .ai/service.yaml
+    symbol: purpose
+confidence: 0.95
+ 

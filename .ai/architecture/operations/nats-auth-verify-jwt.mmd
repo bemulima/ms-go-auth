@@ -1,0 +1,32 @@
+%% GENERATED — READ-ONLY PRESENTATION
+%% Do not edit; source of truth is the architecture manifest.
+flowchart TD
+  operation["nats-auth-verify-jwt — nats_request_reply"]
+  identity["identity: nats / auth.verifyJWT / request_handler / cfg.AppName / request_reply"]
+  operation --> identity
+  access["access: NATS request/reply clients / NATS connection; no message-level credential is parsed by the handler / handler-specific input validation only / request/reply behavior is defined by the handler"]
+  operation --> access
+  trigger["trigger: NATS request on auth.verifyJWT"]
+  operation --> trigger
+  input["input: body=JSON request / unknown"]
+  operation --> input
+  business_task["business task: verify a JWT and return claims to a NATS requester"]
+  operation --> business_task
+  business_process["business process: handle-request / VerifyHandler.Handle decodes the NATS payload and responds to the requester"]
+  operation --> business_process
+  business_rules["business rule: unknown"]
+  operation --> business_rules
+  implementation["implementation: router=unknown; handler=internal/infrastructure/messaging/nats/server.go / VerifyHandler.Handle; use_cases=unknown; domain_services=unknown; repositories=unknown"]
+  operation --> implementation
+  data_access["data access: unknown"]
+  operation --> data_access
+  external_interactions["external interactions: unknown"]
+  operation --> external_interactions
+  side_effects["side effects: unknown"]
+  operation --> side_effects
+  output["output: result=JSON reply / unknown"]
+  operation --> output
+  errors["errors: unknown"]
+  operation --> errors
+  evidence["evidence: internal/infrastructure/messaging/nats/server.go / VerifyHandler.Handle; confidence: 0.95"]
+  operation --> evidence
