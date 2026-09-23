@@ -12,6 +12,8 @@ flowchart LR
   inbound_0 -->|inbound| svc
   inbound_1["inbound nats: auth.verifyJWT — JWT verification request/reply consumer"]
   inbound_1 -->|inbound| svc
+  outbound_0["outbound nats: ms-go-user — Signup invokes the documented user.create-user NATS request/reply contract."]
+  svc -->|outbound| outbound_0
   operation_0["operation: delete-auth-identities-provider-user (http)"]
   svc --> operation_0
   operation_1["operation: get-auth-identities (http)"]

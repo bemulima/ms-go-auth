@@ -25,7 +25,13 @@ inbound_interfaces:
   - transport: nats
     name: "auth.verifyJWT"
     description: {value: "JWT verification request/reply consumer", confidence: 1, evidence: [{source_path: internal/transport/http/api/v1/router.go, symbol: Register}]}
-outbound_dependencies: []
+outbound_dependencies:
+  - id: user-create-request
+    transport: nats
+    target: ms-go-user
+    contract: user.create-user
+    direction: outbound
+    description: {value: "Signup invokes the documented user.create-user NATS request/reply contract.", confidence: 1, evidence: [{source_path: cmd/ms-go-auth/app.go, start_line: 65, end_line: 77}, {source_path: internal/infrastructure/messaging/nats/client.go, start_line: 47, end_line: 75}, {source_path: .ai/contracts/messaging.yaml, start_line: 3, end_line: 6}]}
 endpoint_groups: []
 produced_contracts: []
 consumed_contracts: []
