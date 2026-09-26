@@ -20,6 +20,9 @@ type refreshTokenRepo struct{ db *gorm.DB }
 type oauthTransactionRepo struct{ db *gorm.DB }
 
 func NewAuthUserRepository(db *gorm.DB) domain.AuthUserRepository { return &authUserRepo{db: db} }
+func NewVerificationIdentityRepository(db *gorm.DB) domain.VerificationIdentityRepository {
+	return &authUserRepo{db: db}
+}
 func NewAuthIdentityRepository(db *gorm.DB) domain.AuthIdentityRepository {
 	return &authIdentityRepo{db: db}
 }
@@ -32,6 +35,40 @@ func NewOAuthTransactionRepository(db *gorm.DB) domain.OAuthTransactionRepositor
 
 func (r *authUserRepo) Create(ctx context.Context, user *domain.AuthUser) error {
 	return r.db.WithContext(ctx).Create(user).Error
+}
+
+// CreateVerificationIfAbsent serializes disposable fixture creation for one
+// normalized email. It never updates an existing account; the Auth fixture
+// use case decides whether the existing row is an exact safe replay.
+func (r *authUserRepo) CreateVerificationIfAbsent(ctx context.Context, user *domain.AuthUser) (*domain.AuthUser, bool, error) {
+	var persisted *domain.AuthUser
+	created := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		lockKey := "auth-verification-fixture:" + user.Email
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", lockKey).Error; err != nil {
+			return err
+		}
+
+		var existing domain.AuthUser
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("email = ?", user.Email).First(&existing).Error
+		if err == nil {
+			persisted = &existing
+			return nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		persisted = user
+		created = true
+		return nil
+	})
+	if err != nil {
+		return nil, false, normalizeError(err)
+	}
+	return persisted, created, nil
 }
 
 func (r *authUserRepo) FindByEmail(ctx context.Context, email string) (*domain.AuthUser, error) {

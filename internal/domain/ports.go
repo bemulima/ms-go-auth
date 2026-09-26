@@ -17,6 +17,10 @@ type AuthUserRepository interface {
 	Update(context.Context, *AuthUser) error
 }
 
+type VerificationIdentityRepository interface {
+	CreateVerificationIfAbsent(context.Context, *AuthUser) (*AuthUser, bool, error)
+}
+
 type AuthIdentityRepository interface {
 	FindByProvider(context.Context, string, string) (*AuthIdentity, error)
 	Create(context.Context, *AuthIdentity) error
