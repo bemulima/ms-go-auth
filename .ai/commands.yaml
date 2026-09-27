@@ -10,3 +10,6 @@ commands:
   - {name: migrate-up, run: task migrate-up, requires_approval: true, risk: database-write}
   - {name: migrate-status, run: task migrate-status, requires_approval: true, risk: database-read}
   - {name: migrate-down, run: task migrate-down, requires_approval: true, risk: destructive-database-write}
+  - {name: migrate-native, run: 'task migrate:native', requires_approval: true, risk: database-write}
+  - {name: migrate-status-native, run: 'task migrate-status:native', requires_approval: true, risk: database-read}
+  - {name: run-native, run: 'task run:native', requires_approval: true, risk: lifecycle}

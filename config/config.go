@@ -40,7 +40,9 @@ type Config struct {
 	NATSAssignRoleSubject string `env:"NATS_SUBJECT_ASSIGN_ROLE" envDefault:"rbac.assign-role"`
 	NATSCheckRoleSubject  string `env:"NATS_SUBJECT_CHECK_ROLE" envDefault:"rbac.checkRole"`
 
-	TarantoolSignupURL      string `env:"TARANTOOL_SIGNUP_URL"`
+	// TarantoolSignupURL owns signup and password-reset verification calls.
+	TarantoolSignupURL string `env:"TARANTOOL_SIGNUP_URL"`
+	// TarantoolEmailChangeURL owns email-change verification calls.
 	TarantoolEmailChangeURL string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
 
 	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`

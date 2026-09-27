@@ -61,7 +61,7 @@ func New(ctx context.Context) (*App, error) {
 	identityRepo := repo.NewAuthIdentityRepository(db)
 	oauthTxRepo := repo.NewOAuthTransactionRepository(db)
 	refreshRepo := repo.NewRefreshTokenRepository(db)
-	tarantoool := taraclient.NewHTTPClient(cfg.TarantoolSignupURL, 5*time.Second)
+	tarantoool := taraclient.NewHTTPClient(cfg.TarantoolSignupURL, cfg.TarantoolEmailChangeURL, 5*time.Second)
 	userClient := natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
 	rbacClient := natsadapter.NewRBACClient(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject)
 

@@ -28,7 +28,12 @@ fixture_trim_chars_sql="
 "
 
 compose=(docker compose -p "$compose_project" -f "$compose_file")
-psql=("${compose[@]}" exec -T "$db_service" psql -X -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1)
+if [[ -n ${AUTH_MIGRATION_DSN:-} ]]; then
+  migration_psql=${AUTH_MIGRATION_PSQL:-psql}
+  psql=("$migration_psql" -X -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1)
+else
+  psql=("${compose[@]}" exec -T "$db_service" psql -X -U "$db_user" -d "$db_name" -v ON_ERROR_STOP=1)
+fi
 
 usage() {
   echo "usage: MIGRATION_ENV=<local|dev|production> $0 <up|down|status>" >&2

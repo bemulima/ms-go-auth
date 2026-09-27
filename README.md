@@ -83,6 +83,14 @@ Direct provider setup pages:
 
 The Go provider contract is `internal/domain.OAuthProvider`. Its normalized profile supports optional `FirstName`, `LastName`, `BirthYear`, `Gender`, and `AvatarURL` values. `OAuth2Base` in `internal/infrastructure/oauth` contains the shared OAuth2 config, PKCE exchange, HTTP client, and validation; `GoogleOAuth2` and `GitHubOAuth2` embed it and implement provider-specific profile loading. Adding another standards-compatible provider means implementing the port and registering it in `cmd/ms-go-auth/app.go`. Telegram login is not a regular OAuth2 provider and should use a separate infrastructure implementation behind the same application-level identity contract.
 
+## Native macOS development
+
+Auth can run as a macOS process while PostgreSQL and NATS remain shared Docker
+infrastructure. The native adapter supplies loopback endpoints and preserves
+the approved secret source; application code remains topology-neutral. Follow
+[the native development guide](docs/native-development.md) for commands,
+migration ordering, and the native ms-go-tarantool dependency.
+
 ## Testing
 - Unit/handler tests: `XDG_CACHE_HOME=$PWD/.cache GOCACHE=$PWD/.cache/go-build GOMODCACHE=$PWD/.cache/gomod go test ./...`
 - External deps are mocked (no DB/NATS required). Default role used in tests is `user` (configurable via `AUTH_DEFAULT_ROLE`).

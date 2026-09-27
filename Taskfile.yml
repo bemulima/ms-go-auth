@@ -30,6 +30,16 @@ tasks:
     cmds:
       - bash ./scripts/migrate.sh status
 
+  migrate:native:
+    desc: Apply existing Auth migrations to shared native PostgreSQL
+    cmds:
+      - python3 scripts/native_config.py -- bash ./scripts/migrate.sh up
+
+  migrate-status:native:
+    desc: Show Auth migration status for shared native PostgreSQL without writes
+    cmds:
+      - python3 scripts/native_config.py -- bash ./scripts/migrate.sh status
+
   migration-integration-test:
     desc: Verify migrations and environment-gated seeds against disposable Postgres databases
     cmds:
@@ -39,6 +49,11 @@ tasks:
     desc: Run service locally
     cmds:
       - go run ./cmd/ms-go-auth
+
+  run:native:
+    desc: Run Auth on macOS against shared PostgreSQL, NATS, and ms-go-tarantool
+    cmds:
+      - python3 scripts/native_config.py --require-tarantool -- go run ./cmd/ms-go-auth
 
   test:
     desc: Run tests
