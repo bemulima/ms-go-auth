@@ -15,8 +15,9 @@ import (
 )
 
 type mockUserRepo struct {
-	users map[string]*domain.AuthUser
-	next  int
+	users          map[string]*domain.AuthUser
+	next           int
+	findByEmailErr error
 }
 
 func newMockUserRepo() *mockUserRepo {
@@ -33,6 +34,10 @@ func (r *mockUserRepo) Create(_ context.Context, user *domain.AuthUser) error {
 }
 
 func (r *mockUserRepo) FindByEmail(_ context.Context, email string) (*domain.AuthUser, error) {
+	if r.findByEmailErr != nil {
+		return nil, r.findByEmailErr
+	}
+
 	for _, u := range r.users {
 		if u.Email == email {
 			return u, nil
@@ -275,8 +280,57 @@ func TestStartSignup(t *testing.T) {
 	}
 }
 
-func TestVerifySignupCreatesUserAndTokens(t *testing.T) {
+func TestStartSignupAllowsDeclaredLookupAbsence(t *testing.T) {
 	svc, deps := newTestService(t)
+	deps.users.findByEmailErr = domain.ErrNotFound
+
+	if err := svc.StartSignup(context.Background(), "trace", "user@example.com", "password123"); err != nil {
+		t.Fatal("expected declared absence to continue signup")
+	}
+	if deps.tara.lastSignupEmail == "" {
+		t.Fatal("expected identity signup after declared absence")
+	}
+}
+
+func TestStartSignupAllowsDeclaredIdentityAbsence(t *testing.T) {
+	svc, deps := newTestService(t)
+	deps.tara.startSignupErr = domain.ErrNotFound
+
+	if err := svc.StartSignup(context.Background(), "trace", "user@example.com", "password123"); err != nil {
+		t.Fatal("expected declared identity absence to continue signup")
+	}
+	if deps.tara.lastSignupEmail == "" {
+		t.Fatal("expected identity signup attempt")
+	}
+}
+
+func TestStartSignupPropagatesLookupFailure(t *testing.T) {
+	svc, deps := newTestService(t)
+	expected := errors.New("lookup failed")
+	deps.users.findByEmailErr = expected
+
+	err := svc.StartSignup(context.Background(), "trace", "user@example.com", "password123")
+	if !errors.Is(err, expected) {
+		t.Fatal("expected lookup failure to be returned")
+	}
+	if deps.tara.lastSignupEmail != "" {
+		t.Fatal("identity signup must not run after lookup failure")
+	}
+}
+
+func TestStartSignupPropagatesIdentityFailure(t *testing.T) {
+	svc, deps := newTestService(t)
+	expected := errors.New("identity unavailable")
+	deps.tara.startSignupErr = expected
+
+	err := svc.StartSignup(context.Background(), "trace", "user@example.com", "password123")
+	if !errors.Is(err, expected) {
+		t.Fatal("expected identity failure to be returned")
+	}
+}
+
+func TestVerifySignupCreatesUserAndTokens(t *testing.T) {
+	svc, deps := newTestServiceWithClients(t, &recordingUserClient{}, &recordingRBACClient{})
 	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	deps.tara.verifySignupPassword = string(hash)
 	user, tokens, err := svc.VerifySignup(context.Background(), "trace", "User@Example.com", "code")
@@ -322,8 +376,11 @@ func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
 		t.Fatalf("expected AssignRole to be called once, got %d", len(rbacClient.calls))
 	}
 	rbacCall := rbacClient.calls[0]
-	if rbacCall.userID != user.ID || rbacCall.role != deps.cfg.DefaultRole {
+	if rbacCall.userID != user.ID || rbacCall.role != "student" {
 		t.Fatalf("AssignRole call mismatch: %+v", rbacCall)
+	}
+	if len(rbacClient.checkCalls) == 0 {
+		t.Fatal("expected CheckRole to confirm the signup role")
 	}
 }
 

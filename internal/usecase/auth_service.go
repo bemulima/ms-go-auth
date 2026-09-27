@@ -19,6 +19,8 @@ var (
 	tokenRoleCandidates   = []string{"admin", "moderator", "teacher", "student", "user", "guest"}
 )
 
+const signupRole = "student"
+
 type Service interface {
 	StartSignup(ctx context.Context, traceID, email, password string) error
 	VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error)
@@ -75,13 +77,15 @@ func (s *authService) StartSignup(ctx context.Context, traceID, email, password 
 		return fmt.Errorf("user already exists")
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return err
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return err
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	if err := s.tarantoool.StartSignup(ctx, norm, string(hash)); err != nil {
+	if err := s.tarantoool.StartSignup(ctx, norm, string(hash)); err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return err
 	}
 
@@ -103,18 +107,12 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 		return nil, nil, fmt.Errorf("password hash missing")
 	}
 
-	now := time.Now().UTC()
-	user := &domain.AuthUser{Email: norm, PasswordHash: &passwordHash, PasswordUpdatedAt: &now}
-	if err := s.users.Create(ctx, user); err != nil {
+	user, err := s.findOrCreateSignupUser(ctx, norm, passwordHash)
+	if err != nil {
 		return nil, nil, err
 	}
-	if s.userClient != nil {
-		_ = s.userClient.CreateUser(ctx, domain.UserProvisionRequest{
-			ID: user.ID, Email: user.Email, Source: "auth", Type: "signup",
-		})
-	}
-	if s.rbacClient != nil {
-		_ = s.rbacClient.AssignRole(ctx, user.ID, s.cfg.DefaultRole)
+	if err := s.provisionSignupActor(ctx, user); err != nil {
+		return nil, nil, err
 	}
 	tokens, err := s.issueTokens(ctx, user)
 	if err != nil {
@@ -122,6 +120,57 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 	}
 	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("signup verified")
 	return user, tokens, nil
+}
+
+func (s *authService) findOrCreateSignupUser(ctx context.Context, email, passwordHash string) (*domain.AuthUser, error) {
+	user, err := s.users.FindByEmail(ctx, email)
+	if err == nil {
+		return user, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, fmt.Errorf("find signup auth user: %w", err)
+	}
+
+	now := time.Now().UTC()
+	candidate := &domain.AuthUser{Email: email, PasswordHash: &passwordHash, PasswordUpdatedAt: &now}
+	if err := s.users.Create(ctx, candidate); err == nil {
+		return candidate, nil
+	} else {
+		createErr := err
+		// A concurrent verified completion may have created the same Auth user.
+		// Reuse its canonical principal so the idempotent downstream calls converge.
+		user, findErr := s.users.FindByEmail(ctx, email)
+		if findErr == nil {
+			return user, nil
+		}
+		return nil, fmt.Errorf("create signup auth user: %w", createErr)
+	}
+}
+
+func (s *authService) provisionSignupActor(ctx context.Context, user *domain.AuthUser) error {
+	if s.userClient == nil {
+		return errors.New("signup user provisioning is unavailable")
+	}
+	if err := s.userClient.CreateUser(ctx, domain.UserProvisionRequest{
+		ID: user.ID, Email: user.Email, Source: "auth", Type: "signup",
+	}); err != nil {
+		return fmt.Errorf("provision signup user: %w", err)
+	}
+
+	if s.rbacClient == nil {
+		return errors.New("signup role provisioning is unavailable")
+	}
+	if err := s.rbacClient.AssignRole(ctx, user.ID, signupRole); err != nil {
+		return fmt.Errorf("assign signup role: %w", err)
+	}
+	hasRole, err := s.rbacClient.CheckRole(ctx, user.ID, signupRole)
+	if err != nil {
+		return fmt.Errorf("check signup role: %w", err)
+	}
+	if !hasRole {
+		return errors.New("signup role is not readable after assignment")
+	}
+	return nil
 }
 
 func (s *authService) SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error) {

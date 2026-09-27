@@ -1,6 +1,8 @@
 # E2E (Gateway) — ms-go-auth
 
 Тесты проверяют флоу из `wiki/AUTHENTICATION.md`, выполняя реальные запросы только через `ms-gateway`.
+The password-reset scenario uses the verification service's integration-only
+code hook, as does the signup scenario.
 
 ## Требования
 - Запущены контейнеры (gateway + auth + зависимости).

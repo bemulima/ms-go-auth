@@ -23,10 +23,10 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 - `POST /signup/verify` — verify code, create auth user, call ms-go-user + RBAC, return tokens
 - `POST /signin` — email/password login
 - `POST /refresh` — refresh tokens
-- `POST /password/reset/start` — start reset
-- `POST /password/reset/finish` — finish reset
+- `POST /password/reset/start` — start reset with `{email}`; returns a reset UUID in the standard data envelope
+- `POST /password/reset/finish` — finish reset with `{email, code, new_password}`
 - `POST /email/change/start` (JWT) — start email change
-- `POST /email/change/verify` — verify email change
+- `POST /email/change/verify` — verify email change with the code-only `{code}` request
 - `POST /oauth/:provider/start` — create one-time state + PKCE transaction and return the provider authorization URL
 - `POST /oauth/:provider/callback` — consume state, exchange code, link/create identity, and return application tokens
 - `GET /identities` (JWT) — list linked OAuth identities

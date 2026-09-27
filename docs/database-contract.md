@@ -27,3 +27,15 @@ defaults to `true` for backwards compatibility. Set it to `false` during a
 rollout where the owner migration runner applies the forward migrations before
 the service starts; this skips the extension creation, compatibility `ALTER`,
 and GORM `AutoMigrate` statements as one gate.
+
+## Native migration execution
+
+`task migrate-status:native` and `task migrate:native` use the same
+`scripts/migrate.sh` implementation and ordered `migrations/*.sql` files as
+Docker mode. The native adapter derives a PostgreSQL DSN for the `lw_auth`
+role and database from the approved infrastructure environment. On a machine
+without a host `psql` client, the adapter uses the client already present in
+the shared PostgreSQL container without changing the target endpoint or role.
+
+Native application startup sets `AUTH_DB_MIGRATE_ON_START=false`; run the
+owner migration task before starting the application process.

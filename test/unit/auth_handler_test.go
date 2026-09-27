@@ -348,6 +348,98 @@ func TestEmailChangeStart(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["message"] != "verification code sent to new email" {
+		t.Fatalf("unexpected response: %#v", resp)
+	}
+}
+
+func TestEmailChangeVerifyUsesCodeOnlyRequest(t *testing.T) {
+	e := echo.New()
+	svc := &mockAuthService{
+		verifyEmailChangeFn: func(code string) (*domain.AuthUser, error) {
+			if code != "email-code" {
+				t.Fatalf("code = %q, want email-code", code)
+			}
+			return &domain.AuthUser{ID: "u1", Email: "new@example.com"}, nil
+		},
+	}
+	h := apihandlers.NewAuthHandler(svc)
+	body := []byte(`{"code":"email-code"}`)
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := h.EmailChangeVerify(c); err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var resp map[string]map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["data"]["email"] != "new@example.com" {
+		t.Fatalf("unexpected response: %#v", resp)
+	}
+}
+
+func TestPasswordResetHandlersKeepPublicContract(t *testing.T) {
+	e := echo.New()
+	svc := &mockAuthService{
+		startPasswordResetFn: func(email string) (string, error) {
+			if email != "user@example.com" {
+				t.Fatalf("email = %q", email)
+			}
+			return "reset-uuid", nil
+		},
+		finishPasswordFn: func(email, code, newPassword string) error {
+			if email != "user@example.com" || code != "reset-code" || newPassword != "NewPassword-123!" {
+				t.Fatalf("unexpected finish input: %q, %q, %q", email, code, newPassword)
+			}
+			return nil
+		},
+	}
+	h := apihandlers.NewAuthHandler(svc)
+
+	startReq := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"email":"user@example.com"}`))
+	startReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	startRec := httptest.NewRecorder()
+	if err := h.PasswordResetStart(e.NewContext(startReq, startRec)); err != nil {
+		t.Fatalf("start handler error: %v", err)
+	}
+	if startRec.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d", startRec.Code)
+	}
+	var startResp map[string]map[string]string
+	if err := json.Unmarshal(startRec.Body.Bytes(), &startResp); err != nil {
+		t.Fatalf("decode start response: %v", err)
+	}
+	if startResp["data"]["uuid"] != "reset-uuid" {
+		t.Fatalf("unexpected start response: %#v", startResp)
+	}
+
+	finishReq := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"email":"user@example.com","code":"reset-code","new_password":"NewPassword-123!"}`))
+	finishReq.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	finishRec := httptest.NewRecorder()
+	if err := h.PasswordResetFinish(e.NewContext(finishReq, finishRec)); err != nil {
+		t.Fatalf("finish handler error: %v", err)
+	}
+	if finishRec.Code != http.StatusOK {
+		t.Fatalf("finish status = %d", finishRec.Code)
+	}
+	var finishResp map[string]map[string]string
+	if err := json.Unmarshal(finishRec.Body.Bytes(), &finishResp); err != nil {
+		t.Fatalf("decode finish response: %v", err)
+	}
+	if finishResp["data"]["status"] != "ok" {
+		t.Fatalf("unexpected finish response: %#v", finishResp)
+	}
 }
 
 func TestGetMe(t *testing.T) {

@@ -6,4 +6,9 @@ ms-go-auth owns credentials, OAuth login identities, OAuth transactions, JWT iss
 
 Google and GitHub OAuth Authorization Code flows are implemented with one-time state and PKCE. This supersedes the former wiki statement that OAuth was only a stub. OAuth can link by normalized verified email and supports accounts without an initial password.
 
-Known consistency boundary: classic signup ignores errors from user.create-user and rbac.assign-role after creating the auth record. OAuth provisioning checks those calls. Changes should either preserve this current behavior or introduce an explicit retry/outbox/compensation design.
+Signup completion synchronously requires the User creation acknowledgement, RBAC
+assignment acknowledgement, and RBAC read check before Auth issues a session or
+tokens. A downstream failure leaves only a retryable partial Auth record; a
+repeat completion reuses its canonical principal and replays the idempotent
+User and RBAC owner operations. The frozen cross-service semantics are defined
+by `.ai/contracts/auth-user-rbac-provisioning-v1.md`.

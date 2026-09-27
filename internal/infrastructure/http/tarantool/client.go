@@ -14,19 +14,20 @@ import (
 )
 
 type httpClient struct {
-	baseURL string
-	client  *http.Client
+	signupURL      string
+	emailChangeURL string
+	client         *http.Client
 }
 
 // NewHTTPClient builds the canonical HTTP transport for signup and related
 // Tarantool flows in the target architecture.
-func NewHTTPClient(baseURL string, timeout time.Duration) domain.VerificationClient {
-	return &httpClient{baseURL: baseURL, client: &http.Client{Timeout: timeout}}
+func NewHTTPClient(signupURL, emailChangeURL string, timeout time.Duration) domain.VerificationClient {
+	return &httpClient{signupURL: signupURL, emailChangeURL: emailChangeURL, client: &http.Client{Timeout: timeout}}
 }
 
 func (c *httpClient) StartSignup(ctx context.Context, email, passwordHash string) error {
 	payload := map[string]interface{}{"value": map[string]string{"email": email, "password": passwordHash}}
-	return c.post(ctx, "/api/v1/set-new-user", payload, nil)
+	return c.post(ctx, c.signupURL, "/api/v1/set-new-user", payload, nil)
 }
 
 func (c *httpClient) VerifySignup(ctx context.Context, email, code string) (string, error) {
@@ -34,7 +35,7 @@ func (c *httpClient) VerifySignup(ctx context.Context, email, code string) (stri
 	var resp struct {
 		Password string `json:"password"`
 	}
-	if err := c.post(ctx, "/api/v1/check-new-user-code", payload, &resp); err != nil {
+	if err := c.post(ctx, c.signupURL, "/api/v1/check-new-user-code", payload, &resp); err != nil {
 		return "", err
 	}
 	return resp.Password, nil
@@ -45,7 +46,7 @@ func (c *httpClient) StartEmailChange(ctx context.Context, userID, newEmail stri
 	var resp struct {
 		UUID string `json:"uuid"`
 	}
-	if err := c.post(ctx, "/api/v1/start-email-change", payload, &resp); err != nil {
+	if err := c.post(ctx, c.emailChangeURL, "/api/v1/start-email-change", payload, &resp); err != nil {
 		return "", err
 	}
 	return resp.UUID, nil
@@ -57,7 +58,7 @@ func (c *httpClient) VerifyEmailChange(ctx context.Context, code string) (string
 		UserID   string `json:"user_id"`
 		NewEmail string `json:"email"`
 	}
-	if err := c.post(ctx, "/api/v1/verify-email-change", payload, &resp); err != nil {
+	if err := c.post(ctx, c.emailChangeURL, "/api/v1/verify-email-change", payload, &resp); err != nil {
 		return "", "", err
 	}
 	return resp.UserID, resp.NewEmail, nil
@@ -68,7 +69,7 @@ func (c *httpClient) StartPasswordReset(ctx context.Context, email string) (stri
 	var resp struct {
 		UUID string `json:"uuid"`
 	}
-	if err := c.post(ctx, "/password-reset-start", payload, &resp); err != nil {
+	if err := c.post(ctx, c.signupURL, "/api/v1/password-reset-start", payload, &resp); err != nil {
 		return "", err
 	}
 	return resp.UUID, nil
@@ -76,16 +77,16 @@ func (c *httpClient) StartPasswordReset(ctx context.Context, email string) (stri
 
 func (c *httpClient) VerifyPasswordReset(ctx context.Context, email, code string) error {
 	payload := map[string]interface{}{"value": map[string]string{"email": email, "code": code}}
-	return c.post(ctx, "/password-reset-verify", payload, nil)
+	return c.post(ctx, c.signupURL, "/api/v1/password-reset-verify", payload, nil)
 }
 
-func (c *httpClient) post(ctx context.Context, path string, payload interface{}, out interface{}) error {
+func (c *httpClient) post(ctx context.Context, baseURL, path string, payload interface{}, out interface{}) error {
 	op := func() error {
 		body, err := json.Marshal(payload)
 		if err != nil {
 			return backoff.Permanent(err)
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s%s", c.baseURL, path), bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s%s", baseURL, path), bytes.NewReader(body))
 		if err != nil {
 			return backoff.Permanent(err)
 		}
@@ -95,6 +96,9 @@ func (c *httpClient) post(ctx context.Context, path string, payload interface{},
 			return err
 		}
 		defer res.Body.Close()
+		if res.StatusCode == http.StatusNotFound {
+			return backoff.Permanent(domain.ErrNotFound)
+		}
 		if res.StatusCode >= 400 {
 			return fmt.Errorf("tarantool error: %d", res.StatusCode)
 		}
