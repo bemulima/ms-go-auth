@@ -11,9 +11,77 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with: {go-version-file: go.mod, cache: true}
+      - uses: actions/setup-node@v4
+        with: {node-version: '20.19.5'}
       - uses: arduino/setup-task@v2
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.1
+          install-only: true
       - run: ./scripts/check-agent-policy.sh
-      - run: test -z "$(gofmt -l $(git ls-files '*.go'))"
-      - run: go vet ./...
-      - run: go test ./...
+      - name: Check policy bundle checksum before execution
+        run: |
+          node -e 'const fs = require("node:fs"); const crypto = require("node:crypto"); const lock = JSON.parse(fs.readFileSync(".ai/testing/policy/policy-lock.json", "utf8")); const bundle = fs.readFileSync(".ai/testing/policy/policy-runner.cjs"); const actual = crypto.createHash("sha256").update(bundle).digest("hex"); if (actual !== lock.bundle_sha256) { console.error("Policy bundle checksum mismatch"); process.exit(1); } console.log("Policy bundle checksum PASS");'
+      - name: Verify policy bundle identity
+        run: node .ai/testing/policy/policy-runner.cjs verify-lock --lock .ai/testing/policy/policy-lock.json
+      - name: Validate testing manifest
+        run: node .ai/testing/policy/policy-runner.cjs validate --repo .
+      - name: Run policy fast tier
+        id: policy_run
+        continue-on-error: true
+        env:
+          POLICY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: node .ai/testing/policy/policy-runner.cjs verify --repo . --command verify:fast --output-dir . --run-id "$POLICY_RUN_ID"
       - run: task migration-integration-test
+      - name: Validate policy result artifacts
+        id: result_validation
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mapfile -t results < <(find test-results -type f -name test-result.v1.json -print 2>/dev/null | sort)
+          if (( ${#results[@]} == 0 )); then
+            echo "No test-result.v1.json artifacts were generated"
+            exit 1
+          fi
+          for result in "${results[@]}"; do
+            node .ai/testing/policy/policy-runner.cjs validate-result --repo . --result "$result"
+          done
+      - name: Upload policy result artifacts
+        id: result_upload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: testing-policy-results
+          path: test-results/**
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce policy result
+        if: always()
+        env:
+          POLICY_RUN_OUTCOME: ${{ steps.policy_run.outcome }}
+          RESULT_VALIDATION_OUTCOME: ${{ steps.result_validation.outcome }}
+          RESULT_UPLOAD_OUTCOME: ${{ steps.result_upload.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$RESULT_VALIDATION_OUTCOME" != success ]]; then
+            echo "Policy result validation failed (outcome: $RESULT_VALIDATION_OUTCOME)"
+            exit 1
+          fi
+          if [[ "$RESULT_UPLOAD_OUTCOME" != success ]]; then
+            echo "Policy result upload failed (outcome: $RESULT_UPLOAD_OUTCOME)"
+            exit 1
+          fi
+          mapfile -t results < <(find test-results -type f -name test-result.v1.json -print 2>/dev/null | sort)
+          if (( ${#results[@]} == 0 )); then
+            echo "No test-result.v1.json artifacts are available to enforce"
+            exit 1
+          fi
+          for result in "${results[@]}"; do
+            node .ai/testing/policy/policy-runner.cjs enforce-result --repo . --result "$result"
+          done
+          if [[ "$POLICY_RUN_OUTCOME" != success ]]; then
+            echo "Policy fast tier did not pass (outcome: $POLICY_RUN_OUTCOME)"
+            exit 1
+          fi
