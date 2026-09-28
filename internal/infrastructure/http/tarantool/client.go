@@ -95,7 +95,7 @@ func (c *httpClient) post(ctx context.Context, baseURL, path string, payload int
 		if err != nil {
 			return err
 		}
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		if res.StatusCode == http.StatusNotFound {
 			return backoff.Permanent(domain.ErrNotFound)
 		}

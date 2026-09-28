@@ -51,7 +51,7 @@ func (p *GoogleOAuth2) Authenticate(ctx context.Context, code, verifier string) 
 	if err != nil {
 		return nil, fmt.Errorf("google userinfo failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))

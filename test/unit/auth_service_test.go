@@ -409,11 +409,13 @@ func TestRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign refresh: %v", err)
 	}
-	deps.refresh.Create(context.Background(), &domain.RefreshToken{
+	if err := deps.refresh.Create(context.Background(), &domain.RefreshToken{
 		UserID:           user.ID,
 		RefreshTokenHash: hashToken(jti),
 		ExpiresAt:        time.Now().Add(time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("create initial refresh session: %v", err)
+	}
 	tokens, err := svc.Refresh(context.Background(), "trace", refreshTok)
 	if err != nil {
 		t.Fatalf("refresh: %v", err)
@@ -454,11 +456,13 @@ func TestRefreshRejectsMismatchedSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign refresh: %v", err)
 	}
-	deps.refresh.Create(context.Background(), &domain.RefreshToken{
+	if err := deps.refresh.Create(context.Background(), &domain.RefreshToken{
 		UserID:           "other-user",
 		RefreshTokenHash: hashToken(jti),
 		ExpiresAt:        time.Now().Add(time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("create initial refresh session: %v", err)
+	}
 	if _, err := svc.Refresh(context.Background(), "trace", refreshTok); err == nil {
 		t.Fatalf("expected error for mismatched session")
 	}
@@ -473,11 +477,13 @@ func TestRefreshFailsWhenNewSessionPersistFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign refresh: %v", err)
 	}
-	deps.refresh.Create(context.Background(), &domain.RefreshToken{
+	if err := deps.refresh.Create(context.Background(), &domain.RefreshToken{
 		UserID:           user.ID,
 		RefreshTokenHash: hashToken(jti),
 		ExpiresAt:        time.Now().Add(time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("create initial refresh session: %v", err)
+	}
 	deps.refresh.createErr = errors.New("db insert failed")
 
 	if _, err := svc.Refresh(context.Background(), "trace", refreshTok); err == nil {
@@ -494,11 +500,13 @@ func TestRevokeRefreshToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign refresh: %v", err)
 	}
-	deps.refresh.Create(context.Background(), &domain.RefreshToken{
+	if err := deps.refresh.Create(context.Background(), &domain.RefreshToken{
 		UserID:           user.ID,
 		RefreshTokenHash: hashToken(jti),
 		ExpiresAt:        time.Now().Add(time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("create initial refresh session: %v", err)
+	}
 
 	if err := svc.RevokeRefreshToken(context.Background(), "trace", refreshTok); err != nil {
 		t.Fatalf("revoke refresh token: %v", err)

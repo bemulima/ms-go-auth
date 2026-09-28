@@ -171,7 +171,7 @@ func connectNATSWithRetry(cfg *config.Config, logger pkglog.Logger) (*nats.Conn,
 }
 
 func loggerForGorm(cfg *config.Config) logger.Interface {
-	level := logger.Silent
+	var level logger.LogLevel
 	switch cfg.AppEnv {
 	case "local":
 		level = logger.Info

@@ -117,7 +117,7 @@ func getGitHubJSON(ctx context.Context, client *http.Client, endpoint string, ta
 	if err != nil {
 		return fmt.Errorf("github api request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 		return fmt.Errorf("github api request failed: %s", resp.Status)
