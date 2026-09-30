@@ -3,12 +3,29 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Testing Policy tier
+        type: choice
+        required: true
+        default: verify:pr
+        options:
+          - verify:pr
+          - verify:main
+          - verify:nightly
+          - verify:release
+
 permissions: {contents: read}
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v6
         with: {go-version-file: go.mod, cache: true}
       - uses: actions/setup-node@v4
@@ -27,12 +44,22 @@ jobs:
         run: node .ai/testing/policy/policy-runner.cjs verify-lock --lock .ai/testing/policy/policy-lock.json
       - name: Validate testing manifest
         run: node .ai/testing/policy/policy-runner.cjs validate --repo .
-      - name: Run policy fast tier
+      - name: Run selected Testing Policy tier
         id: policy_run
         continue-on-error: true
         env:
           POLICY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: node .ai/testing/policy/policy-runner.cjs verify --repo . --command verify:fast --output-dir . --run-id "$POLICY_RUN_ID"
+          POLICY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          POLICY_HEAD_SHA: ${{ github.sha }}
+          POLICY_TIER_COMMAND: ${{ github.event_name == 'schedule' && 'verify:nightly' || github.event_name == 'pull_request' && 'verify:pr' || github.event_name == 'push' && 'verify:main' || inputs.command || 'verify:pr' }}
+        shell: bash
+        run: |
+          args=(node .ai/testing/policy/policy-runner.cjs verify --repo . --command "$POLICY_TIER_COMMAND" --output-dir . --run-id "$POLICY_RUN_ID" --head "$POLICY_HEAD_SHA")
+          if [[ -n "$POLICY_BASE_SHA" && "$POLICY_BASE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            args+=(--base "$POLICY_BASE_SHA")
+          fi
+          "${args[@]}"
+
       - run: task migration-integration-test
       - name: Validate policy result artifacts
         id: result_validation
@@ -56,7 +83,7 @@ jobs:
           name: testing-policy-results
           path: test-results/**
           if-no-files-found: error
-          retention-days: 30
+          retention-days: ${{ inputs.command == 'verify:release' && 365 || inputs.command == 'verify:pr' && 30 || github.event_name == 'pull_request' && 30 || 90 }}
       - name: Enforce policy result
         if: always()
         env:
