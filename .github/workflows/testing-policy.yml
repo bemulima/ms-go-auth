@@ -1,0 +1,164 @@
+name: Testing Policy Canary
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Testing Policy tier
+        type: choice
+        required: true
+        default: verify:pr
+        options:
+          - verify:pr
+          - verify:main
+          - verify:nightly
+          - verify:release
+
+permissions:
+  contents: read
+
+jobs:
+  testing-policy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.5'
+
+      - name: Set up Task
+        uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ github.token }}
+
+      - name: Install repository-pinned golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.1
+          install-only: true
+
+      - name: Check policy bundle checksum before execution
+        run: |
+          node --input-type=commonjs <<'NODE'
+          const { createHash } = require('node:crypto');
+          const { readFileSync } = require('node:fs');
+          if (process.versions.node.split('.')[0] !== '20') {
+            console.error(`Policy runner requires Node 20; found ${process.versions.node}.`);
+            process.exit(2);
+          }
+          const bundle = readFileSync('.ai/testing/policy/policy-runner.cjs');
+          const lock = JSON.parse(readFileSync('.ai/testing/policy/policy-lock.json', 'utf8'));
+          const actual = createHash('sha256').update(bundle).digest('hex');
+          if (actual !== lock.bundle_sha256) {
+            console.error('Policy bundle checksum does not match policy-lock.json.');
+            process.exit(1);
+          }
+          console.log(`Policy bundle checksum PASS sha256=${actual}`);
+          NODE
+          node .ai/testing/policy/policy-runner.cjs --version
+          node .ai/testing/policy/policy-runner.cjs verify-lock --lock .ai/testing/policy/policy-lock.json
+
+      - name: Validate testing manifest
+        run: node .ai/testing/policy/policy-runner.cjs validate --repo .
+
+      - name: Run selected Testing Policy tier
+        id: policy_run
+        continue-on-error: true
+        env:
+          POLICY_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          POLICY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          POLICY_HEAD_SHA: ${{ github.sha }}
+          POLICY_TIER_COMMAND: ${{ github.event_name == 'schedule' && 'verify:nightly' || github.event_name == 'pull_request' && 'verify:pr' || github.event_name == 'push' && 'verify:main' || inputs.command || 'verify:pr' }}
+        shell: bash
+        run: |
+          policy_base_sha="$POLICY_BASE_SHA"
+          if [[ -z "$policy_base_sha" || "$policy_base_sha" == "0000000000000000000000000000000000000000" ]]; then
+            policy_base_sha="$(git rev-parse "${POLICY_HEAD_SHA}^" 2>/dev/null || true)"
+          fi
+          args=(node .ai/testing/policy/policy-runner.cjs verify
+            --repo . --command "$POLICY_TIER_COMMAND" --output-dir .
+            --run-id "$POLICY_RUN_ID" --head "$POLICY_HEAD_SHA")
+          if [[ -n "$policy_base_sha" ]]; then
+            args+=(--base "$policy_base_sha")
+          fi
+          "${args[@]}"
+
+      - name: Validate policy result artifacts
+        id: result_validation
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -d test-results ]]; then
+            echo 'No test-results directory was produced.' >&2
+            exit 1
+          fi
+          mapfile -d '' results < <(find test-results -type f -name test-result.v1.json -print0)
+          if ((${#results[@]} == 0)); then
+            echo 'No test-result.v1.json artifacts were generated.' >&2
+            exit 1
+          fi
+          for result in "${results[@]}"; do
+            node .ai/testing/policy/policy-runner.cjs validate-result --repo . --result "$result"
+          done
+
+      - name: Upload policy result artifacts
+        id: result_upload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: testing-policy-results
+          path: test-results/**
+          if-no-files-found: error
+          retention-days: ${{ (github.event_name == 'workflow_dispatch' && inputs.command == 'verify:release') && 365 || (github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.command != 'verify:pr')) && 90 || 30 }}
+
+      - name: Enforce policy result after artifact upload
+        if: always()
+        env:
+          POLICY_RUN_OUTCOME: ${{ steps.policy_run.outcome }}
+          RESULT_VALIDATION_OUTCOME: ${{ steps.result_validation.outcome }}
+          RESULT_UPLOAD_OUTCOME: ${{ steps.result_upload.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RESULT_VALIDATION_OUTCOME" != success ]]; then
+            echo "Policy result validation failed (outcome: $RESULT_VALIDATION_OUTCOME)" >&2
+            exit 1
+          fi
+          if [[ "$RESULT_UPLOAD_OUTCOME" != success ]]; then
+            echo "Policy result upload failed (outcome: $RESULT_UPLOAD_OUTCOME)" >&2
+            exit 1
+          fi
+          mapfile -d '' results < <(find test-results -type f -name test-result.v1.json -print0)
+          if ((${#results[@]} == 0)); then
+            echo 'No test-result.v1.json artifacts are available to enforce.' >&2
+            exit 1
+          fi
+          for result in "${results[@]}"; do
+            node .ai/testing/policy/policy-runner.cjs enforce-result --repo . --result "$result"
+          done
+          if [[ "$POLICY_RUN_OUTCOME" != success ]]; then
+            echo "Testing Policy tier did not pass (outcome: $POLICY_RUN_OUTCOME)" >&2
+            exit 1
+          fi
