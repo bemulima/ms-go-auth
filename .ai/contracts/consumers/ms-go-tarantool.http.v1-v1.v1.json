@@ -1,0 +1,46 @@
+{
+  "schema_version": "consumer-contract-expectation.v1",
+  "consumer": {
+    "repository": "bemulima/ms-go-auth",
+    "service": "ms-go-auth",
+    "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0"
+  },
+  "provider_repository": "bemulima/ms-go-tarantool",
+  "provider_service": "ms-go-tarantool",
+  "contract_id": "ms-go-tarantool.http.v1",
+  "contract_path": "internal/transport/http/api/v1/handlers/verification.go",
+  "kind": "HTTP",
+  "version_semantics": "exact",
+  "expected_version": "v1",
+  "required_operations": [
+    "POST /api/v1/check-new-user-code",
+    "POST /api/v1/password-reset-start",
+    "POST /api/v1/password-reset-verify",
+    "POST /api/v1/set-new-user",
+    "POST /api/v1/start-email-change",
+    "POST /api/v1/verify-email-change"
+  ],
+  "source_pins": [
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "cmd/ms-go-auth/app.go",
+      "blob_sha": "c3bf69623778b8519a1178934b9f5b336c65044f",
+      "content_sha256": "f091f6e5718a5e157a9f9b82ddd24695d3065663e957ab9f1b0278e0b02633d3"
+    },
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "config/config.go",
+      "blob_sha": "4010da30520dc202af638d2250e4ca47416f08a6",
+      "content_sha256": "ef598f73e4cd0f223966c051f0108583e96dc00ee683392276efbee68ef6f9be"
+    },
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "internal/infrastructure/http/tarantool/client.go",
+      "blob_sha": "498880f2f296f2bfa5dfbd1a5ba17e08eee38724",
+      "content_sha256": "069ab203101bbd6eaaeb68137820dea32f45bd5ba4f314f78f88731c36d42283"
+    }
+  ]
+}

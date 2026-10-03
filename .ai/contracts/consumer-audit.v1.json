@@ -1,0 +1,75 @@
+{
+  "schema_version": "consumer-owner-audit.v1",
+  "consumer": {
+    "repository": "bemulima/ms-go-auth",
+    "service": "ms-go-auth",
+    "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0"
+  },
+  "classification": "CONSUMER_APPLICABLE",
+  "source_pins": [
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "cmd/ms-go-auth/app.go",
+      "blob_sha": "c3bf69623778b8519a1178934b9f5b336c65044f",
+      "content_sha256": "f091f6e5718a5e157a9f9b82ddd24695d3065663e957ab9f1b0278e0b02633d3"
+    },
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "config/config.go",
+      "blob_sha": "4010da30520dc202af638d2250e4ca47416f08a6",
+      "content_sha256": "ef598f73e4cd0f223966c051f0108583e96dc00ee683392276efbee68ef6f9be"
+    },
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "internal/infrastructure/http/tarantool/client.go",
+      "blob_sha": "498880f2f296f2bfa5dfbd1a5ba17e08eee38724",
+      "content_sha256": "069ab203101bbd6eaaeb68137820dea32f45bd5ba4f314f78f88731c36d42283"
+    },
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "path": "internal/infrastructure/messaging/nats/client.go",
+      "blob_sha": "fe6b85d800d5273e09d01aeb3bd6feb08ee97d9d",
+      "content_sha256": "0a67c1d6975c063ec76575e38765da95331cfc43edf650c1a33b2756d494ae63"
+    }
+  ],
+  "reason": "Implemented outbound HTTP adapters and/or NATS consumers are declared from exact committed client, subscription, configuration, and process composition evidence. CSS Student validator stub sends no request; unwired legacy adapters do not assert expectations. External AI/Telegram/OAuth and owned databases are infrastructure dependencies.",
+  "inspected_paths": [
+    "cmd/ms-go-auth-fixture/main.go",
+    "cmd/ms-go-auth/app.go",
+    "cmd/ms-go-auth/main.go",
+    "config/config.go",
+    "internal/domain/auth_user.go",
+    "internal/domain/ports.go",
+    "internal/infrastructure/http/tarantool/client.go",
+    "internal/infrastructure/messaging/nats/client.go",
+    "internal/infrastructure/messaging/nats/server.go",
+    "internal/infrastructure/oauth/github.go",
+    "internal/infrastructure/oauth/google.go",
+    "internal/infrastructure/oauth/provider.go",
+    "internal/infrastructure/persistence/postgres/repository.go",
+    "internal/tokenverify/tokenverify.go",
+    "internal/transport/http/admin/v1/router.go",
+    "internal/transport/http/api/v1/handlers/auth_handler.go",
+    "internal/transport/http/api/v1/middleware/auth.go",
+    "internal/transport/http/api/v1/router.go",
+    "internal/transport/http/private/router.go",
+    "internal/transport/http/router.go",
+    "internal/usecase/auth_service.go",
+    "internal/usecase/identity.go",
+    "internal/usecase/jwt.go",
+    "internal/usecase/oauth.go",
+    "internal/usecase/verification_fixture.go",
+    "pkg/http/response.go",
+    "pkg/log/logger.go",
+    "test/unit/native_config_test.py"
+  ],
+  "expectation_paths": [
+    ".ai/contracts/consumers/ms-go-rbac.event-unversioned.v1.json",
+    ".ai/contracts/consumers/ms-go-tarantool.http.v1-v1.v1.json",
+    ".ai/contracts/consumers/ms-go-user.event-unversioned.v1.json"
+  ]
+}
