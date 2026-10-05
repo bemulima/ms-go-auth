@@ -39,3 +39,28 @@ the shared PostgreSQL container without changing the target endpoint or role.
 
 Native application startup sets `AUTH_DB_MIGRATE_ON_START=false`; run the
 owner migration task before starting the application process.
+
+## Disposable migration verification
+
+`task migration-integration-test` keeps the existing local, production-mode and
+legacy migration scenarios in three unique disposable Compose projects with no
+published ports. `.ai/testing/provisioners/auth-postgres-migration.v1.json` pins
+the PostgreSQL image digest, Docker Engine 29.8.1 and Compose 5.5.1; the testing
+manifest binds its exact SHA256. Both CI workflows install the matching tools
+and verify the Compose release asset checksum before execution.
+
+The existing lifecycle invokes `test/integration/migration_provisioner.py` for
+each declared start, readiness and cleanup stage using its generated
+`COMPOSE_FILE` and unique `COMPOSE_PROJECT_NAME`. Start and cleanup have 60-second
+timeouts. Readiness requires an exact `SELECT 1` result within 60 seconds. The
+exit trap attempts cleanup of all generated projects, including after startup
+or scenario failure, removes their volumes and temporary files, and reports
+cleanup failure through a nonzero exit status. Runtime version mismatch fails
+before resources are created. This command uses no shared native database.
+
+The harness clears ambient native migration endpoint overrides and fixes its
+disposable database/user/service identity. It watches the original Task parent
+and reaps owned provisioner children on cancellation. Canonical migration and
+SQL commands also watch that parent, including inside shell substitutions;
+they stop their own child process groups before fixture cleanup. The existing
+migration SQL, scenarios and assertions are unchanged.

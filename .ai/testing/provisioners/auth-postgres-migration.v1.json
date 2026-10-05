@@ -1,0 +1,65 @@
+{
+  "schema_version": "disposable-provisioner.v1",
+  "id": "auth-postgres-migration",
+  "owner_command": "test:migration",
+  "dependency": {
+    "type": "database",
+    "identity": "postgresql"
+  },
+  "images": [
+    {
+      "reference": "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea",
+      "purpose": "Three isolated PostgreSQL databases for existing migration lifecycle scenarios."
+    }
+  ],
+  "toolchain": [
+    {
+      "name": "Docker Engine",
+      "version": "29.8.1"
+    },
+    {
+      "name": "Docker Compose",
+      "version": "5.5.1"
+    }
+  ],
+  "lifecycle": {
+    "start": {
+      "invoke": [
+        "python3",
+        "test/integration/migration_provisioner.py",
+        "start"
+      ],
+      "working_directory": ".",
+      "timeout_seconds": 60
+    },
+    "readiness": {
+      "method": "sql",
+      "semantic_assertion": "SELECT 1 returns exactly 1 from authdb as app in each owned disposable project.",
+      "invoke": [
+        "python3",
+        "test/integration/migration_provisioner.py",
+        "readiness"
+      ],
+      "working_directory": ".",
+      "timeout_seconds": 60
+    },
+    "configuration": {
+      "environment": [
+        "COMPOSE_FILE",
+        "COMPOSE_PROJECT_NAME"
+      ],
+      "isolation_strategy": "Each invocation creates three unique Compose projects for local, production-mode and legacy scenarios with temporary generated files and no published ports."
+    },
+    "cleanup": {
+      "policy": "remove_all_owned_resources",
+      "fail_on_error": true,
+      "invoke": [
+        "python3",
+        "test/integration/migration_provisioner.py",
+        "cleanup"
+      ],
+      "working_directory": ".",
+      "timeout_seconds": 60
+    }
+  }
+}

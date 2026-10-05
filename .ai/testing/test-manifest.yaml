@@ -204,6 +204,9 @@ commands:
       - type: database
         mode: disposable
         probe: docker
+        provisioner:
+          path: .ai/testing/provisioners/auth-postgres-migration.v1.json
+          sha256: 8ea20f4d8cd3b8739f3be9cad289d1ae6b03821bc090e56c9ca382dbf4b158cf
   test:events:
     availability: AVAILABLE
     invoke: [go, test, ./test/unit, -run, '^TestVerifyHandler']

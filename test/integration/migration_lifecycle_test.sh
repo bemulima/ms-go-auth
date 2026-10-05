@@ -2,26 +2,81 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-project="auth-migration-test-${RANDOM}-$$"
+# This harness owns Docker databases only. Ambient native migration overrides
+# must never redirect the canonical migration task to a foreign endpoint.
+unset AUTH_MIGRATION_DSN AUTH_MIGRATION_PSQL
+export DB_SERVICE=postgres AUTH_DB_USER=app AUTH_DB_NAME=authdb
+provisioner="$repo_root/test/integration/migration_provisioner.py"
+python3 "$provisioner" verify
+postgres_image=$(python3 "$provisioner" image)
+project="auth-migration-test-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 tmp_dir=$(mktemp -d)
 local_compose="$tmp_dir/local-compose.yml"
 prod_compose="$tmp_dir/prod-compose.yml"
 legacy_compose="$tmp_dir/legacy-compose.yml"
+active_provisioner_pid=''
+
+provision_stage() {
+  COMPOSE_FILE="$1" COMPOSE_PROJECT_NAME="$2" python3 "$provisioner" "$3" &
+  active_provisioner_pid=$!
+  local stage_status=0
+  wait "$active_provisioner_pid" || stage_status=$?
+  active_provisioner_pid=''
+  return "$stage_status"
+}
 
 cleanup() {
-  docker compose -p "$project-local" -f "$local_compose" down -v --remove-orphans >/dev/null 2>&1 || true
-  docker compose -p "$project-prod" -f "$prod_compose" down -v --remove-orphans >/dev/null 2>&1 || true
-  docker compose -p "$project-legacy" -f "$legacy_compose" down -v --remove-orphans >/dev/null 2>&1 || true
-  rm -rf "$tmp_dir"
+  local status=$? cleanup_failed=0
+  trap - EXIT INT TERM
+  if kill -0 "$watcher_pid" 2>/dev/null; then
+    if ! kill -TERM "$watcher_pid"; then cleanup_failed=1; fi
+  fi
+  local watcher_status=0
+  wait "$watcher_pid" || watcher_status=$?
+  if [[ $watcher_status != 0 && $watcher_status != 143 ]]; then cleanup_failed=1; fi
+  # wait is interruptible even when a readiness/start helper is still busy.
+  # Reap that exact helper before removing its Docker resources.
+  if [[ -n $active_provisioner_pid ]]; then
+    if kill -0 "$active_provisioner_pid" 2>/dev/null; then
+      if ! kill -TERM "$active_provisioner_pid"; then cleanup_failed=1; fi
+    fi
+    local provisioner_status=0
+    wait "$active_provisioner_pid" || provisioner_status=$?
+    if [[ $provisioner_status != 0 && $provisioner_status != 1 && $provisioner_status != 143 ]]; then cleanup_failed=1; fi
+    active_provisioner_pid=''
+  fi
+  for mode in local prod legacy; do
+    local compose_file="$tmp_dir/$mode-compose.yml"
+    if [[ -f "$compose_file" ]]; then
+      if ! provision_stage "$compose_file" "$project-$mode" cleanup; then
+        cleanup_failed=1
+      fi
+    fi
+  done
+  if ! rm -rf "$tmp_dir"; then cleanup_failed=1; fi
+  if [[ $cleanup_failed != 0 && $status == 0 ]]; then status=1; fi
+  exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+# Policy cancels the immediate task process. A killed wrapper cannot forward
+# its signal, so the harness also watches that original parent for cleanup.
+parent_pid=$PPID
+harness_pid=$$
+(
+  trap - EXIT INT TERM
+  while kill -0 "$parent_pid" 2>/dev/null; do sleep 0.2; done
+  kill -TERM "$harness_pid"
+) &
+watcher_pid=$!
 
 write_compose() {
   local path=$1
   printf '%s\n' \
     'services:' \
     '  postgres:' \
-    '    image: postgres:16-alpine' \
+    "    image: $postgres_image" \
     '    environment:' \
     '      POSTGRES_USER: app' \
     '      POSTGRES_DB: authdb' \
@@ -34,16 +89,7 @@ write_compose() {
 }
 
 wait_for_db() {
-  local compose_file=$1 compose_project=$2
-  for _ in $(seq 1 60); do
-    if docker compose -p "$compose_project" -f "$compose_file" exec -T postgres \
-      psql -U app -d authdb -tAc 'SELECT 1' >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-  echo "disposable Postgres did not become ready" >&2
-  return 1
+  provision_stage "$1" "$2" readiness
 }
 
 run_task() {
@@ -53,7 +99,8 @@ run_task() {
     COMPOSE_FILE="$compose_file" \
     COMPOSE_PROJECT_NAME="$compose_project" \
     MIGRATION_ENV="$environment" \
-      task "$task_name"
+    AUTH_MIGRATION_HARNESS_PARENT_PID="$parent_pid" \
+      python3 "$provisioner" execute task "$task_name"
   )
 }
 
@@ -61,21 +108,27 @@ run_task_default_env() {
   local compose_file=$1 compose_project=$2 task_name=$3
   (
     cd "$repo_root"
+    unset MIGRATION_ENV
     COMPOSE_FILE="$compose_file" \
     COMPOSE_PROJECT_NAME="$compose_project" \
-      task "$task_name"
+    AUTH_MIGRATION_HARNESS_PARENT_PID="$parent_pid" \
+      python3 "$provisioner" execute task "$task_name"
   )
 }
 
 query() {
   local compose_file=$1 compose_project=$2 sql=$3
-  docker compose -p "$compose_project" -f "$compose_file" exec -T postgres \
+  COMPOSE_FILE="$compose_file" COMPOSE_PROJECT_NAME="$compose_project" \
+    AUTH_MIGRATION_HARNESS_PARENT_PID="$parent_pid" \
+    python3 "$provisioner" execute docker compose -p "$compose_project" -f "$compose_file" exec -T postgres \
     psql -U app -d authdb -v ON_ERROR_STOP=1 -tAc "$sql"
 }
 
 apply_sql() {
   local compose_file=$1 compose_project=$2 sql_file=$3
-  docker compose -p "$compose_project" -f "$compose_file" exec -T postgres \
+  COMPOSE_FILE="$compose_file" COMPOSE_PROJECT_NAME="$compose_project" \
+    AUTH_MIGRATION_HARNESS_PARENT_PID="$parent_pid" \
+    python3 "$provisioner" execute docker compose -p "$compose_project" -f "$compose_file" exec -T postgres \
     psql -X -q -U app -d authdb -v ON_ERROR_STOP=1 < "$sql_file"
 }
 
@@ -132,7 +185,7 @@ if [[ $make_summary == *"migrate -path"* || $make_summary == *"0002_seed_auth_us
   exit 1
 fi
 
-docker compose -p "$project-local" -f "$local_compose" up -d postgres >/dev/null
+provision_stage "$local_compose" "$project-local" start
 wait_for_db "$local_compose" "$project-local"
 
 local_first=$(run_task "$local_compose" "$project-local" local migrate-up)
@@ -197,7 +250,7 @@ assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_
 assert_eq "$(query "$local_compose" "$project-local" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "3"
 
-docker compose -p "$project-prod" -f "$prod_compose" up -d postgres >/dev/null
+provision_stage "$prod_compose" "$project-prod" start
 wait_for_db "$prod_compose" "$project-prod"
 
 pre_status=$(run_task_default_env "$prod_compose" "$project-prod" migrate-status)
@@ -230,7 +283,7 @@ if [[ $unknown_down_status == 0 ]]; then
 fi
 assert_contains "$unknown_down_output" "unknown applied migration 9999_removed.up.sql"
 
-docker compose -p "$project-legacy" -f "$legacy_compose" up -d postgres >/dev/null
+provision_stage "$legacy_compose" "$project-legacy" start
 wait_for_db "$legacy_compose" "$project-legacy"
 
 # Exact legacy fixtures are safe to adopt locally without duplication.
