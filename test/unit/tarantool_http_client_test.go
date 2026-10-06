@@ -127,3 +127,75 @@ func assertTarantoolRequest(t *testing.T, got tarantoolRequest, wantPath string,
 		}
 	}
 }
+
+func TestT16TarantoolRecoveryHTTPContract(t *testing.T) {
+	const operation = "11111111-1111-4111-8111-111111111111"
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != "/api/v1/consume-signup-proof" || r.Method != http.MethodPost {
+			t.Error("wrong recovery endpoint")
+			w.WriteHeader(400)
+			return
+		}
+		if r.Header.Get("X-Internal-Token") != "test-internal-token" {
+			t.Error("missing internal authentication")
+			w.WriteHeader(401)
+			return
+		}
+		var payload struct {
+			Value map[string]string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Error("malformed payload")
+			return
+		}
+		if len(payload.Value) != 3 || payload.Value["operation_id"] != operation || payload.Value["email"] != "test@example.test" || payload.Value["code"] != "test-proof" {
+			t.Error("proof owner payload mismatch")
+			w.WriteHeader(400)
+			return
+		}
+		if calls == 1 {
+			w.WriteHeader(503)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(domain.SignupProofReceipt{OperationID: operation, Email: "test@example.test", PasswordHash: "private-test-hash", ExpiresAt: time.Now().UTC().Add(time.Hour)})
+	}))
+	defer server.Close()
+	client := taraclient.NewHTTPClientWithSignupRecovery(server.URL, server.URL, "test-internal-token", time.Second).(domain.SignupProofConsumer)
+	receipt, err := client.ConsumeSignupProof(context.Background(), "test@example.test", "test-proof", operation)
+	if err != nil || receipt == nil || receipt.OperationID != operation || calls != 2 {
+		t.Fatal("retry failed to retain exact operation binding")
+	}
+}
+func TestT16TarantoolRecoveryMissingConfigFailsClosed(t *testing.T) {
+	for _, client := range []domain.VerificationClient{taraclient.NewHTTPClient("http://127.0.0.1:1", "", time.Second), taraclient.NewHTTPClientWithSignupRecovery("", "", "test-internal-token", time.Second)} {
+		_, err := client.(domain.SignupProofConsumer).ConsumeSignupProof(context.Background(), "test@example.test", "test-proof", "operation")
+		if err == nil {
+			t.Fatal("missing recovery configuration accepted")
+		}
+	}
+}
+func TestT16TarantoolRecoveryRejectsReceiptBinding(t *testing.T) {
+	for _, phase := range []string{"operation", "email", "expiry"} {
+		t.Run(phase, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				receipt := domain.SignupProofReceipt{OperationID: "operation", Email: "test@example.test", PasswordHash: "private-test-hash", ExpiresAt: time.Now().UTC().Add(time.Hour)}
+				switch phase {
+				case "operation":
+					receipt.OperationID = "other"
+				case "email":
+					receipt.Email = "other@example.test"
+				case "expiry":
+					receipt.ExpiresAt = time.Now().UTC().Add(-time.Second)
+				}
+				_ = json.NewEncoder(w).Encode(receipt)
+			}))
+			defer server.Close()
+			client := taraclient.NewHTTPClientWithSignupRecovery(server.URL, server.URL, "test-internal-token", time.Second).(domain.SignupProofConsumer)
+			if _, err := client.ConsumeSignupProof(context.Background(), "test@example.test", "test-proof", "operation"); err == nil {
+				t.Fatal("mismatched receipt accepted")
+			}
+		})
+	}
+}

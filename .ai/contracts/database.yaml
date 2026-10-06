@@ -1,5 +1,15 @@
 schema_version: 1
 documentation: docs/database-contract.md
 owner: ms-go-auth
-tables: [auth_user, auth_identity, auth_refresh_token, auth_oauth_transaction]
-migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow]
+tables: [auth_user, auth_identity, auth_refresh_token, auth_oauth_transaction, auth_signup_completion]
+migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow, 0004_signup_completion]
+signup_completion:
+  operation_key: [normalized_email, length_framed_sha256_proof_fingerprint]
+  reserved_identity: [operation_id, principal_id]
+  states: [pending, verified, completed]
+  frozen_receipt: [operation_id, email, password_hash, receipt_expires_at]
+  principal_ownership: transactionally_committed_principal_created
+  terminal_transition: atomic_verified_to_completed_before_one_token_attempt
+  code_terminal_cas: requires_unexpired_original_hard_ttl_receipt
+  password_repair: exact_owned_verified_principal_credential_required
+  rollback: refuses_any_retained_operation

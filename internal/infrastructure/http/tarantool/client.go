@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -17,12 +18,34 @@ type httpClient struct {
 	signupURL      string
 	emailChangeURL string
 	client         *http.Client
+	internalToken  string
 }
 
 // NewHTTPClient builds the canonical HTTP transport for signup and related
 // Tarantool flows in the target architecture.
 func NewHTTPClient(signupURL, emailChangeURL string, timeout time.Duration) domain.VerificationClient {
 	return &httpClient{signupURL: signupURL, emailChangeURL: emailChangeURL, client: &http.Client{Timeout: timeout}}
+}
+
+// NewHTTPClientWithSignupRecovery enables only the protected recoverable
+// consume endpoint. Missing configuration fails before issuing a request.
+func NewHTTPClientWithSignupRecovery(signupURL, emailChangeURL, internalToken string, timeout time.Duration) domain.VerificationClient {
+	return &httpClient{signupURL: signupURL, emailChangeURL: emailChangeURL, internalToken: internalToken, client: &http.Client{Timeout: timeout}}
+}
+
+func (c *httpClient) ConsumeSignupProof(ctx context.Context, email, code, operationID string) (*domain.SignupProofReceipt, error) {
+	if strings.TrimSpace(c.internalToken) == "" || strings.TrimSpace(c.signupURL) == "" || operationID == "" {
+		return nil, fmt.Errorf("signup recovery configuration unavailable")
+	}
+	payload := map[string]interface{}{"value": map[string]string{"email": email, "code": code, "operation_id": operationID}}
+	var receipt domain.SignupProofReceipt
+	if err := c.post(ctx, c.signupURL, "/api/v1/consume-signup-proof", payload, &receipt); err != nil {
+		return nil, err
+	}
+	if receipt.OperationID != operationID || receipt.Email != email || receipt.PasswordHash == "" || !receipt.ExpiresAt.After(time.Now().UTC()) {
+		return nil, fmt.Errorf("signup receipt binding or expiry mismatch")
+	}
+	return &receipt, nil
 }
 
 func (c *httpClient) StartSignup(ctx context.Context, email, passwordHash string) error {
@@ -91,6 +114,9 @@ func (c *httpClient) post(ctx context.Context, baseURL, path string, payload int
 			return backoff.Permanent(err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		if path == "/api/v1/consume-signup-proof" {
+			req.Header.Set("X-Internal-Token", c.internalToken)
+		}
 		res, err := c.client.Do(req)
 		if err != nil {
 			return err
@@ -98,6 +124,9 @@ func (c *httpClient) post(ctx context.Context, baseURL, path string, payload int
 		defer func() { _ = res.Body.Close() }()
 		if res.StatusCode == http.StatusNotFound {
 			return backoff.Permanent(domain.ErrNotFound)
+		}
+		if path == "/api/v1/consume-signup-proof" && res.StatusCode >= 400 && res.StatusCode < 500 {
+			return backoff.Permanent(fmt.Errorf("tarantool error: %d", res.StatusCode))
 		}
 		if res.StatusCode >= 400 {
 			return fmt.Errorf("tarantool error: %d", res.StatusCode)

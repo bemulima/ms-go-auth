@@ -27,7 +27,7 @@ Auth sends the following HTTP requests to the verification-code service:
 | Flow | Request | Success response required by Auth |
 | --- | --- | --- |
 | Signup start | `POST TARANTOOL_SIGNUP_URL/api/v1/set-new-user` with `{ "value": { "email", "password" } }` | `200` |
-| Signup verify | `POST TARANTOOL_SIGNUP_URL/api/v1/check-new-user-code` with `{ "value": { "email", "code" } }` | `{ "password" }` |
+| Signup verify | `POST TARANTOOL_SIGNUP_URL/api/v1/consume-signup-proof` with `{ "value": { "email", "code", "operation_id" } }` and `X-Internal-Token` | `{ "operation_id", "email", "password", "expires_at" }` |
 | Email change start | `POST TARANTOOL_EMAIL_CHANGE_URL/api/v1/start-email-change` with `{ "value": { "user_id", "email" } }` | `{ "uuid" }` |
 | Email change verify | `POST TARANTOOL_EMAIL_CHANGE_URL/api/v1/verify-email-change` with `{ "value": { "code" } }` | `{ "user_id", "email" }` |
 | Password reset start | `POST TARANTOOL_SIGNUP_URL/api/v1/password-reset-start` with `{ "value": { "email" } }` | `{ "uuid" }` |
@@ -38,3 +38,22 @@ service. They remain separate configuration values so each flow follows its
 owner endpoint.
 
 Access TTL defaults to 15m and refresh TTL to 720h. These values are configuration defaults, not fixed protocol guarantees.
+
+Signup verification generates its operation UUID internally; the public caller
+continues to send only email and code. Auth trims code whitespace consistently
+with the provider and normalizes email before selecting the durable operation.
+`SIGNUP_CONSUME_INTERNAL_TOKEN` must be configured with the same internal secret
+at Auth and Tarantool. Missing configuration and mismatched/expired receipts fail
+closed; Auth never falls back to `check-new-user-code`. The legacy provider
+endpoint remains a destructive one-shot compatibility endpoint.
+
+The protected receipt contains the frozen signup password hash and UTC RFC3339
+expiry computed from the provider's original signup creation time and existing
+hard TTL. It is private server-to-server data and is never returned to public
+Auth callers or logged. Verified pending operations may replay their exact
+proof within this bound to repair required User/RBAC provisioning. Successful
+terminal verification attempts token issuance once; later code replay fails.
+After response loss use password signin. Password signin can also repair an
+owned verified pending principal after receipt expiry, but returns no tokens
+until all required acknowledgements and the terminal CAS succeed. Refresh and
+OAuth cannot issue tokens for pending principals.

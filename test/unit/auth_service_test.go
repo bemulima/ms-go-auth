@@ -18,10 +18,11 @@ type mockUserRepo struct {
 	users          map[string]*domain.AuthUser
 	next           int
 	findByEmailErr error
+	completions    map[string]*domain.SignupCompletion
 }
 
 func newMockUserRepo() *mockUserRepo {
-	return &mockUserRepo{users: map[string]*domain.AuthUser{}}
+	return &mockUserRepo{users: map[string]*domain.AuthUser{}, completions: map[string]*domain.SignupCompletion{}}
 }
 
 func (r *mockUserRepo) Create(_ context.Context, user *domain.AuthUser) error {
@@ -56,6 +57,101 @@ func (r *mockUserRepo) FindByID(_ context.Context, id string) (*domain.AuthUser,
 func (r *mockUserRepo) Update(_ context.Context, user *domain.AuthUser) error {
 	r.users[user.ID] = user
 	return nil
+}
+
+// Completion storage is a unit-test fake only. Production requires PostgreSQL.
+func (r *mockUserRepo) BeginSignupCompletion(ctx context.Context, email, proof, operationID, principalID string) (*domain.SignupCompletion, error) {
+	for _, op := range r.completions {
+		if op.Email == email && op.ProofFingerprint == proof {
+			v := *op
+			return &v, nil
+		}
+	}
+	if _, err := r.FindByEmail(ctx, email); err == nil {
+		return nil, errors.New("existing signup identity")
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err
+	}
+	op := &domain.SignupCompletion{OperationID: operationID, PrincipalID: principalID, Email: email, ProofFingerprint: proof, State: domain.SignupPending}
+	r.completions[operationID] = op
+	v := *op
+	return &v, nil
+}
+func (r *mockUserRepo) StoreSignupReceipt(_ context.Context, id string, receipt *domain.SignupProofReceipt) (*domain.SignupCompletion, error) {
+	op, ok := r.completions[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	if receipt.OperationID != id || receipt.Email != op.Email || !receipt.ExpiresAt.After(time.Now()) || op.State == domain.SignupCompleted {
+		return nil, errors.New("receipt binding")
+	}
+	if op.State == domain.SignupVerified && (op.PasswordHash != receipt.PasswordHash || op.ReceiptExpiresAt == nil || !op.ReceiptExpiresAt.Equal(receipt.ExpiresAt)) {
+		return nil, errors.New("frozen receipt mismatch")
+	}
+	op.PasswordHash = receipt.PasswordHash
+	op.ReceiptExpiresAt = &receipt.ExpiresAt
+	op.State = domain.SignupVerified
+	v := *op
+	return &v, nil
+}
+func (r *mockUserRepo) EnsureSignupPrincipal(ctx context.Context, id string) (*domain.AuthUser, error) {
+	op, ok := r.completions[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	if op.State != domain.SignupVerified {
+		return nil, errors.New("operation not verified")
+	}
+	if user, err := r.FindByEmail(ctx, op.Email); err == nil {
+		if !op.PrincipalCreated || user.ID != op.PrincipalID || user.PasswordHash == nil || *user.PasswordHash != op.PasswordHash {
+			return nil, errors.New("principal ownership mismatch")
+		}
+		return user, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err
+	}
+	hash := op.PasswordHash
+	now := time.Now()
+	user := &domain.AuthUser{ID: op.PrincipalID, Email: op.Email, PasswordHash: &hash, PasswordUpdatedAt: &now}
+	if err := r.Create(ctx, user); err != nil {
+		return nil, err
+	}
+	op.PrincipalCreated = true
+	return user, nil
+}
+func (r *mockUserRepo) CompleteSignup(_ context.Context, id string, now time.Time, fresh bool) (bool, error) {
+	op, ok := r.completions[id]
+	if !ok {
+		return false, domain.ErrNotFound
+	}
+	if op.State != domain.SignupVerified {
+		return false, nil
+	}
+	if !op.PrincipalCreated {
+		return false, errors.New("principal not owned")
+	}
+	if fresh && (op.ReceiptExpiresAt == nil || !op.ReceiptExpiresAt.After(now)) {
+		return false, nil
+	}
+	op.State = domain.SignupCompleted
+	return true, nil
+}
+func (r *mockUserRepo) SignupPrincipalPending(_ context.Context, id string) (bool, error) {
+	for _, op := range r.completions {
+		if op.PrincipalID == id {
+			return op.State != domain.SignupCompleted, nil
+		}
+	}
+	return false, nil
+}
+func (r *mockUserRepo) FindSignupCompletionByPrincipal(_ context.Context, id string) (*domain.SignupCompletion, error) {
+	for _, op := range r.completions {
+		if op.PrincipalID == id {
+			v := *op
+			return &v, nil
+		}
+	}
+	return nil, domain.ErrNotFound
 }
 
 type mockIdentityRepo struct{}
@@ -107,6 +203,7 @@ func (r *mockRefreshRepo) RevokeByHash(_ context.Context, hash string) error {
 }
 
 type mockTarantool struct {
+	signupReceipts       map[string]*domain.SignupProofReceipt
 	lastSignupEmail      string
 	lastSignupPassword   string
 	emailChangeUUID      string
@@ -124,6 +221,26 @@ type mockTarantool struct {
 	verifyPasswordResetErr  error
 }
 
+func (m *mockTarantool) ConsumeSignupProof(_ context.Context, email, code, operationID string) (*domain.SignupProofReceipt, error) {
+	if m.verifySignupErr != nil {
+		return nil, m.verifySignupErr
+	}
+	if m.signupReceipts == nil {
+		m.signupReceipts = map[string]*domain.SignupProofReceipt{}
+	}
+	key := email + "\x00" + code
+	if receipt, ok := m.signupReceipts[key]; ok {
+		if receipt.OperationID != operationID {
+			return nil, domain.ErrNotFound
+		}
+		v := *receipt
+		return &v, nil
+	}
+	receipt := &domain.SignupProofReceipt{OperationID: operationID, Email: email, PasswordHash: m.verifySignupPassword, ExpiresAt: time.Now().UTC().Add(time.Hour)}
+	m.signupReceipts[key] = receipt
+	v := *receipt
+	return &v, nil
+}
 func (m *mockTarantool) StartSignup(_ context.Context, email, passwordHash string) error {
 	m.lastSignupEmail = email
 	m.lastSignupPassword = passwordHash
@@ -175,6 +292,14 @@ type recordingRBACClient struct {
 		role   string
 	}
 	roleByUser map[string]string
+}
+
+// Unit-only signup facet preserves the existing provisioning assertions.
+func (r *recordingRBACClient) AssignSignupRole(ctx context.Context, userID, operationID string) error {
+	if operationID == "" {
+		return errors.New("missing signup operation")
+	}
+	return r.AssignRole(ctx, userID, "student")
 }
 
 func (r *recordingRBACClient) AssignRole(_ context.Context, userID, role string) error {

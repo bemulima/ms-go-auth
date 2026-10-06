@@ -21,6 +21,21 @@ type VerificationIdentityRepository interface {
 	CreateVerificationIfAbsent(context.Context, *AuthUser) (*AuthUser, bool, error)
 }
 
+// SignupCompletionRepository must use durable atomic writes. An adapter lacking
+// this port cannot safely consume signup proofs or inspect pending principals.
+type SignupCompletionRepository interface {
+	BeginSignupCompletion(context.Context, string, string, string, string) (*SignupCompletion, error)
+	StoreSignupReceipt(context.Context, string, *SignupProofReceipt) (*SignupCompletion, error)
+	EnsureSignupPrincipal(context.Context, string) (*AuthUser, error)
+	CompleteSignup(context.Context, string, time.Time, bool) (bool, error)
+	SignupPrincipalPending(context.Context, string) (bool, error)
+	FindSignupCompletionByPrincipal(context.Context, string) (*SignupCompletion, error)
+}
+
+type SignupProofConsumer interface {
+	ConsumeSignupProof(context.Context, string, string, string) (*SignupProofReceipt, error)
+}
+
 type AuthIdentityRepository interface {
 	FindByProvider(context.Context, string, string) (*AuthIdentity, error)
 	Create(context.Context, *AuthIdentity) error
@@ -69,6 +84,12 @@ type OAuthProfile struct {
 
 type UserProvisioner interface {
 	CreateUser(context.Context, UserProvisionRequest) error
+}
+
+// SignupRoleProvisioner binds the accepted signup grant to its persisted operation.
+// Generic role mutation is deliberately a separate, non-authoritative port.
+type SignupRoleProvisioner interface {
+	AssignSignupRole(context.Context, string, string) error
 }
 
 type RoleClient interface {

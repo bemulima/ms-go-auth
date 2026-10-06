@@ -48,21 +48,25 @@ type AuthMe struct {
 }
 
 type authService struct {
-	cfg        *config.Config
-	logger     pkglog.Logger
-	users      domain.AuthUserRepository
-	identities domain.AuthIdentityRepository
-	oauthTx    domain.OAuthTransactionRepository
-	oauth      domain.OAuthRegistry
-	refresh    domain.RefreshTokenRepository
-	tarantoool domain.VerificationClient
-	userClient domain.UserProvisioner
-	rbacClient domain.RoleClient
-	signer     JWTSigner
+	cfg         *config.Config
+	logger      pkglog.Logger
+	users       domain.AuthUserRepository
+	identities  domain.AuthIdentityRepository
+	oauthTx     domain.OAuthTransactionRepository
+	oauth       domain.OAuthRegistry
+	refresh     domain.RefreshTokenRepository
+	tarantoool  domain.VerificationClient
+	userClient  domain.UserProvisioner
+	rbacClient  domain.RoleClient
+	signer      JWTSigner
+	completions domain.SignupCompletionRepository
+	signupProof domain.SignupProofConsumer
 }
 
 func NewAuthService(cfg *config.Config, logger pkglog.Logger, users domain.AuthUserRepository, identities domain.AuthIdentityRepository, oauthTx domain.OAuthTransactionRepository, oauthRegistry domain.OAuthRegistry, refresh domain.RefreshTokenRepository, tara domain.VerificationClient, userClient domain.UserProvisioner, rbacClient domain.RoleClient, signer JWTSigner) Service {
-	return &authService{cfg: cfg, logger: logger, users: users, identities: identities, oauthTx: oauthTx, oauth: oauthRegistry, refresh: refresh, tarantoool: tara, userClient: userClient, rbacClient: rbacClient, signer: signer}
+	completions, _ := users.(domain.SignupCompletionRepository)
+	proof, _ := tara.(domain.SignupProofConsumer)
+	return &authService{completions: completions, signupProof: proof, cfg: cfg, logger: logger, users: users, identities: identities, oauthTx: oauthTx, oauth: oauthRegistry, refresh: refresh, tarantoool: tara, userClient: userClient, rbacClient: rbacClient, signer: signer}
 }
 
 func (s *authService) StartSignup(ctx context.Context, traceID, email, password string) error {
@@ -99,55 +103,13 @@ func (s *authService) VerifySignup(ctx context.Context, traceID, email, code str
 		return nil, nil, err
 	}
 
-	passwordHash, err := s.tarantoool.VerifySignup(ctx, norm, code)
-	if err != nil {
-		return nil, nil, err
-	}
-	if strings.TrimSpace(passwordHash) == "" {
-		return nil, nil, fmt.Errorf("password hash missing")
-	}
-
-	user, err := s.findOrCreateSignupUser(ctx, norm, passwordHash)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := s.provisionSignupActor(ctx, user); err != nil {
-		return nil, nil, err
-	}
-	tokens, err := s.issueTokens(ctx, user)
-	if err != nil {
-		return nil, nil, err
-	}
-	s.logger.Info().Str("trace_id", traceID).Str("user_id", user.ID).Msg("signup verified")
-	return user, tokens, nil
+	return s.completeSignupProof(ctx, traceID, norm, code)
 }
 
-func (s *authService) findOrCreateSignupUser(ctx context.Context, email, passwordHash string) (*domain.AuthUser, error) {
-	user, err := s.users.FindByEmail(ctx, email)
-	if err == nil {
-		return user, nil
+func (s *authService) provisionSignupActor(ctx context.Context, user *domain.AuthUser, operationID string) error {
+	if user == nil || user.ID == "" || operationID == "" {
+		return errors.New("signup role binding unavailable")
 	}
-	if !errors.Is(err, domain.ErrNotFound) {
-		return nil, fmt.Errorf("find signup auth user: %w", err)
-	}
-
-	now := time.Now().UTC()
-	candidate := &domain.AuthUser{Email: email, PasswordHash: &passwordHash, PasswordUpdatedAt: &now}
-	if err := s.users.Create(ctx, candidate); err == nil {
-		return candidate, nil
-	} else {
-		createErr := err
-		// A concurrent verified completion may have created the same Auth user.
-		// Reuse its canonical principal so the idempotent downstream calls converge.
-		user, findErr := s.users.FindByEmail(ctx, email)
-		if findErr == nil {
-			return user, nil
-		}
-		return nil, fmt.Errorf("create signup auth user: %w", createErr)
-	}
-}
-
-func (s *authService) provisionSignupActor(ctx context.Context, user *domain.AuthUser) error {
 	if s.userClient == nil {
 		return errors.New("signup user provisioning is unavailable")
 	}
@@ -160,7 +122,11 @@ func (s *authService) provisionSignupActor(ctx context.Context, user *domain.Aut
 	if s.rbacClient == nil {
 		return errors.New("signup role provisioning is unavailable")
 	}
-	if err := s.rbacClient.AssignRole(ctx, user.ID, signupRole); err != nil {
+	provisioner, ok := s.rbacClient.(domain.SignupRoleProvisioner)
+	if !ok {
+		return errors.New("authenticated signup role provisioning unavailable")
+	}
+	if err := provisioner.AssignSignupRole(ctx, user.ID, operationID); err != nil {
 		return fmt.Errorf("assign signup role: %w", err)
 	}
 	hasRole, err := s.rbacClient.CheckRole(ctx, user.ID, signupRole)
@@ -181,6 +147,9 @@ func (s *authService) SignIn(ctx context.Context, traceID, email, password strin
 	}
 	if user.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)) != nil {
 		return nil, nil, errInvalidCredentials
+	}
+	if err := s.repairPasswordSignup(ctx, user); err != nil {
+		return nil, nil, err
 	}
 	now := time.Now()
 	user.LastLoginAt = &now
@@ -402,6 +371,16 @@ func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*
 }
 
 func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*Tokens, error) {
+	if s.completions == nil {
+		return nil, errors.New("signup completion persistence unavailable")
+	}
+	pending, err := s.completions.SignupPrincipalPending(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("read signup readiness: %w", err)
+	}
+	if pending {
+		return nil, errors.New("signup principal is pending")
+	}
 	claims := map[string]interface{}{"email": user.Email}
 	if role := s.resolveRole(ctx, user.ID); role != "" {
 		claims["role"] = role

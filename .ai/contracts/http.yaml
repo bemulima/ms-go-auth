@@ -7,3 +7,16 @@ protected:
   POST: [/email/change/start, /password/change, /password/set]
   DELETE: ['/identities/:provider/:provider_user_id']
 internal: [{method: GET, path: /internal/health}]
+
+signup_recovery_provider:
+  method: POST
+  path: /api/v1/consume-signup-proof
+  authentication: X-Internal-Token
+  configuration: SIGNUP_CONSUME_INTERNAL_TOKEN
+  request_value: [email, code, operation_id]
+  receipt: [operation_id, email, password, expires_at]
+  expiry: original_signup_created_at_plus_existing_hard_ttl_utc_rfc3339
+  operation_owner: auth_generated_uuid_not_public_input
+  fallback: forbidden
+  terminal_code_replay: denied
+  pending_password_signin: repair_required_provisioning_with_exact_verified_credential

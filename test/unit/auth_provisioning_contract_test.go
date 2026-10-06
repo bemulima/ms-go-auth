@@ -7,6 +7,7 @@ import (
 
 	"github.com/example/auth-service/internal/domain"
 	"github.com/example/auth-service/internal/usecase"
+	pkglog "github.com/example/auth-service/pkg/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -52,6 +53,14 @@ type provisioningContractRoleClient struct {
 	assignErr       error
 	checkErr        error
 	forceUnreadable bool
+}
+
+// Unit-only signup facet; no service credential is fabricated here.
+func (c *provisioningContractRoleClient) AssignSignupRole(ctx context.Context, userID, operationID string) error {
+	if operationID == "" {
+		return errors.New("missing signup operation")
+	}
+	return c.AssignRole(ctx, userID, "student")
 }
 
 func (c *provisioningContractRoleClient) AssignRole(_ context.Context, userID, role string) error {
@@ -270,11 +279,14 @@ func TestVerifySignupProvisioningContractCompletedRetryIsStable(t *testing.T) {
 
 	firstUser, firstTokens, firstErr := verifyProvisioningContractSignup(svc)
 	requireCompletedProvisioningSignup(t, firstUser, firstTokens, firstErr)
-	secondUser, secondTokens, secondErr := verifyProvisioningContractSignup(svc)
-	requireCompletedProvisioningSignup(t, secondUser, secondTokens, secondErr)
-	if firstUser.ID != secondUser.ID {
-		t.Fatal("expected a stable auth identity on completed retry")
+	_, secondTokens, secondErr := verifyProvisioningContractSignup(svc)
+	if secondErr == nil || secondTokens != nil {
+		t.Fatal("completed signup code replay must be denied")
 	}
+	if firstUser == nil || firstTokens == nil || len(deps.refresh.tokens) != 1 {
+		t.Fatal("expected exactly one signup token attempt")
+	}
+
 	if len(deps.users.users) != 1 {
 		t.Fatal("expected one auth identity after completed retry")
 	}
@@ -283,5 +295,79 @@ func TestVerifySignupProvisioningContractCompletedRetryIsStable(t *testing.T) {
 	}
 	if roleClient.assignmentCount() != 1 {
 		t.Fatal("expected one role assignment after completed retry")
+	}
+}
+
+// t16OneShotProof preserves consumption across service reconstruction. Legacy
+// verification never returns an already-consumed proof a second time.
+type t16OneShotProof struct {
+	*mockTarantool
+	consumed bool
+}
+
+func (p *t16OneShotProof) VerifySignup(ctx context.Context, email, code string) (string, error) {
+	if p.consumed {
+		return "", domain.ErrNotFound
+	}
+	p.consumed = true
+	return p.mockTarantool.VerifySignup(ctx, email, code)
+}
+func t16RebuildService(deps *testDeps, proof domain.VerificationClient) usecase.Service {
+	return usecase.NewAuthService(deps.cfg, pkglog.New("test"), deps.users, mockIdentityRepo{}, nil, nil, deps.refresh, proof, deps.userClient, deps.rbacClient, deps.signer)
+}
+func TestT16OriginalPostConsumeRecovery(t *testing.T) {
+	users := &provisioningContractUserClient{}
+	roles := &provisioningContractRoleClient{assignErr: errContractRoleProvisioning}
+	_, deps := newProvisioningContractService(t, users, roles)
+	proof := &t16OneShotProof{mockTarantool: deps.tara}
+	svc := t16RebuildService(deps, proof)
+	_, tokens, err := verifyProvisioningContractSignup(svc)
+	requireIncompleteProvisioningSignup(t, deps, tokens, err)
+	if len(users.calls) != 1 {
+		t.Fatal("expected first attempt to reach downstream outage after consuming proof")
+	}
+	originalID := users.calls[0].ID
+	roles.assignErr = nil
+	svc = t16RebuildService(deps, proof)
+	user, tokens, err := verifyProvisioningContractSignup(svc)
+	if err != nil || user == nil || tokens == nil {
+		t.Fatalf("durable recovery after restart failed: %v", err)
+	}
+	if user.ID != originalID {
+		t.Fatal("recovery changed canonical principal")
+	}
+}
+func TestT16OriginalPendingSigninDenied(t *testing.T) {
+	users := &provisioningContractUserClient{}
+	roles := &provisioningContractRoleClient{assignErr: errContractRoleProvisioning}
+	_, deps := newProvisioningContractService(t, users, roles)
+	proof := &t16OneShotProof{mockTarantool: deps.tara}
+	svc := t16RebuildService(deps, proof)
+	_, tokens, err := verifyProvisioningContractSignup(svc)
+	requireIncompleteProvisioningSignup(t, deps, tokens, err)
+	svc = t16RebuildService(deps, proof)
+	_, tokens, err = svc.SignIn(context.Background(), provisioningContractTraceID, provisioningContractEmail, provisioningContractSecret)
+	if err == nil || tokens != nil || len(deps.refresh.tokens) != 0 {
+		t.Fatal("pending signup bypassed provisioning through password signin")
+	}
+}
+
+func TestT16OriginalExistingEmailCannotBeAdopted(t *testing.T) {
+	users := &provisioningContractUserClient{}
+	roles := &provisioningContractRoleClient{}
+	_, deps := newProvisioningContractService(t, users, roles)
+	otherHash, err := bcrypt.GenerateFromPassword([]byte("other-existing-secret"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal("create existing credential")
+	}
+	existing := &domain.AuthUser{ID: "existing-unrelated-principal", Email: provisioningContractEmail, PasswordHash: stringPtr(string(otherHash))}
+	if err := deps.users.Create(context.Background(), existing); err != nil {
+		t.Fatal(err)
+	}
+	proof := &t16OneShotProof{mockTarantool: deps.tara}
+	svc := t16RebuildService(deps, proof)
+	_, tokens, err := verifyProvisioningContractSignup(svc)
+	if err == nil || tokens != nil || len(deps.refresh.tokens) != 0 {
+		t.Fatal("signup proof adopted an unrelated existing-email account")
 	}
 }

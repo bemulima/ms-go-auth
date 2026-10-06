@@ -6,9 +6,27 @@ ms-go-auth owns credentials, OAuth login identities, OAuth transactions, JWT iss
 
 Google and GitHub OAuth Authorization Code flows are implemented with one-time state and PKCE. This supersedes the former wiki statement that OAuth was only a stub. OAuth can link by normalized verified email and supports accounts without an initial password.
 
-Signup completion synchronously requires the User creation acknowledgement, RBAC
-assignment acknowledgement, and RBAC read check before Auth issues a session or
-tokens. A downstream failure leaves only a retryable partial Auth record; a
-repeat completion reuses its canonical principal and replays the idempotent
-User and RBAC owner operations. The frozen cross-service semantics are defined
+Signup completion reserves a random immutable operation and principal in PostgreSQL
+before asking Tarantool to consume proof. The operation is keyed by normalized
+email and a SHA256 fingerprint of length-framed domain, email, and trimmed code;
+raw codes are never stored or logged by Auth. This low-entropy fingerprint is an
+operation key, not a credential; existing provider code-at-rest security remains
+a residual risk. Tarantool's protected receipt endpoint can recover the same
+operation after a lost response within the original signup hard expiry.
+
+Auth freezes the receipt owner, original password hash, and receipt expiry in
+`auth_signup_completion`. Principal creation commits with its ownership marker;
+an existing account is reusable only when the marker, reserved ID, normalized
+email, and original credential match exactly. Auth synchronously requires User
+creation acknowledgement, the canonical student assignment acknowledgement, and
+RBAC readback. A durable verified-to-completed CAS then owns exactly one signup
+token attempt. Completed-code replay is denied, including after token response
+loss; ordinary password signin remains available to the completed account.
+
+Password-authenticated signin for an owned verified pending account retries the
+same provisioning invariant and terminal CAS, even after proof receipt expiry.
+A changed credential or principal fails closed. Refresh and OAuth share the
+pending-principal token gate and cannot perform that repair. Persistence and
+provider recovery ports are mandatory; no in-memory or destructive-consume
+fallback exists in production. The frozen cross-service semantics are defined
 by `.ai/contracts/auth-user-rbac-provisioning-v1.md`.

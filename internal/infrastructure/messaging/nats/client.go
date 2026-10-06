@@ -20,6 +20,7 @@ type rbacClient struct {
 	conn             *nats.Conn
 	assignSubject    string
 	checkRoleSubject string
+	signupProof      *signupProofSigner
 }
 
 func NewUserClient(conn *nats.Conn, subject string) domain.UserProvisioner {

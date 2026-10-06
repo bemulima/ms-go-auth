@@ -61,9 +61,12 @@ func New(ctx context.Context) (*App, error) {
 	identityRepo := repo.NewAuthIdentityRepository(db)
 	oauthTxRepo := repo.NewOAuthTransactionRepository(db)
 	refreshRepo := repo.NewRefreshTokenRepository(db)
-	tarantoool := taraclient.NewHTTPClient(cfg.TarantoolSignupURL, cfg.TarantoolEmailChangeURL, 5*time.Second)
+	tarantoool := taraclient.NewHTTPClientWithSignupRecovery(cfg.TarantoolSignupURL, cfg.TarantoolEmailChangeURL, cfg.SignupConsumeInternalToken, 5*time.Second)
 	userClient := natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
-	rbacClient := natsadapter.NewRBACClient(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject)
+	rbacClient, err := natsadapter.NewRBACClientWithSignupProof(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject, cfg.RBACSignupPrivateKey)
+	if err != nil {
+		return nil, err
+	}
 
 	signer, err := usecase.NewJWTSigner(cfg)
 	if err != nil {
@@ -105,7 +108,7 @@ func applyDatabaseMigrations(db *gorm.DB, cfg *config.Config) error {
 	`).Error; err != nil {
 		return err
 	}
-	return db.AutoMigrate(&domain.AuthUser{}, &domain.AuthIdentity{}, &domain.RefreshToken{}, &domain.OAuthTransaction{})
+	return db.AutoMigrate(&domain.AuthUser{}, &domain.AuthIdentity{}, &domain.RefreshToken{}, &domain.OAuthTransaction{}, &domain.SignupCompletion{})
 }
 
 func (a *App) Run(ctx context.Context) error {

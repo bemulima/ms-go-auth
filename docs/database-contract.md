@@ -64,3 +64,30 @@ and reaps owned provisioner children on cancellation. Canonical migration and
 SQL commands also watch that parent, including inside shell substitutions;
 they stop their own child process groups before fixture cleanup. The existing
 migration SQL, scenarios and assertions are unchanged.
+
+## Durable signup completion
+
+Migration `0004_signup_completion` adds `auth_signup_completion`. The unique
+normalized `(email, proof_fingerprint)` key selects a random immutable operation
+UUID and reserved principal UUID before proof consumption. The fingerprint is
+SHA256 over length-framed domain/email/trimmed-code bytes; no raw proof is stored.
+It remains low entropy and must not be treated as authentication evidence.
+
+Pending operations contain no credential or principal row. A verified operation
+freezes the exact receipt operation, email, password hash, and original hard-TTL
+expiry. `EnsureSignupPrincipal` creates the reserved Auth user and sets
+`principal_created` in one transaction; retries must match this ownership marker
+and the exact reserved identity/credential. No existing-email account is adopted.
+The verified-to-completed CAS is terminal and commits before one signup token
+attempt, requiring a fresh receipt for code completion. Password-authenticated
+repair may perform the same CAS after expiry for the exact verified credential.
+Token issue callers read pending state and fail closed on lookup failure.
+
+No completion rows are deleted during recovery or compensated remotely.
+Rollback locks the completion table and refuses any retained operation, including
+terminal tombstones, so ownership and replay denial cannot silently disappear.
+The empty-table rollback is reversible. Startup AutoMigrate includes the model
+under the existing `AUTH_DB_MIGRATE_ON_START` gate; production rollout should use
+the owner migration runner. Repository migration/ownership integration tests run
+only when `T16_AUTH_REPOSITORY_INTEGRATION=true` against a root-owned loopback
+`AUTH_TEST_DATABASE_URL` ending `_test`, using a fresh isolated schema.

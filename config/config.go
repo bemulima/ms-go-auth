@@ -34,6 +34,8 @@ type Config struct {
 	AccessTTL     time.Duration `env:"AUTH_JWT_ACCESS_TTL" envDefault:"15m"`
 	RefreshTTL    time.Duration `env:"AUTH_JWT_REFRESH_TTL" envDefault:"720h"`
 
+	RBACSignupPrivateKey string `env:"AUTH_RBAC_SIGNUP_PRIVATE_KEY"`
+
 	NATSURL               string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
 	NATSVerifySubject     string `env:"NATS_SUBJECT_VERIFY_JWT" envDefault:"auth.verifyJWT"`
 	NATSUserCreateSubject string `env:"NATS_SUBJECT_USER_CREATE" envDefault:"user.create-user"`
@@ -43,7 +45,8 @@ type Config struct {
 	// TarantoolSignupURL owns signup and password-reset verification calls.
 	TarantoolSignupURL string `env:"TARANTOOL_SIGNUP_URL"`
 	// TarantoolEmailChangeURL owns email-change verification calls.
-	TarantoolEmailChangeURL string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
+	TarantoolEmailChangeURL    string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
+	SignupConsumeInternalToken string `env:"SIGNUP_CONSUME_INTERNAL_TOKEN"`
 
 	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`
 
