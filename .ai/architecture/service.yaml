@@ -104,7 +104,7 @@
     {
       "id": "owner-persistence-identity-store",
       "transport": "tarantool",
-      "target": "identity-store",
+      "target": "tarantool",
       "direction": "outbound",
       "description": {
         "value": "Auth-owned verification policy calls the authenticated Auth-owned identity-store functions directly.",
