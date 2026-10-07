@@ -159,6 +159,23 @@ assert_eq() {
   fi
 }
 
+assert_migration_status() {
+  local output=$1 expected_name=$2 expected_state=$3 name state rest
+  while read -r name state rest; do
+    if [[ $name == "$expected_name" ]]; then
+      assert_eq "$state" "$expected_state"
+      return
+    fi
+  done <<< "$output"
+  echo "missing migration status for $expected_name" >&2
+  return 1
+}
+
+assert_completion_schema() {
+  assert_eq "$(query "$1" "$2" "SELECT to_regclass('public.auth_signup_completion') IS NOT NULL")" "t"
+  assert_eq "$(query "$1" "$2" "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'auth_signup_completion' AND column_name IN ('operation_id', 'principal_id', 'proof_fingerprint', 'state', 'principal_created', 'receipt_expires_at')")" "6"
+}
+
 file_checksum() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | cut -d ' ' -f 1
@@ -192,18 +209,22 @@ local_first=$(run_task "$local_compose" "$project-local" local migrate-up)
 assert_contains "$local_first" "applied 0001_init.up.sql"
 assert_contains "$local_first" "applied 0002_seed_auth_users.up.sql"
 assert_contains "$local_first" "applied 0003_oauth_flow.up.sql"
+assert_contains "$local_first" "applied 0004_signup_completion.up.sql"
+assert_completion_schema "$local_compose" "$project-local"
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_user')" "7"
 assert_eq "$(query "$local_compose" "$project-local" "SELECT count(*) FROM auth_user WHERE email = 'student1@example.com'")" "1"
-assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "3"
+assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "4"
 
 local_second=$(run_task "$local_compose" "$project-local" local migrate-up)
 assert_contains "$local_second" "already applied 0001_init.up.sql"
+assert_contains "$local_second" "already applied 0004_signup_completion.up.sql"
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_user')" "7"
-assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "3"
+assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "4"
 
 local_status=$(run_task "$local_compose" "$project-local" local migrate-status)
 assert_contains "$local_status" "0002_seed_auth_users.up.sql"
 assert_contains "$local_status" "applied"
+assert_migration_status "$local_status" "0004_signup_completion.up.sql" "applied"
 
 set +e
 prod_up_output=$(run_task_default_env "$local_compose" "$project-local" migrate-up 2>&1)
@@ -248,7 +269,8 @@ fi
 assert_contains "$checksum_down_output" "checksum mismatch for applied migration 0001_init.up.sql"
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_user')" "7"
 assert_eq "$(query "$local_compose" "$project-local" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
-assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "3"
+assert_completion_schema "$local_compose" "$project-local"
+assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "4"
 
 provision_stage "$prod_compose" "$project-prod" start
 wait_for_db "$prod_compose" "$project-prod"
@@ -257,16 +279,20 @@ pre_status=$(run_task_default_env "$prod_compose" "$project-prod" migrate-status
 assert_contains "$pre_status" "0001_init.up.sql"
 assert_contains "$pre_status" "pending"
 assert_contains "$pre_status" "excluded (production)"
+assert_migration_status "$pre_status" "0004_signup_completion.up.sql" "pending"
 assert_eq "$(query "$prod_compose" "$project-prod" "SELECT to_regclass('public.auth_schema_migration') IS NULL")" "t"
 
 prod_output=$(run_task_default_env "$prod_compose" "$project-prod" migrate-up)
 assert_contains "$prod_output" "skipped local/dev seed 0002_seed_auth_users.up.sql"
+assert_contains "$prod_output" "applied 0004_signup_completion.up.sql"
+assert_completion_schema "$prod_compose" "$project-prod"
 assert_eq "$(query "$prod_compose" "$project-prod" 'SELECT count(*) FROM auth_user')" "0"
-assert_eq "$(query "$prod_compose" "$project-prod" 'SELECT count(*) FROM auth_schema_migration')" "2"
+assert_eq "$(query "$prod_compose" "$project-prod" 'SELECT count(*) FROM auth_schema_migration')" "3"
 
 prod_status=$(run_task_default_env "$prod_compose" "$project-prod" migrate-status)
 assert_contains "$prod_status" "0002_seed_auth_users.up.sql"
 assert_contains "$prod_status" "excluded (production)"
+assert_migration_status "$prod_status" "0004_signup_completion.up.sql" "applied"
 
 query "$prod_compose" "$project-prod" \
   "INSERT INTO auth_schema_migration (name, checksum, down_checksum, kind) VALUES ('9999_removed.up.sql', repeat('f', 64), repeat('e', 64), 'schema')" >/dev/null
@@ -291,8 +317,10 @@ prepare_auth_schema "$legacy_compose" "$project-legacy"
 apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_auth_users.up.sql"
 legacy_exact_adopt=$(run_task "$legacy_compose" "$project-legacy" local migrate-up)
 assert_contains "$legacy_exact_adopt" "applied 0002_seed_auth_users.up.sql"
+assert_contains "$legacy_exact_adopt" "applied 0004_signup_completion.up.sql"
+assert_completion_schema "$legacy_compose" "$project-legacy"
 assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "7"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "3"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "4"
 seed_hash=$(file_checksum "$repo_root/migrations/0002_seed_auth_users.up.sql")
 assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT checksum FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "$seed_hash"
 
@@ -508,7 +536,9 @@ assert_contains "$empty_down_output" "migration evidence is empty while owned au
 
 legacy_adopt=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-up)
 assert_contains "$legacy_adopt" "applied 0001_init.up.sql"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "2"
+assert_contains "$legacy_adopt" "applied 0004_signup_completion.up.sql"
+assert_completion_schema "$legacy_compose" "$project-legacy"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "3"
 query "$legacy_compose" "$project-legacy" \
   "UPDATE auth_schema_migration SET down_checksum = repeat('0', 64) WHERE name = '0001_init.up.sql'" >/dev/null
 set +e
@@ -521,12 +551,55 @@ if [[ $down_checksum_status == 0 ]]; then
 fi
 assert_contains "$down_checksum_output" "rollback checksum mismatch for applied migration 0001_init.up.sql"
 assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "2"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "3"
 down_hash=$(file_checksum "$repo_root/migrations/0001_init.down.sql")
 query "$legacy_compose" "$project-legacy" \
   "UPDATE auth_schema_migration SET down_checksum = '$down_hash' WHERE name = '0001_init.up.sql'" >/dev/null
+
+# Even one retained operation must block rollback before its table or migration
+# evidence is removed. Exercise pending ownership, verified proof, and terminal
+# replay denial separately using the same isolated synthetic operation.
+query "$legacy_compose" "$project-legacy" "
+  INSERT INTO auth_signup_completion
+    (operation_id, principal_id, email, proof_fingerprint, state)
+  VALUES ('10000000-0000-0000-0000-0000000000d1',
+          '10000000-0000-0000-0000-0000000000d2',
+          'migration-retention@example.test', repeat('a', 64), 'pending')
+" >/dev/null
+for retained_state in pending verified completed; do
+  if [[ $retained_state == verified ]]; then
+    query "$legacy_compose" "$project-legacy" "
+      UPDATE auth_signup_completion
+      SET state = 'verified', password_hash = 'synthetic-migration-fixture',
+          receipt_expires_at = now() + interval '1 hour'
+      WHERE operation_id = '10000000-0000-0000-0000-0000000000d1'
+    " >/dev/null
+  elif [[ $retained_state == completed ]]; then
+    query "$legacy_compose" "$project-legacy" "
+      UPDATE auth_signup_completion SET state = 'completed', principal_created = true
+      WHERE operation_id = '10000000-0000-0000-0000-0000000000d1'
+    " >/dev/null
+  fi
+  set +e
+  retained_down_output=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-down 2>&1)
+  retained_down_status=$?
+  set -e
+  if [[ $retained_down_status == 0 ]]; then
+    echo "rollback unexpectedly removed retained $retained_state signup operation" >&2
+    exit 1
+  fi
+  assert_contains "$retained_down_output" "cannot roll back signup completion with retained operations"
+  assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT state FROM auth_signup_completion WHERE operation_id = '10000000-0000-0000-0000-0000000000d1'")" "$retained_state"
+  assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_signup_completion')" "1"
+  assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "3"
+  assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
+done
+query "$legacy_compose" "$project-legacy" \
+  "DELETE FROM auth_signup_completion WHERE operation_id = '10000000-0000-0000-0000-0000000000d1'" >/dev/null
 legacy_down=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-down)
+assert_contains "$legacy_down" "rolled back 0004_signup_completion.up.sql"
 assert_contains "$legacy_down" "rolled back 0001_init.up.sql"
+assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT to_regclass('public.auth_signup_completion') IS NULL")" "t"
 assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT to_regclass('public.auth_user') IS NULL")" "t"
 assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "0"
 
