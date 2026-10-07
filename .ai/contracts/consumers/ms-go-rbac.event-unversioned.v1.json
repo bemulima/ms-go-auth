@@ -3,7 +3,7 @@
   "consumer": {
     "repository": "bemulima/ms-go-auth",
     "service": "ms-go-auth",
-    "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0"
+    "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9"
   },
   "provider_repository": "bemulima/ms-go-rbac",
   "provider_service": "ms-go-rbac",
@@ -19,24 +19,24 @@
   "source_pins": [
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
       "path": "cmd/ms-go-auth/app.go",
-      "blob_sha": "c3bf69623778b8519a1178934b9f5b336c65044f",
-      "content_sha256": "f091f6e5718a5e157a9f9b82ddd24695d3065663e957ab9f1b0278e0b02633d3"
+      "blob_sha": "3b805452b8e3da0c8f33ed7267e7c9f4d3eb001d",
+      "content_sha256": "35415311dedb7e740768aaad944f03c775a7d5991e60ecd10980d1b8451b88ac"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
       "path": "config/config.go",
-      "blob_sha": "4010da30520dc202af638d2250e4ca47416f08a6",
-      "content_sha256": "ef598f73e4cd0f223966c051f0108583e96dc00ee683392276efbee68ef6f9be"
+      "blob_sha": "45fdc4fde1f4cf29052abe21b47f1717ed11e1b2",
+      "content_sha256": "bf088c593ef7b4ca5ce3805a44564545ecb5a29ddb67a26a27fd651dd366d299"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
+      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
       "path": "internal/infrastructure/messaging/nats/client.go",
-      "blob_sha": "fe6b85d800d5273e09d01aeb3bd6feb08ee97d9d",
-      "content_sha256": "0a67c1d6975c063ec76575e38765da95331cfc43edf650c1a33b2756d494ae63"
+      "blob_sha": "98e5baa4d9470c1d7d271bc94a55acb3710a91fb",
+      "content_sha256": "50489142158f00c3032a361f719d3d5edfc0e625cbdf26708433ef1bb3a705b4"
     }
   ]
 }
