@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"golang.org/x/crypto/bcrypt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,5 +66,25 @@ func TestFixtureSafetyGateRequiresDisposableMarkerAndNoJWTSignerSecret(t *testin
 	t.Setenv("NATS_SUBJECT_ASSIGN_ROLE", "unexpected.subject")
 	if err := validateSafetyAt("abc12345", path); err == nil {
 		t.Fatal("fixture runner must reject a non-owner role assignment subject")
+	}
+}
+
+func TestHashPasswordIsLocalStdinOnlyAndRejectsInvalidInput(t *testing.T) {
+	for _, input := range []string{"short\n", "password\nsecond-line\n", strings.Repeat("x", 73)} {
+		var out, stderr bytes.Buffer
+		if execute([]string{"--hash-password"}, strings.NewReader(input), &out, &stderr) == nil || out.Len() != 0 || strings.Contains(stderr.String(), input) {
+			t.Fatal("invalid local hash input accepted or disclosed")
+		}
+	}
+	var out, stderr bytes.Buffer
+	if execute([]string{"--hash-password", "secret-argument"}, strings.NewReader("fixture-password"), &out, &stderr) == nil || out.Len() != 0 {
+		t.Fatal("hash mode accepts unexpected argument")
+	}
+	stderr.Reset()
+	if execute([]string{"--hash-password"}, strings.NewReader("fixture-password\n"), &out, &stderr) != nil || stderr.Len() != 0 {
+		t.Fatal("valid local hash request failed")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(strings.TrimSpace(out.String())), []byte("fixture-password")) != nil {
+		t.Fatal("local hash does not match stdin")
 	}
 }

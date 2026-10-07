@@ -7,3 +7,5 @@ This repository owns auth architecture and its HTTP, NATS, and database contract
 - [Messaging](messaging-contract.md)
 - [Database](database-contract.md)
 - [Native development](native-development.md)
+
+- [Verification storage](verification-storage.md)

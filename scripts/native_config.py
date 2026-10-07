@@ -76,11 +76,12 @@ def native_environment(require_tarantool: bool) -> dict[str, str]:
         )
         sslmode = values.get("AUTH_NATIVE_DB_SSLMODE", "disable")
 
-    tarantool_url = values.get("AUTH_NATIVE_TARANTOOL_URL", "http://127.0.0.1:18081")
-    tarantool_signup_url = values.get("AUTH_NATIVE_TARANTOOL_SIGNUP_URL", tarantool_url)
-    tarantool_email_change_url = values.get("AUTH_NATIVE_TARANTOOL_EMAIL_CHANGE_URL", tarantool_url)
-    if require_tarantool and (not tarantool_signup_url or not tarantool_email_change_url):
-        raise ValueError("native Auth runtime requires signup and email-change Tarantool URLs")
+    tarantool_host = values.get("AUTH_NATIVE_TARANTOOL_HOST", "127.0.0.1")
+    tarantool_port = values.get("AUTH_NATIVE_TARANTOOL_PORT", values.get("LW_NATIVE_IDENTITY_TARANTOOL_PORT", "3301"))
+    tarantool_user = values.get("AUTH_NATIVE_TARANTOOL_USER", values.get("LW_IDENTITY_TARANTOOL_USER", ""))
+    tarantool_password = values.get("AUTH_NATIVE_TARANTOOL_PASSWORD", values.get("LW_IDENTITY_TARANTOOL_PASSWORD", ""))
+    if require_tarantool and (not tarantool_user or not tarantool_password):
+        raise ValueError("native Auth requires the configured identity-store principal and credential")
 
     environment = dict(os.environ)
     environment.update(
@@ -105,24 +106,19 @@ def native_environment(require_tarantool: bool) -> dict[str, str]:
             "AUTH_MIGRATION_PSQL": str(ROOT / "scripts" / "native-psql.sh"),
         }
     )
-    if tarantool_signup_url or tarantool_email_change_url:
-        environment.update(
-            {
-                "TARANTOOL_SIGNUP_URL": tarantool_signup_url,
-                "TARANTOOL_EMAIL_CHANGE_URL": tarantool_email_change_url,
-            }
-        )
+    environment.update({"TARANTOOL_HOST": tarantool_host, "TARANTOOL_PORT": tarantool_port,
+                        "TARANTOOL_USER": tarantool_user, "TARANTOOL_PASSWORD": tarantool_password})
     if require_tarantool:
         environment["AUTH_JWT_SECRET"] = required(values, "LW_AUTH_JWT_SECRET")
 
     print(
-        "native Auth config: database={} postgres={}:{} nats={} tarantool_signup={} tarantool_email_change={} http={}:{}".format(
+        "native Auth config: database={} postgres={}:{} nats={} identity_store={}:{} http={}:{}".format(
             database,
             postgres_host,
             postgres_port,
             environment["NATS_URL"],
-            tarantool_signup_url,
-            tarantool_email_change_url,
+            tarantool_host,
+            tarantool_port,
             environment["AUTH_HTTP_HOST"],
             environment["AUTH_HTTP_PORT"],
         ),
@@ -136,7 +132,7 @@ def main() -> int:
     parser.add_argument(
         "--require-tarantool",
         action="store_true",
-        help="require a native ms-go-tarantool HTTP endpoint for application runtime",
+        help="require direct authenticated identity-store configuration for application runtime",
     )
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()

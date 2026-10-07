@@ -51,7 +51,7 @@ tasks:
       - go run ./cmd/ms-go-auth
 
   run:native:
-    desc: Run Auth on macOS against shared PostgreSQL, NATS, and ms-go-tarantool
+    desc: Run Auth on macOS against shared PostgreSQL, NATS, and direct identity Tarantool
     cmds:
       - python3 scripts/native_config.py --require-tarantool -- go run ./cmd/ms-go-auth
 

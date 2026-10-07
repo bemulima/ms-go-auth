@@ -13,6 +13,7 @@ import (
 	"time"
 
 	nats "github.com/nats-io/nats.go"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -51,6 +52,23 @@ func main() {
 }
 
 func execute(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	// Local hash generation consumes only stdin and has no database or token capability.
+	// The coordinator must capture stdout in a private file, never a log.
+	if len(args) == 1 && args[0] == "--hash-password" {
+		password, err := readPassword(stdin)
+		if err != nil || len(password) < 8 || len(password) > 72 {
+			return writeSafeFailure(stderr, safeOutput{Status: "failed", Stage: "input"})
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return writeSafeFailure(stderr, safeOutput{Status: "failed", Stage: "password_hash"})
+		}
+		if _, err = fmt.Fprintln(stdout, string(hash)); err != nil {
+			return errors.New("private output unavailable")
+		}
+		return nil
+	}
+
 	if len(args) == 0 || args[0] != "provision-verification-identity" {
 		return writeSafeFailure(stderr, safeOutput{Status: "failed", Stage: "command"})
 	}

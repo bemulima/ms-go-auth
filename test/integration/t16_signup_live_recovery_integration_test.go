@@ -19,7 +19,6 @@ import (
 
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/domain"
-	verification "github.com/example/auth-service/internal/infrastructure/http/tarantool"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
 	"github.com/example/auth-service/internal/usecase"
@@ -32,7 +31,7 @@ import (
 )
 
 // TestT16ActualSignupRecovery exercises production Auth repositories/use cases,
-// the registered real-store Tarantool HTTP provider, and production NATS clients
+// Auth-owned direct authenticated Tarantool verification, and production NATS clients
 // against registered real PostgreSQL User/RBAC providers. Named local wrappers
 // discard successful acknowledgements only after those real commits.
 func TestT16ActualSignupRecovery(t *testing.T) {
@@ -50,7 +49,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 		cases = append(cases, t16CaseResult{Name: name, Passed: passed})
 	}
 	t.Cleanup(func() { t16WriteChainResult(t, db, cases) })
-	providerURL := t16ProviderURL(t)
+	proof, fixture := t16DirectVerification(t)
 	natsURL := os.Getenv("NATS_URL")
 	parsed, err := url.Parse(natsURL)
 	if err != nil || parsed.Scheme != "nats" || !t16Loopback(parsed.Hostname()) {
@@ -68,8 +67,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 	}
 	userControl := t16ProvisioningURL(t, "T16_USER_READY_FILE")
 	roleControl := t16ProvisioningURL(t, "T16_RBAC_READY_FILE")
-	proof := verification.NewHTTPClientWithSignupRecovery(providerURL, providerURL, os.Getenv("SIGNUP_CONSUME_INTERNAL_TOKEN"), 3*time.Second)
-	t.Log("classification=actual-Auth-PG-usecase-production-JWT_actual-registered-Tarantool-HTTP-authenticated-store_actual-production-NATS-User-and-RBAC-PG-providers; fault wrappers=named-local-after-real-commit-or-ACK")
+	t.Log("classification=actual-Auth-PG-usecase-production-JWT_Auth-owned-direct-Tarantool-authenticated-store_actual-production-NATS-User-and-RBAC-PG-providers; fault wrappers=named-local-after-real-commit-or-ACK")
 
 	for _, cut := range []string{"proof", "principal", "user", "rbac"} {
 		run("reconstruct_after_"+cut+"_commit", func(t *testing.T) {
@@ -90,7 +88,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 			if first.StartSignup(ctx, "t16", email, password) != nil {
 				t.Fatal("actual signup start failed")
 			}
-			code := t16CapturedCode(t, providerURL, email)
+			code := t16CapturedCode(t, fixture, email)
 			if _, tokens, err := first.VerifySignup(ctx, "t16", email, code); err == nil || tokens != nil {
 				t.Fatal("named after-commit loss must prevent token response")
 			}
@@ -107,7 +105,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 				SignupExists bool `json:"signup_exists"`
 				ReceiptCount int  `json:"receipt_count"`
 			}
-			t16Control(t, http.MethodGet, providerURL+"/__t16/inspect?email="+url.QueryEscape(email), nil, &consume)
+			consume.SignupExists, consume.ReceiptCount = fixture.inspect(t, email)
 			if consume.SignupExists || consume.ReceiptCount != 1 {
 				t.Fatal("actual proof commit must leave one receipt and no live proof")
 			}
@@ -170,32 +168,29 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 		})
 	}
 
-	run("actual_HTTP_response_cut", func(t *testing.T) {
+	run("direct_committed_ACK_loss_new_connection", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		email := t16Email(t, "http-cut")
-		svc := t16Service(t, db, nil, proof, userClient, roles, t16Signer(t))
-		if svc.StartSignup(ctx, "t16", email, "T16-disposable-password-41") != nil {
-			t.Fatal("HTTP cut signup start")
+		email := t16Email(t, "direct-cut")
+		lostProof, _ := t16DirectVerification(t)
+		cut := &t16AfterProofCommit{VerificationClient: lostProof, SignupProofConsumer: lostProof.(domain.SignupProofConsumer), fail: true}
+		signer := t16Signer(t)
+		first := t16Service(t, db, nil, cut, userClient, roles, signer)
+		if first.StartSignup(ctx, "t16", email, "T16-disposable-password-41") != nil {
+			t.Fatal("direct cut signup start")
 		}
-		code := t16CapturedCode(t, providerURL, email)
-		var before struct {
-			Cuts int `json:"cuts"`
+		code := t16CapturedCode(t, fixture, email)
+		if _, tokens, err := first.VerifySignup(ctx, "t16", email, code); err == nil || tokens != nil {
+			t.Fatal("discarded direct committed ACK must prevent issuance")
 		}
-		t16Control(t, http.MethodGet, providerURL+"/__t16/inspect?email="+url.QueryEscape(email), nil, &before)
-		t16Control(t, http.MethodPost, providerURL+"/__t16/cut", strings.NewReader(`{"enabled":true}`), nil)
-		user, tokens, err := svc.VerifySignup(ctx, "t16", email, code)
-		if err != nil || user == nil || tokens == nil {
-			t.Fatal("production HTTP retry failed to recover actual lost response")
+		if live, receipts := fixture.inspect(t, email); live || receipts != 1 {
+			t.Fatal("direct proof commit must leave exactly one frozen receipt")
 		}
-		var after struct {
-			Cuts         int  `json:"cuts"`
-			ReceiptCount int  `json:"receipt_count"`
-			SignupExists bool `json:"signup_exists"`
-		}
-		t16Control(t, http.MethodGet, providerURL+"/__t16/inspect?email="+url.QueryEscape(email), nil, &after)
-		if after.Cuts <= before.Cuts || after.ReceiptCount != 1 || after.SignupExists {
-			t.Fatal("actual HTTP committed-response cut was not exercised")
+		t16SessionCount(t, db, email, 0)
+		freshProof, _ := t16DirectVerification(t)
+		user, tokens, err := t16Service(t, db, nil, freshProof, userClient, roles, signer).VerifySignup(ctx, "t16", email, code)
+		if err != nil || user == nil || tokens == nil || signer.attempts() != 1 {
+			t.Fatal("new direct storage connection did not recover frozen receipt")
 		}
 		t16SessionCount(t, db, email, 1)
 		t16ProviderCounts(t, userControl, roleControl, user.ID, 1, 1)
@@ -210,7 +205,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 		if pending.StartSignup(ctx, "t16", email, "T16-disposable-password-41") != nil {
 			t.Fatal("concurrent signup start")
 		}
-		code := t16CapturedCode(t, providerURL, email)
+		code := t16CapturedCode(t, fixture, email)
 		if _, tokens, err := pending.VerifySignup(ctx, "t16", email, code); err == nil || tokens != nil {
 			t.Fatal("concurrent pending setup")
 		}
@@ -246,7 +241,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 		if pending.StartSignup(ctx, "t16", email, password) != nil {
 			t.Fatal("password repair signup start")
 		}
-		code := t16CapturedCode(t, providerURL, email)
+		code := t16CapturedCode(t, fixture, email)
 		if _, tokens, err := pending.VerifySignup(ctx, "t16", email, code); err == nil || tokens != nil {
 			t.Fatal("password repair outage setup")
 		}
@@ -279,7 +274,7 @@ func TestT16ActualSignupRecovery(t *testing.T) {
 		if svc.StartSignup(ctx, "t16", email, "T16-disposable-password-41") != nil {
 			t.Fatal("takeover signup start")
 		}
-		code := t16CapturedCode(t, providerURL, email)
+		code := t16CapturedCode(t, fixture, email)
 		reservation := t16Service(t, db, nil, &t16AfterProofCommit{VerificationClient: proof, SignupProofConsumer: proof.(domain.SignupProofConsumer), fail: true}, userClient, roles, signer)
 		if _, tokens, err := reservation.VerifySignup(ctx, "t16", email, code); err == nil || tokens != nil {
 			t.Fatal("reserve actual receipt before competing account creation")
@@ -332,25 +327,6 @@ func t16AuthDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func t16ProviderURL(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile(os.Getenv("T16_TNT_READY_FILE"))
-	if err != nil {
-		t.Fatal("read actual provider ready file")
-	}
-	var ready struct {
-		URL string `json:"url"`
-	}
-	if json.Unmarshal(data, &ready) != nil {
-		t.Fatal("decode actual provider ready file")
-	}
-	parsed, err := url.Parse(ready.URL)
-	if err != nil || parsed.Scheme != "http" || (parsed.Hostname() != "127.0.0.1" && parsed.Hostname() != "localhost" && parsed.Hostname() != "::1") {
-		t.Fatal("actual provider URL must be loopback HTTP")
-	}
-	return strings.TrimRight(ready.URL, "/")
-}
-
 func t16Email(t *testing.T, label string) string {
 	t.Helper()
 	prefix := os.Getenv("T16_RUN_PREFIX")
@@ -358,31 +334,6 @@ func t16Email(t *testing.T, label string) string {
 		t.Fatal("unique safe T16_RUN_PREFIX required")
 	}
 	return prefix + "-" + label + "@example.test"
-}
-
-func t16Control(t *testing.T, method, endpoint string, body io.Reader, result interface{}) {
-	t.Helper()
-	token := os.Getenv("T16_CONTROL_TOKEN")
-	if token == "" {
-		t.Fatal("private provider control token required")
-	}
-	req, err := http.NewRequest(method, endpoint, body)
-	if err != nil {
-		t.Fatal("construct private control request")
-	}
-	req.Header.Set("X-Internal-Token", token)
-	req.Header.Set("Content-Type", "application/json")
-	response, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
-	if err != nil {
-		t.Fatal("private provider control request failed")
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		t.Fatal("private provider control did not acknowledge")
-	}
-	if result != nil && json.NewDecoder(response.Body).Decode(result) != nil {
-		t.Fatal("decode private control response")
-	}
 }
 
 func t16SessionCount(t *testing.T, db *gorm.DB, email string, want int64) {
@@ -418,20 +369,8 @@ func t16Service(t *testing.T, db *gorm.DB, users domain.AuthUserRepository, proo
 	if users == nil {
 		users = repo.NewAuthUserRepository(db)
 	}
-	cfg := &config.Config{JWTSecret: "disposable-t16-test-signer-only", JWTIssuer: "t16", JWTAudience: "t16", AccessTTL: time.Minute, RefreshTTL: time.Hour, SignupConsumeInternalToken: os.Getenv("SIGNUP_CONSUME_INTERNAL_TOKEN")}
+	cfg := &config.Config{JWTSecret: "disposable-t16-test-signer-only", JWTIssuer: "t16", JWTAudience: "t16", AccessTTL: time.Minute, RefreshTTL: time.Hour}
 	return usecase.NewAuthService(cfg, zerolog.New(io.Discard), users, repo.NewAuthIdentityRepository(db), repo.NewOAuthTransactionRepository(db), nil, repo.NewRefreshTokenRepository(db), proof, userClient, roles, signer)
-}
-
-func t16CapturedCode(t *testing.T, baseURL, email string) string {
-	t.Helper()
-	var captured struct {
-		Code string `json:"code"`
-	}
-	t16Control(t, http.MethodGet, baseURL+"/__t16/capture?email="+url.QueryEscape(email), nil, &captured)
-	if captured.Code == "" {
-		t.Fatal("actual provider did not capture code in memory")
-	}
-	return captured.Code
 }
 
 func t16Completion(t *testing.T, db *gorm.DB, email, _, wantState string, wantPrincipal bool) (string, string) {
@@ -659,7 +598,7 @@ func t16WriteChainResult(t *testing.T, db *gorm.DB, cases []t16CaseResult) {
 		PrincipalCount int64           `json:"auth_principal_count"`
 		SessionCount   int64           `json:"refresh_session_count"`
 		Operations     interface{}     `json:"operations"`
-	}{!t.Failed(), "actual Auth production PG repositories/JWT; registered Tarantool HTTP/authenticated real store; production NATS User/RBAC PostgreSQL providers", "production Auth usecase (Auth HTTP transport not exercised by this test)", "four named local losses only after actual commits/ACKs; separate actual provider HTTP response cut", cases, principalCount, sessionCount, operations}, "", "  ")
+	}{!t.Failed(), "actual Auth production PG repositories/JWT; Auth-owned direct Tarantool/authenticated real store; production NATS User/RBAC PostgreSQL providers", "production Auth usecase (Auth HTTP transport not exercised by this test)", "four named local losses only after actual commits/ACKs; direct committed ACK loss with a fresh authenticated storage connection", cases, principalCount, sessionCount, operations}, "", "  ")
 	if err != nil {
 		t.Error("encode safe chain result")
 		return

@@ -4,7 +4,6 @@ set -euo pipefail
 wiki_ref="wiki/AUTHENTICATION.md"
 
 AUTH_API="/api/auth/v1/auth"
-TARANTOOL_API="/api/tarantool/v1"
 
 # 1) Invalid signup payload → 400
 bad_body="$(jq -nc --arg email "not-an-email" --arg password "123" '{email:$email,password:$password}')"
@@ -30,19 +29,8 @@ if [[ "${start_status}" != "202" ]]; then
   return 0
 fi
 
-tara_body="$(jq -nc --arg email "${email}" '{value:{email:$email,password:""}}')"
-tara_raw="$(http_json POST "${TARANTOOL_API}/set-new-user" "${tara_body}")"
-tara_status="$(printf '%s\n' "${tara_raw}" | extract_status)"
-tara_resp="$(printf '%s\n' "${tara_raw}" | extract_body)"
-if [[ "${tara_status}" != "200" ]]; then
-  record_mismatch "ms-go-tarantool" "${wiki_ref} (signup/code)" "HTTP 200" "HTTP ${tara_status}" "POST ${TARANTOOL_API}/set-new-user resp=${tara_resp}" "blocker" "ms-go-tarantool"
-  return 0
-fi
-code="$(echo "${tara_resp}" | jq -r '.code // empty')"
-if [[ -z "${code}" ]]; then
-  record_mismatch "ms-go-tarantool" "${wiki_ref} (signup/code)" "в E2E доступен code (APP_ENV=integration)" "code отсутствует" "POST ${TARANTOOL_API}/set-new-user resp=${tara_resp}" "blocker" "ms-go-tarantool"
-  return 0
-fi
+code="$(verification_code "signup" "${email}")" || return 1
+record_ok "owned isolated fixture provides verification code without a public provider API"
 
 verify_body="$(jq -nc --arg email "${email}" --arg code "${code}" '{email:$email,code:$code}')"
 verify_raw="$(http_json POST "${AUTH_API}/signup/verify" "${verify_body}")"

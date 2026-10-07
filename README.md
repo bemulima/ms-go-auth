@@ -3,7 +3,7 @@
 User authentication microservice extracted from ms-go-user. Handles credentials, OAuth identities, JWT issuance/verification, and coordination with ms-go-user (profiles) and ms-go-rbac (roles).
 
 ## Features
-- Password-based signup/signin with Tarantool-backed code verification over HTTP
+- Password-based signup/signin with Auth-owned code verification through authenticated direct Tarantool calls
 - JWT access/refresh issuance and NATS RPC `auth.verifyJWT`
 - Email change and password reset flows
 - Server-owned OAuth2 Authorization Code flow with state, PKCE, Google, and GitHub
@@ -15,11 +15,11 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 ## Messaging Boundary
 
 - Retained broker scope for this service is limited to Core NATS RPC: `auth.verifyJWT`, `user.create-user`, `rbac.assign-role`, `rbac.checkRole`.
-- Tarantool signup and related verification flows are HTTP-owned in the target architecture and are not part of the retained broker catalog.
+- Auth owns signup, email-change, and password-reset verification. Its persistence adapter calls the identity-store directly through restricted Tarantool functions; these operations are not part of the retained broker catalog. See [verification storage](docs/verification-storage.md).
 - Retained Core NATS RPC subjects are request/reply only and are expected to run queue-group-safe under multi-instance deployment. `auth.verifyJWT` is the read/check owner endpoint used by other services.
 
 ## HTTP API (base path `/api/v1/auth`)
-- `POST /signup/start` — start signup, send code via Tarantool
+- `POST /signup/start` — start signup and persist its verification proof
 - `POST /signup/verify` — verify code, create auth user, call ms-go-user + RBAC, return tokens
 - `POST /signin` — email/password login
 - `POST /refresh` — refresh tokens
@@ -89,7 +89,7 @@ Auth can run as a macOS process while PostgreSQL and NATS remain shared Docker
 infrastructure. The native adapter supplies loopback endpoints and preserves
 the approved secret source; application code remains topology-neutral. Follow
 [the native development guide](docs/native-development.md) for commands,
-migration ordering, and the native ms-go-tarantool dependency.
+migration ordering, and the native direct identity-store dependency.
 
 ## Testing
 - Unit/handler tests: `XDG_CACHE_HOME=$PWD/.cache GOCACHE=$PWD/.cache/go-build GOMODCACHE=$PWD/.cache/gomod go test ./...`

@@ -19,7 +19,6 @@ import (
 
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/domain"
-	verification "github.com/example/auth-service/internal/infrastructure/http/tarantool"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
 	httpadapter "github.com/example/auth-service/internal/transport/http"
@@ -37,7 +36,7 @@ import (
 )
 
 // TestT17ServeAuthHTTP composes the registered production public HTTP router,
-// use case, JWT signer, PostgreSQL repositories, protected Tarantool HTTP client,
+// use case, JWT signer, PostgreSQL repositories, Auth-owned direct Tarantool verification,
 // and User/RBAC Core NATS clients. The coordinator creates and migrates a NEW
 // empty database before opting in, and owns lifecycle and retained data cleanup.
 // This harness neither migrates nor resets stores, and never captures tokens or
@@ -53,11 +52,11 @@ func TestT17ServeAuthHTTP(t *testing.T) {
 	}
 	ready, stop := os.Getenv("T17_AUTH_READY_FILE"), os.Getenv("T17_AUTH_STOP_FILE")
 	t17AuthArtifactPaths(t, ready, stop)
-	internalToken, jwtSecret := os.Getenv("SIGNUP_CONSUME_INTERNAL_TOKEN"), os.Getenv("AUTH_JWT_SECRET")
-	if len(internalToken) < 32 || len(jwtSecret) < 32 {
-		t.Fatal("root-generated signup consume and JWT secrets of at least 32 bytes required")
+	jwtSecret := os.Getenv("AUTH_JWT_SECRET")
+	if len(jwtSecret) < 32 {
+		t.Fatal("root-generated JWT secret of at least 32 bytes required")
 	}
-	proofURL := t17AuthProviderURL(t, "T16_TNT_READY_FILE", "url", "actual-registered-http-tarantool")
+	proof, proofFixture := t16DirectVerification(t)
 	// Read actual providers' ready files before connecting their isolated broker.
 	t17AuthProviderURL(t, "T16_USER_READY_FILE", "control_url", "actual-provider")
 	t17AuthProviderURL(t, "T16_RBAC_READY_FILE", "control_url", "actual-provider")
@@ -76,7 +75,7 @@ func TestT17ServeAuthHTTP(t *testing.T) {
 		AppName: "t17-auth-http", AppEnv: "integration", HTTPBasePath: "/api/v1",
 		JWTSecret: jwtSecret, JWTIssuer: "t17-auth", JWTAudience: "t17-bff",
 		AccessTTL: 15 * time.Minute, RefreshTTL: time.Hour, DefaultRole: "student",
-		SignupConsumeInternalToken: internalToken, DBMigrateOnStart: false,
+		DBMigrateOnStart: false,
 	}
 	signer, err := usecase.NewJWTSigner(cfg)
 	if err != nil {
@@ -86,7 +85,6 @@ func TestT17ServeAuthHTTP(t *testing.T) {
 	if _, ok := users.(domain.SignupCompletionRepository); !ok {
 		t.Fatal("production Auth repository lacks durable completion port")
 	}
-	proof := verification.NewHTTPClientWithSignupRecovery(proofURL, proofURL, internalToken, 5*time.Second)
 	userClient := natsadapter.NewUserClient(conn, t17AuthSubject(t, "T16_USER_CREATE_SUBJECT", "user.create-user"))
 	roles, err := natsadapter.NewRBACClientWithSignupProof(conn, t17AuthSubject(t, "T16_RBAC_ASSIGN_SUBJECT", "rbac.assign-role"), t17AuthSubject(t, "T16_RBAC_CHECK_SUBJECT", "rbac.checkRole"), os.Getenv("AUTH_RBAC_SIGNUP_PRIVATE_KEY"))
 	if err != nil {
@@ -105,7 +103,7 @@ func TestT17ServeAuthHTTP(t *testing.T) {
 		t.Fatal("cannot bind owned loopback Auth listener")
 	}
 	server := &http.Server{
-		Handler: t17AuthOwnedRequests(e, prefix), ReadHeaderTimeout: 5 * time.Second,
+		Handler: t17AuthProofCapture(t17AuthOwnedRequests(e, prefix), proofFixture), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 15 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 30 * time.Second,
 	}
 	serverErrors := make(chan error, 1)
@@ -124,13 +122,13 @@ func TestT17ServeAuthHTTP(t *testing.T) {
 	}
 	err = json.NewEncoder(file).Encode(map[string]string{
 		"url":            "http://" + listener.Addr().String(),
-		"classification": "actual-registered-Auth-HTTP-production-usecase-PG-JWT-Tarantool-HTTP-CoreNATS-User-RBAC",
+		"classification": "actual-registered-Auth-HTTP-production-usecase-PG-JWT-direct-Tarantool-CoreNATS-User-RBAC",
 	})
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
 		t.Fatal("cannot write safe Auth readiness metadata")
 	}
-	t.Log("classification=actual registered Auth public HTTP; production usecase/PG/JWT; protected real Tarantool HTTP; production User/RBAC Core NATS clients; test-only owned-email guard")
+	t.Log("classification=actual registered Auth public HTTP; production usecase/PG/JWT; Auth-owned direct authenticated Tarantool; production User/RBAC Core NATS clients; test-only owned-email guard")
 	timer := time.NewTimer(20 * time.Minute)
 	defer timer.Stop()
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -314,4 +312,29 @@ func TestT17AuthProviderConnectedStoreGuard(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test harness control only: the production Auth router has no capture route.
+// A separate coordinator token and the run-owned identity guard protect code
+// readback; response bodies never enter the test evidence stream.
+func t17AuthProofCapture(production http.Handler, fixture *t16TarantoolFixture) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/__t16/capture" {
+			production.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		token := os.Getenv("T16_CONTROL_TOKEN")
+		if len(token) < 32 || r.Header.Get("X-Internal-Token") != token || r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		code, ok := fixture.code(r.URL.Query().Get("email"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": code})
+	})
 }

@@ -21,8 +21,8 @@ func TestT17StudentProvisioningHTTPContract(t *testing.T) {
 	if os.Getenv("T17_HTTP_CONTRACT") != "true" {
 		t.Skip("requires isolated existing T17 provider harnesses")
 	}
-	base := t17AuthProviderURL(t, "T17_AUTH_READY_FILE", "url", "actual-registered-Auth-HTTP-production-usecase-PG-JWT-Tarantool-HTTP-CoreNATS-User-RBAC")
-	proof := t16ProviderURL(t)
+	base := t17AuthProviderURL(t, "T17_AUTH_READY_FILE", "url", "actual-registered-Auth-HTTP-production-usecase-PG-JWT-direct-Tarantool-CoreNATS-User-RBAC")
+	_, proof := t16DirectVerification(t)
 	db := t16AuthDB(t)
 	email, password := t16Email(t, "student-contract"), "T17-disposable-student-password-41"
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)

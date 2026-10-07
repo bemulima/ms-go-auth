@@ -10,6 +10,10 @@ services:
       AUTH_DB_HOST: postgres
       AUTH_DB_PORT: "5432"
       NATS_URL: nats://nats:4222
+      TARANTOOL_HOST: ${TARANTOOL_HOST:-identity-store}
+      TARANTOOL_PORT: "${TARANTOOL_PORT:-3301}"
+      TARANTOOL_USER: ${TARANTOOL_USER:?configured identity principal required}
+      TARANTOOL_PASSWORD: ${TARANTOOL_PASSWORD:?configured identity credential required}
     volumes:
       - ./:/app
       - go-mod-cache:/go/pkg/mod
@@ -17,8 +21,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_started
+    networks: [default, ms-net]
     restart: unless-stopped
 
   postgres:
@@ -39,12 +42,11 @@ services:
       retries: 12
     restart: unless-stopped
 
-  nats:
-    image: nats:2.10-alpine
-    command: ["-js"]
-    restart: unless-stopped
-
 volumes:
   pgdata:
   go-mod-cache:
   go-build-cache:
+
+networks:
+  ms-net:
+    external: true

@@ -6,8 +6,8 @@ layers:
   infrastructure: internal/infrastructure
   composition_root: cmd/ms-go-auth
 ownership:
-  auth: [credentials, auth identities, OAuth transactions, JWT issuance and verification, refresh sessions]
-  external: [user profiles, roles and permissions, verification-code transport]
+  auth: [credentials, verification proofs, auth identities, OAuth transactions, JWT issuance and verification, refresh sessions]
+  external: [user profiles, roles and permissions, verification-code delivery]
 invariants:
   - OAuth state is one-time and PKCE-protected.
   - Refresh rotation revokes the consumed session before issuing a replacement.

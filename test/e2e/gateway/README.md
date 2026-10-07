@@ -20,3 +20,5 @@ code hook, as does the signup scenario.
 cd ms-go-auth
 bash test/e2e/gateway/run-tests.sh
 ```
+
+Verification fixtures require `AUTH_E2E_ISOLATED_FIXTURE=true` and an absolute executable `AUTH_E2E_VERIFICATION_CODE_COMMAND`. The runner calls it with one synthetic `e2e-…@example.com|test` email and `AUTH_E2E_VERIFICATION_FLOW=signup|password-reset`; stdout must contain exactly four decimal digits. The helper uses separately owned disposable-store fixture credentials. It must reject unrelated identities/stores and avoid logs. Gateway public Auth HTTP remains the boundary under test; there is no verification HTTP route. Mismatch evidence omits request/response secret material.

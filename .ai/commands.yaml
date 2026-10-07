@@ -5,6 +5,8 @@ commands:
   - {name: vet, run: go vet ./..., requires_approval: false, risk: verification}
   - {name: test, run: go test ./..., requires_approval: false, risk: verification}
   - {name: signup-contract-regression, run: 'go test -tags=integration ./test/integration -run "TestT16ActualSignupRecovery|TestT17StudentProvisioningHTTPContract"', requires_approval: false, risk: disposable-integration-test}
+  - {name: verification-real-store, run: 'go test -tags=integration ./test/integration -run TestActualDirectVerification -count=1', requires_approval: false, risk: disposable-integration-test}
+  - {name: verification-cleanup-observation, run: 'go test -tags=integration ./test/integration -run TestActualVerificationCleanup -count=1', requires_approval: false, risk: disposable-integration-test}
   - {name: migration-integration-test, run: task migration-integration-test, requires_approval: false, risk: disposable-integration-test}
   - {name: lint, run: golangci-lint run ./..., requires_approval: false, risk: verification}
   - {name: run, run: go run ./cmd/ms-go-auth, requires_approval: true, risk: lifecycle}

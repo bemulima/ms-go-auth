@@ -22,7 +22,7 @@ change_status="$(printf '%s\n' "${change_raw}" | extract_status)"
 change_resp="$(printf '%s\n' "${change_raw}" | extract_body)"
 
 if [[ "${change_status}" != "200" ]]; then
-  record_mismatch "ms-go-auth" "${wiki_ref} (Изменение пароля)" "HTTP 200 + message" "HTTP ${change_status}" "POST ${AUTH_API}/password/change resp=${change_resp}" "major" "ms-go-auth/ms-go-tarantool"
+  record_mismatch "ms-go-auth" "${wiki_ref} (Изменение пароля)" "HTTP 200 + message" "HTTP ${change_status}" "POST ${AUTH_API}/password/change resp=${change_resp}" "major" "ms-go-auth"
 else
   record_ok "auth password/change returns 200"
 fi
@@ -47,7 +47,7 @@ email_start_status="$(printf '%s\n' "${email_start_raw}" | extract_status)"
 email_start_resp="$(printf '%s\n' "${email_start_raw}" | extract_body)"
 
 if [[ "${email_start_status}" != "200" ]]; then
-  record_mismatch "ms-go-auth" "${wiki_ref} (Изменение email: start)" "HTTP 200 + message" "HTTP ${email_start_status}" "POST ${AUTH_API}/email/change/start resp=${email_start_resp}" "major" "ms-go-auth/ms-go-tarantool"
+  record_mismatch "ms-go-auth" "${wiki_ref} (Изменение email: start)" "HTTP 200 + message" "HTTP ${email_start_status}" "POST ${AUTH_API}/email/change/start resp=${email_start_resp}" "major" "ms-go-auth"
 else
   record_ok "auth email/change/start returns 200"
 fi

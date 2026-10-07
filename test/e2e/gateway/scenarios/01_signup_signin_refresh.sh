@@ -2,7 +2,6 @@
 set -euo pipefail
 
 AUTH_API="/api/auth/v1/auth"
-TARANTOOL_API="/api/tarantool/v1"
 
 wiki_ref="wiki/AUTHENTICATION.md"
 
@@ -24,24 +23,9 @@ if ! echo "${resp}" | jq -e '.message? | length > 0' >/dev/null 2>&1; then
   record_mismatch "ms-go-auth" "${wiki_ref} (Регистрация: start)" "response содержит message=\"verification code sent\"" "response не содержит поля message" "POST ${AUTH_API}/signup/start → 202 resp=${resp}" "major" "wiki/ms-go-auth"
 fi
 
-# Получение кода подтверждения (детерминизм для E2E): используем tarantool в integration-режиме.
-tara_body="$(jq -nc --arg email "${email}" '{value:{email:$email,password:""}}')"
-tara_raw="$(http_json POST "${TARANTOOL_API}/set-new-user" "${tara_body}")"
-tara_status="$(printf '%s\n' "${tara_raw}" | extract_status)"
-tara_resp="$(printf '%s\n' "${tara_raw}" | extract_body)"
-
-if [[ "${tara_status}" != "200" ]]; then
-  record_mismatch "ms-go-tarantool" "${wiki_ref} (Регистрация: код)" "HTTP 200 от tarantool (test hook)" "HTTP ${tara_status}" "POST ${TARANTOOL_API}/set-new-user resp=${tara_resp}" "blocker" "ms-go-tarantool/ms-gateway"
-  return 1
-fi
-record_ok "tarantool set-new-user returns 200"
-
-code="$(echo "${tara_resp}" | jq -r '.code // empty')"
-if [[ -z "${code}" ]]; then
-  record_mismatch "ms-go-tarantool" "${wiki_ref} (Регистрация: код)" "в E2E доступен code (APP_ENV=integration)" "code отсутствует в ответе" "POST ${TARANTOOL_API}/set-new-user → 200 resp=${tara_resp}" "blocker" "ms-go-tarantool (APP_ENV=integration) / тестовый режим"
-  return 1
-fi
-record_ok "tarantool provides verification code"
+# Получение кода подтверждения (детерминизм для E2E): используем закрытый изолированный fixture.
+code="$(verification_code "signup" "${email}")" || return 1
+record_ok "owned isolated fixture provides verification code without a public provider API"
 
 verify_body="$(jq -nc --arg email "${email}" --arg code "${code}" '{email:$email,code:$code}')"
 verify_raw="$(http_json POST "${AUTH_API}/signup/verify" "${verify_body}")"

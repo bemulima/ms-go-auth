@@ -24,19 +24,12 @@
     {
       "repository": "bemulima/ms-go-auth",
       "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
-      "path": "internal/infrastructure/http/tarantool/client.go",
-      "blob_sha": "498880f2f296f2bfa5dfbd1a5ba17e08eee38724",
-      "content_sha256": "069ab203101bbd6eaaeb68137820dea32f45bd5ba4f314f78f88731c36d42283"
-    },
-    {
-      "repository": "bemulima/ms-go-auth",
-      "commit_sha": "c194345cebd776c6076ad7eefccec7b95d6416e0",
       "path": "internal/infrastructure/messaging/nats/client.go",
       "blob_sha": "fe6b85d800d5273e09d01aeb3bd6feb08ee97d9d",
       "content_sha256": "0a67c1d6975c063ec76575e38765da95331cfc43edf650c1a33b2756d494ae63"
     }
   ],
-  "reason": "Implemented outbound HTTP adapters and/or NATS consumers are declared from exact committed client, subscription, configuration, and process composition evidence. CSS Student validator stub sends no request; unwired legacy adapters do not assert expectations. External AI/Telegram/OAuth and owned databases are infrastructure dependencies.",
+  "reason": "Auth consumes User/RBAC RPC and owns direct authenticated Tarantool verification persistence. Historical pins identify earlier RPC audit inputs; the active direct adapter and owner Lua contract replace verification HTTP.",
   "inspected_paths": [
     "cmd/ms-go-auth-fixture/main.go",
     "cmd/ms-go-auth/app.go",
@@ -44,7 +37,6 @@
     "config/config.go",
     "internal/domain/auth_user.go",
     "internal/domain/ports.go",
-    "internal/infrastructure/http/tarantool/client.go",
     "internal/infrastructure/messaging/nats/client.go",
     "internal/infrastructure/messaging/nats/server.go",
     "internal/infrastructure/oauth/github.go",
@@ -65,11 +57,13 @@
     "internal/usecase/verification_fixture.go",
     "pkg/http/response.go",
     "pkg/log/logger.go",
-    "test/unit/native_config_test.py"
+    "test/unit/native_config_test.py",
+    "internal/infrastructure/persistence/tarantool/client.go",
+    "internal/usecase/verification/service.go",
+    "scripts/tarantool/init.lua"
   ],
   "expectation_paths": [
     ".ai/contracts/consumers/ms-go-rbac.event-unversioned.v1.json",
-    ".ai/contracts/consumers/ms-go-tarantool.http.v1-v1.v1.json",
     ".ai/contracts/consumers/ms-go-user.event-unversioned.v1.json"
   ]
 }

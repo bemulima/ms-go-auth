@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -17,24 +19,26 @@ import (
 
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/domain"
-	taraclient "github.com/example/auth-service/internal/infrastructure/http/tarantool"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	oauthprovider "github.com/example/auth-service/internal/infrastructure/oauth"
 	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
+	taraclient "github.com/example/auth-service/internal/infrastructure/persistence/tarantool"
 	httpadapter "github.com/example/auth-service/internal/transport/http"
 	apiv1 "github.com/example/auth-service/internal/transport/http/api/v1"
 	handlers "github.com/example/auth-service/internal/transport/http/api/v1/handlers"
 	authmw "github.com/example/auth-service/internal/transport/http/api/v1/middleware"
 	"github.com/example/auth-service/internal/usecase"
+	verification "github.com/example/auth-service/internal/usecase/verification"
 	pkglog "github.com/example/auth-service/pkg/log"
 )
 
 type App struct {
-	cfg      *config.Config
-	logger   pkglog.Logger
-	db       *gorm.DB
-	natsConn *nats.Conn
-	echo     *echo.Echo
+	cfg               *config.Config
+	logger            pkglog.Logger
+	db                *gorm.DB
+	natsConn          *nats.Conn
+	echo              *echo.Echo
+	verificationStore *taraclient.Client
 }
 
 func New(ctx context.Context) (*App, error) {
@@ -61,7 +65,27 @@ func New(ctx context.Context) (*App, error) {
 	identityRepo := repo.NewAuthIdentityRepository(db)
 	oauthTxRepo := repo.NewOAuthTransactionRepository(db)
 	refreshRepo := repo.NewRefreshTokenRepository(db)
-	tarantoool := taraclient.NewHTTPClientWithSignupRecovery(cfg.TarantoolSignupURL, cfg.TarantoolEmailChangeURL, cfg.SignupConsumeInternalToken, 5*time.Second)
+	connectCtx, cancel := context.WithTimeout(ctx, cfg.TarantoolConnectTimeout)
+	verificationStore, err := taraclient.Connect(connectCtx, taraclient.ConnectionConfig{Address: net.JoinHostPort(cfg.TarantoolHost, cfg.TarantoolPort), User: cfg.TarantoolUser, Password: cfg.TarantoolPassword, RequestTimeout: cfg.TarantoolRequestTimeout})
+	cancel()
+	if err != nil {
+		nc.Close()
+		if sqlDB, e := db.DB(); e == nil {
+			_ = sqlDB.Close()
+		}
+		return nil, err
+	}
+	initialized := false
+	defer func() {
+		if !initialized {
+			_ = verificationStore.Close()
+			nc.Close()
+			if sqlDB, e := db.DB(); e == nil {
+				_ = sqlDB.Close()
+			}
+		}
+	}()
+	tarantoool := verification.NewService(verificationStore, verification.Options{SignupCodeTTL: cfg.VerificationSignupCodeTTL, SignupHardTTL: cfg.VerificationSignupHardTTL, EmailCodeTTL: cfg.VerificationEmailCodeTTL, EmailHardTTL: cfg.VerificationEmailHardTTL})
 	userClient := natsadapter.NewUserClient(nc, cfg.NATSUserCreateSubject)
 	rbacClient, err := natsadapter.NewRBACClientWithSignupProof(nc, cfg.NATSAssignRoleSubject, cfg.NATSCheckRoleSubject, cfg.RBACSignupPrivateKey)
 	if err != nil {
@@ -88,7 +112,8 @@ func New(ctx context.Context) (*App, error) {
 	e := echo.New()
 	router.Setup(e)
 
-	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e}, nil
+	initialized = true
+	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e, verificationStore: verificationStore}, nil
 }
 
 // applyDatabaseMigrations is intentionally a single gate around every
@@ -134,6 +159,9 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) Close() {
+	if a.verificationStore != nil {
+		_ = a.verificationStore.Close()
+	}
 	if a.natsConn != nil {
 		_ = a.natsConn.Drain()
 	}
@@ -162,24 +190,20 @@ func connectNATSWithRetry(cfg *config.Config, logger pkglog.Logger) (*nats.Conn,
 		}
 
 		lastErr = err
-		log.Printf("nats connect attempt %d/%d failed: %v", attempt, maxAttempts, err)
+		log.Printf("nats connect attempt %d/%d failed", attempt, maxAttempts)
 
 		if attempt < maxAttempts {
 			time.Sleep(retryDelay)
 		}
 	}
 
-	logger.Error().Err(lastErr).Str("nats_url", cfg.NATSURL).Msg("nats connection failed after retries")
-	return nil, fmt.Errorf("nats connect failed after retries: %w", lastErr)
+	logger.Error().Msg("nats connection failed after retries")
+	_ = lastErr
+	return nil, errors.New("nats connect failed after retries")
 }
 
 func loggerForGorm(cfg *config.Config) logger.Interface {
-	var level logger.LogLevel
-	switch cfg.AppEnv {
-	case "local":
-		level = logger.Info
-	default:
-		level = logger.Warn
-	}
-	return logger.Default.LogMode(level)
+	// SQL statements may contain credentials. Parameterized queries omit bound
+	// values even in failure diagnostics and local development logs.
+	return logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{SlowThreshold: time.Second, LogLevel: logger.Warn, IgnoreRecordNotFoundError: true, ParameterizedQueries: true})
 }

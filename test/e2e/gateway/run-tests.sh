@@ -42,6 +42,7 @@ sanitize_evidence() {
     echo "${evidence%%resp=*}resp=[HTML omitted]"
     return 0
   fi
+  evidence="$(printf '%s' "$evidence" | sed -E 's/ (body|resp)=.*$/ [sensitive request and response omitted]/')"
   echo "${evidence}" | sed -E 's/<[^>]+>//g' | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g'
 }
 
@@ -68,6 +69,16 @@ EOF
 check_deps() {
   command -v curl >/dev/null 2>&1 || { log_error "curl required"; exit 1; }
   command -v jq >/dev/null 2>&1 || { log_error "jq required"; exit 1; }
+}
+
+verification_code() {
+  local flow="$1" email="$2" code
+  [[ "${AUTH_E2E_ISOLATED_FIXTURE:-}" == "true" ]] || { log_error "explicit isolated Auth fixture required" >&2; return 1; }
+  [[ "${AUTH_E2E_VERIFICATION_CODE_COMMAND:-}" == /* && -x "${AUTH_E2E_VERIFICATION_CODE_COMMAND}" ]] || { log_error "absolute executable Auth fixture required" >&2; return 1; }
+  [[ "$email" =~ ^e2e-[a-zA-Z0-9+-]+@example\.(com|test)$ ]] || { log_error "synthetic Auth fixture identity required" >&2; return 1; }
+  code="$(AUTH_E2E_VERIFICATION_FLOW="$flow" "${AUTH_E2E_VERIFICATION_CODE_COMMAND}" "$email" 2>/dev/null)" || { log_error "Auth fixture unavailable" >&2; return 1; }
+  [[ "$code" =~ ^[0-9]{4}$ ]] || { log_error "invalid Auth fixture result" >&2; return 1; }
+  printf '%s' "$code"
 }
 
 check_gateway() {

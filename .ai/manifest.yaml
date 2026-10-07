@@ -9,4 +9,4 @@ project_specific:
   architecture: .ai/architecture.yaml
   commands: .ai/commands.yaml
   docs_index: docs/README.md
-  contracts: [.ai/contracts/http.yaml, .ai/contracts/messaging.yaml, .ai/contracts/database.yaml]
+  contracts: [.ai/contracts/http.yaml, .ai/contracts/messaging.yaml, .ai/contracts/database.yaml, .ai/contracts/verification.yaml]

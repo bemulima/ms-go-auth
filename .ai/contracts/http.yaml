@@ -8,15 +8,13 @@ protected:
   DELETE: ['/identities/:provider/:provider_user_id']
 internal: [{method: GET, path: /internal/health}]
 
-signup_recovery_provider:
-  method: POST
-  path: /api/v1/consume-signup-proof
-  authentication: X-Internal-Token
-  configuration: SIGNUP_CONSUME_INTERNAL_TOKEN
-  request_value: [email, code, operation_id]
-  receipt: [operation_id, email, password, expires_at]
-  expiry: original_signup_created_at_plus_existing_hard_ttl_utc_rfc3339
+signup_recovery_storage:
+  owner: ms-go-auth
+  protocol: direct_authenticated_tarantool_call
+  function: auth_verification
   operation_owner: auth_generated_uuid_not_public_input
+  receipt: [operation_id, email, password_hash, expires_at]
+  expiry: original_signup_created_at_plus_existing_hard_ttl
   fallback: forbidden
   terminal_code_replay: denied
   pending_password_signin: repair_required_provisioning_with_exact_verified_credential

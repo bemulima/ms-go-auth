@@ -42,11 +42,16 @@ type Config struct {
 	NATSAssignRoleSubject string `env:"NATS_SUBJECT_ASSIGN_ROLE" envDefault:"rbac.assign-role"`
 	NATSCheckRoleSubject  string `env:"NATS_SUBJECT_CHECK_ROLE" envDefault:"rbac.checkRole"`
 
-	// TarantoolSignupURL owns signup and password-reset verification calls.
-	TarantoolSignupURL string `env:"TARANTOOL_SIGNUP_URL"`
-	// TarantoolEmailChangeURL owns email-change verification calls.
-	TarantoolEmailChangeURL    string `env:"TARANTOOL_EMAIL_CHANGE_URL"`
-	SignupConsumeInternalToken string `env:"SIGNUP_CONSUME_INTERNAL_TOKEN"`
+	TarantoolHost             string        `env:"TARANTOOL_HOST" envDefault:"localhost"`
+	TarantoolPort             string        `env:"TARANTOOL_PORT" envDefault:"3301"`
+	TarantoolUser             string        `env:"TARANTOOL_USER"`
+	TarantoolPassword         string        `env:"TARANTOOL_PASSWORD"`
+	TarantoolConnectTimeout   time.Duration `env:"TARANTOOL_CONNECT_TIMEOUT" envDefault:"5s"`
+	TarantoolRequestTimeout   time.Duration `env:"TARANTOOL_REQUEST_TIMEOUT" envDefault:"3s"`
+	VerificationSignupCodeTTL time.Duration `env:"AUTH_VERIFICATION_SIGNUP_CODE_TTL" envDefault:"5m"`
+	VerificationSignupHardTTL time.Duration `env:"AUTH_VERIFICATION_SIGNUP_HARD_TTL" envDefault:"24h"`
+	VerificationEmailCodeTTL  time.Duration `env:"AUTH_VERIFICATION_EMAIL_CODE_TTL" envDefault:"5m"`
+	VerificationEmailHardTTL  time.Duration `env:"AUTH_VERIFICATION_EMAIL_HARD_TTL" envDefault:"24h"`
 
 	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`
 

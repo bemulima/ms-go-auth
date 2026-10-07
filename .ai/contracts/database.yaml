@@ -13,3 +13,14 @@ signup_completion:
   code_terminal_cas: requires_unexpired_original_hard_ttl_receipt
   password_repair: exact_owned_verified_principal_credential_required
   rollback: refuses_any_retained_operation
+
+tarantool_verification:
+  owner: ms-go-auth
+  source: scripts/tarantool
+  ledger: ms_go_tarantool_schema_migrations
+  migrations: [001_initial_schema, 002_make_secondary_indexes_nonunique, 003_signup_consumption_receipts, 004_atomic_verification_functions]
+  spaces: [user_signup_space, user_signup_consumption_receipts, user_email_change, user_email_change_code_lookup, user_password_reset]
+  runtime: authenticated_named_call_no_eval
+  cleanup: single_lua_fiber_verification_only
+  legacy_retention: user_and_sandbox_unchanged_no_cleanup
+  sandbox_store: separate_ms_go_sandbox_boundary

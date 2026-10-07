@@ -91,3 +91,5 @@ under the existing `AUTH_DB_MIGRATE_ON_START` gate; production rollout should us
 the owner migration runner. Repository migration/ownership integration tests run
 only when `T16_AUTH_REPOSITORY_INTEGRATION=true` against a root-owned loopback
 `AUTH_TEST_DATABASE_URL` ending `_test`, using a fresh isolated schema.
+
+Auth also owns the identity-store verification schema and named functions described in [verification storage](verification-storage.md). PostgreSQL and Tarantool retain separate transaction/recovery boundaries.

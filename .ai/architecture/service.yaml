@@ -102,25 +102,19 @@
       }
     },
     {
-      "id": "owner-client-ms-go-tarantool-http",
-      "transport": "http",
-      "target": "ms-go-tarantool",
+      "id": "owner-persistence-identity-store",
+      "transport": "tarantool",
+      "target": "identity-store",
       "direction": "outbound",
       "description": {
-        "value": "Owner client invokes POST /api/v1/set-new-user, POST /api/v1/check-new-user-code, POST /api/v1/start-email-change, POST /api/v1/verify-email-change, POST /api/v1/password-reset-start, POST /api/v1/password-reset-verify.",
+        "value": "Auth-owned verification policy calls the authenticated Auth-owned identity-store functions directly.",
         "confidence": 1,
         "evidence": [
           {
-            "source_path": "internal/infrastructure/http/tarantool/client.go",
-            "checksum": "069ab203101bbd6eaaeb68137820dea32f45bd5ba4f314f78f88731c36d42283"
+            "source_path": "internal/infrastructure/persistence/tarantool/client.go"
           },
           {
-            "source_path": "cmd/ms-go-auth/app.go",
-            "checksum": "f091f6e5718a5e157a9f9b82ddd24695d3065663e957ab9f1b0278e0b02633d3"
-          },
-          {
-            "source_path": "config/config.go",
-            "checksum": "ef598f73e4cd0f223966c051f0108583e96dc00ee683392276efbee68ef6f9be"
+            "source_path": "scripts/tarantool/init.lua"
           }
         ]
       }

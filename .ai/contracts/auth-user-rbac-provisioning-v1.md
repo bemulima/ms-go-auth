@@ -57,7 +57,7 @@ Teacher-specific bypass is part of this contract.
 ## Durable proof and completion boundary
 
 Auth persists the immutable operation and reserved principal before proof consume.
-Only Tarantool's internally authenticated, same-operation receipt can verify it;
+Only Auth's direct authenticated Tarantool same-operation receipt can verify it;
 normalized email, operation, proof fingerprint, frozen credential, and original
 hard expiry must agree. Missing recovery ports/configuration fail closed.
 Principal creation and completion ownership commit atomically; arbitrary existing

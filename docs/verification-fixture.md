@@ -29,3 +29,5 @@ project; it does not attempt a cross-service rollback.
 
 This fixture is not signup and does not assert email ownership. It creates no
 JWT or refresh session. Tokens are issued only by a later real Gateway signin.
+
+The local `ms-go-auth-fixture --hash-password` mode reads a single plaintext password from stdin (8–72 bytes), performs bcrypt, and emits only the hash to stdout. It connects to no service and grants no role or token. The owning coordinator captures stdout into a private file (0600) and must never log that output. Invalid input and hashing failures emit only static phase metadata; password arguments/environment are not accepted. This replaces provider HTTP hash extraction in controlled release fixtures.
