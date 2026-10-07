@@ -464,6 +464,7 @@ func TestVerifySignupCreatesUserAndTokens(t *testing.T) {
 	}
 	if user == nil || tokens == nil {
 		t.Fatalf("expected user and tokens")
+		return
 	}
 	if user.Email != "user@example.com" {
 		t.Fatalf("expected normalized email, got %s", user.Email)
@@ -489,6 +490,7 @@ func TestVerifySignupNotifiesUserAndRBAC(t *testing.T) {
 	}
 	if user == nil {
 		t.Fatalf("user is nil")
+		return
 	}
 	if len(userClient.calls) != 1 {
 		t.Fatalf("expected CreateUser to be called once, got %d", len(userClient.calls))

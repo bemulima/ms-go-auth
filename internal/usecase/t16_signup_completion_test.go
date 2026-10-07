@@ -412,6 +412,7 @@ func TestT16PendingGateAndPasswordRepairAfterExpiry(t *testing.T) {
 	}
 	if u == nil {
 		t.Fatal("missing verified principal")
+		return
 	}
 	tokens, err = f.service().issueTokens(context.Background(), u)
 	t16NoTokens(t, f, tokens, err)
