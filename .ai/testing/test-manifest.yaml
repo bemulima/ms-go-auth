@@ -1,5 +1,5 @@
 schema_version: test-manifest.v1
-manifest_version: 1.0.0
+manifest_version: 1.1.0
 policy_version: testing-policy.v1
 repository:
   id: ms-go-auth
@@ -78,7 +78,7 @@ suites:
     commands: [check:format, check:lint, check:types]
   coverage:
     applicability: APPLICABLE
-    implementation: MISSING
+    implementation: PARTIAL
     commands: [coverage]
     exception_id: AUTH-COVERAGE
 
@@ -204,9 +204,6 @@ commands:
       - type: database
         mode: disposable
         probe: docker
-        provisioner:
-          path: .ai/testing/provisioners/auth-postgres-migration.v1.json
-          sha256: 8ea20f4d8cd3b8739f3be9cad289d1ae6b03821bc090e56c9ca382dbf4b158cf
   test:events:
     availability: AVAILABLE
     invoke: [go, test, ./test/unit, -run, '^TestVerifyHandler']
@@ -223,8 +220,32 @@ commands:
     working_directory: .
     timeout_seconds: 120
   coverage:
-    availability: UNAVAILABLE
-    reason: No Go coverage command, configured provider, threshold, or CI coverage artifact exists at the audited revision.
+    availability: AVAILABLE
+    invoke: [python3, scripts/coverage.py]
+    working_directory: .
+    timeout_seconds: 1800
+    env:
+      - POLICY_RUN_ID
+      - POLICY_BASE_SHA
+      - POLICY_HEAD_SHA
+      - POLICY_TIER_COMMAND
+      - GITHUB_RUN_ATTEMPT
+      - GITHUB_JOB
+      - GITHUB_RUN_ID
+      - GITHUB_REPOSITORY
+    artifacts:
+      - name: Auth normalized coverage evidence
+        path: test-results/coverage/coverage-evidence.v1.json
+        media_type: application/vnd.testing-policy.coverage-evidence+json
+        category: coverage
+        required: true
+        retention_class: MAIN_NIGHTLY_90_DAYS
+      - name: Auth Go coverprofile
+        path: test-results/coverage/go.coverprofile
+        media_type: application/vnd.go.coverprofile
+        category: coverage
+        required: true
+        retention_class: MAIN_NIGHTLY_90_DAYS
 
 references:
   contracts:
@@ -370,13 +391,13 @@ exceptions:
     repository: ms-go-auth
     categories: [coverage]
     scope:
-      description: Go coverage measurement and report generation for the Auth test suites.
+      description: Source-line normalization for first-party Go files whose coverprofile blocks span multiple lines.
       commands: [coverage]
-    owner: Auth service owners
-    reason: No Go coverage command, provider, threshold, or CI coverage artifact exists at the audited revision.
-    evidence: [.ai/commands.yaml, .github/workflows/ci.yml]
+    owner: Auth service and Testing Policy owners
+    reason: The Go adapter deliberately marks multi-line coverprofile blocks unsupported rather than attributing block hits to individual source lines. The local Auth pilot also found active sources without executable coverage blocks; artifacts remain diagnostic and have no numeric gate.
+    evidence: [scripts/coverage.py, .ai/testing/policy/policy-runner.cjs]
     created_at: '2026-09-27'
     expires_at: '2026-12-27'
-    remediation_target: Establish coverage report scope and baseline after the pilot result contract is adopted.
+    remediation_target: Reassess only after the Go adapter can map block-level hits to executable source lines without approximation.
     tracking_reference: T3-PILOT-AUTH-COVERAGE
     approval_reference: task:T3-PILOT
