@@ -10,3 +10,4 @@ tmp/
 vendor/
 docker-compose.override.yml
 .gocache
+test-results/
