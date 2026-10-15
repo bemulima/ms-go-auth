@@ -1,5 +1,6 @@
 schema_version: 1
 commands:
+  - {name: agent-policy-regression, run: 'PYTHONDONTWRITEBYTECODE=1 python3 test/unit/agent_policy_test.py', requires_approval: false, risk: verification}
   - {name: agent-policy, run: ./scripts/check-agent-policy.sh, requires_approval: false, risk: verification}
   - {name: format-check, run: 'test -z "$(gofmt -l $(git ls-files ''*.go''))"', requires_approval: false, risk: verification}
   - {name: vet, run: go vet ./..., requires_approval: false, risk: verification}
