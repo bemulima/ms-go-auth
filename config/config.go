@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v10"
@@ -9,11 +11,15 @@ import (
 )
 
 type Config struct {
-	AppName      string `env:"AUTH_APP_NAME" envDefault:"auth-service"`
-	AppEnv       string `env:"AUTH_APP_ENV" envDefault:"local"`
-	HTTPHost     string `env:"AUTH_HTTP_HOST" envDefault:"0.0.0.0"`
-	HTTPPort     string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
-	HTTPBasePath string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
+	EmailCodeHMACKey string `env:"AUTH_EMAIL_CODE_HMAC_KEY"`
+	SMTPAddress      string `env:"AUTH_SMTP_ADDRESS"`
+	SMTPFrom         string `env:"AUTH_SMTP_FROM" envDefault:"auth@example.test"`
+	EmailOriginLimit int    `env:"AUTH_EMAIL_ORIGIN_HOURLY_LIMIT" envDefault:"20"`
+	AppName          string `env:"AUTH_APP_NAME" envDefault:"auth-service"`
+	AppEnv           string `env:"AUTH_APP_ENV" envDefault:"local"`
+	HTTPHost         string `env:"AUTH_HTTP_HOST" envDefault:"0.0.0.0"`
+	HTTPPort         string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
+	HTTPBasePath     string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
 
 	DBHost     string `env:"AUTH_DB_HOST" envDefault:"localhost"`
 	DBPort     string `env:"AUTH_DB_PORT" envDefault:"5432"`
@@ -55,10 +61,12 @@ type Config struct {
 
 	DefaultRole string `env:"AUTH_DEFAULT_ROLE" envDefault:"student"`
 
+	OAuthGoogleBoundaryURL  string `env:"AUTH_OAUTH_GOOGLE_BOUNDARY_URL"`
 	OAuthGoogleClientID     string `env:"AUTH_OAUTH_GOOGLE_CLIENT_ID"`
 	OAuthGoogleClientSecret string `env:"AUTH_OAUTH_GOOGLE_CLIENT_SECRET"`
 	OAuthGoogleRedirectURL  string `env:"AUTH_OAUTH_GOOGLE_REDIRECT_URL"`
 
+	OAuthGitHubBoundaryURL  string `env:"AUTH_OAUTH_GITHUB_BOUNDARY_URL"`
 	OAuthGitHubClientID     string `env:"AUTH_OAUTH_GITHUB_CLIENT_ID"`
 	OAuthGitHubClientSecret string `env:"AUTH_OAUTH_GITHUB_CLIENT_SECRET"`
 	OAuthGitHubRedirectURL  string `env:"AUTH_OAUTH_GITHUB_REDIRECT_URL"`
@@ -81,4 +89,15 @@ func MustLoad() *Config {
 		log.Fatalf("failed to load config: %v", err)
 	}
 	return cfg
+}
+
+// ValidateLocalOAuthBoundary prevents test provider routing in shared deployments.
+func (c *Config) ValidateLocalOAuthBoundary() error {
+	if c.OAuthGoogleBoundaryURL == "" && c.OAuthGitHubBoundaryURL == "" {
+		return nil
+	}
+	if c.AppEnv != "test" || c.HTTPHost != "127.0.0.1" || c.DBHost != "127.0.0.1" || !strings.HasSuffix(c.DBName, "_test") || c.DBMigrateOnStart {
+		return fmt.Errorf("local OAuth boundary requires loopback test runtime with owner-migrated test database")
+	}
+	return nil
 }

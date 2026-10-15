@@ -3,6 +3,7 @@ package domain
 import "time"
 
 type AuthUser struct {
+	EmailVerified     bool           `gorm:"not null;default:false" json:"email_verified"`
 	ID                string         `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
 	Email             string         `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash      *string        `json:"-"`

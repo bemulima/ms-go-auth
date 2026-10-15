@@ -41,3 +41,34 @@ func TestDirectVerificationDefaultsPreserveIdentityEndpointAndTTLs(t *testing.T)
 		t.Fatal("direct verification default contract changed")
 	}
 }
+
+func TestLocalOAuthBoundaryRequiresIsolatedRuntime(t *testing.T) {
+	good := Config{OAuthGoogleBoundaryURL: "http://127.0.0.1:12345", AppEnv: "test", HTTPHost: "127.0.0.1", DBHost: "127.0.0.1", DBName: "oauth_test", DBMigrateOnStart: false}
+	if good.ValidateLocalOAuthBoundary() != nil {
+		t.Fatal("isolated runtime rejected")
+	}
+	for _, mutate := range []func(*Config){func(c *Config) { c.AppEnv = "production" }, func(c *Config) { c.HTTPHost = "0.0.0.0" }, func(c *Config) { c.DBHost = "database" }, func(c *Config) { c.DBName = "app" }, func(c *Config) { c.DBMigrateOnStart = true }} {
+		c := good
+		mutate(&c)
+		if c.ValidateLocalOAuthBoundary() == nil {
+			t.Fatal("unsafe runtime accepted")
+		}
+	}
+	if (&Config{AppEnv: "production"}).ValidateLocalOAuthBoundary() != nil {
+		t.Fatal("default production endpoints changed")
+	}
+}
+
+func TestLocalGitHubBoundaryRequiresIsolatedRuntime(t *testing.T) {
+	good := Config{OAuthGitHubBoundaryURL: "http://127.0.0.1:12345", AppEnv: "test", HTTPHost: "127.0.0.1", DBHost: "127.0.0.1", DBName: "oauth_test", DBMigrateOnStart: false}
+	if good.ValidateLocalOAuthBoundary() != nil {
+		t.Fatal("isolated GitHub runtime rejected")
+	}
+	for _, mutate := range []func(*Config){func(c *Config) { c.AppEnv = "production" }, func(c *Config) { c.HTTPHost = "0.0.0.0" }, func(c *Config) { c.DBHost = "database" }, func(c *Config) { c.DBName = "app" }, func(c *Config) { c.DBMigrateOnStart = true }} {
+		c := good
+		mutate(&c)
+		if c.ValidateLocalOAuthBoundary() == nil {
+			t.Fatal("unsafe GitHub runtime accepted")
+		}
+	}
+}

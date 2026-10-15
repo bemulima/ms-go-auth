@@ -2,8 +2,15 @@ package unit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
+	authmw "github.com/example/auth-service/internal/transport/http/api/v1/middleware"
+	"github.com/labstack/echo/v4"
+	"github.com/nats-io/nats.go"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -703,3 +710,66 @@ func hashToken(jti string) string {
 }
 
 func stringPtr(value string) *string { return &value }
+
+func TestVerifyTokenRejectsRevokedSessionBeforeJWTExpiry(t *testing.T) {
+	svc, deps := newTestService(t)
+	hash, err := bcrypt.GenerateFromPassword([]byte("test-session-credential"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal("test credential")
+	}
+	if deps.users.Create(context.Background(), &domain.AuthUser{Email: "session@example.test", PasswordHash: stringPtr(string(hash))}) != nil {
+		t.Fatal("test principal")
+	}
+	_, tokens, err := svc.SignIn(context.Background(), "", "session@example.test", "test-session-credential")
+	if err != nil {
+		t.Fatal("test sign in")
+	}
+	if _, err = svc.VerifyToken(context.Background(), "", tokens.AccessToken); err != nil {
+		t.Fatal("active session rejected")
+	}
+	engine := echo.New()
+	engine.GET("/protected", func(c echo.Context) error { return c.NoContent(http.StatusNoContent) }, authmw.NewAuthMiddleware(deps.signer, svc).Handler)
+	checkHTTP := func(want int) {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+		request.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, request)
+		if response.Code != want {
+			t.Fatal("HTTP session verification mismatch")
+		}
+	}
+	checkNATS := func(want bool) {
+		t.Helper()
+		handler := natsadapter.NewVerifyHandler(deps.signer, svc)
+		called := false
+		handler.SetResponder(func(_ *nats.Msg, response natsadapter.VerifyResponse) {
+			called = true
+			if response.OK != want {
+				t.Fatal("NATS session verification mismatch")
+			}
+		})
+		payload, _ := json.Marshal(map[string]string{"token": tokens.AccessToken})
+		handler.Handle(&nats.Msg{Data: payload})
+		if !called {
+			t.Fatal("NATS verification response absent")
+		}
+	}
+	checkHTTP(http.StatusNoContent)
+	checkNATS(true)
+	if err = svc.RevokeRefreshToken(context.Background(), "", tokens.RefreshToken); err != nil {
+		t.Fatal("session revocation")
+	}
+	parsed, _, err := deps.signer.Parse(tokens.AccessToken)
+	if err != nil || !parsed.Valid {
+		t.Fatal("test JWT must remain cryptographically valid before TTL")
+	}
+	if _, err = svc.VerifyToken(context.Background(), "", tokens.AccessToken); err == nil {
+		t.Fatal("revoked session accepted before JWT expiry")
+	}
+	if _, err = svc.Refresh(context.Background(), "", tokens.RefreshToken); err == nil {
+		t.Fatal("revoked refresh accepted")
+	}
+	checkHTTP(http.StatusUnauthorized)
+	checkNATS(false)
+}

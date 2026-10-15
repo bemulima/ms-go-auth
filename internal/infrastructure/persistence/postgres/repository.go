@@ -136,13 +136,15 @@ func (r *authIdentityRepo) ResolveUser(ctx context.Context, identity *domain.Aut
 		var resolved domain.AuthUser
 		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("email = ?", identity.Email).First(&resolved).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			resolved = domain.AuthUser{Email: identity.Email}
+			resolved = domain.AuthUser{Email: identity.Email, EmailVerified: true}
 			if err := tx.Create(&resolved).Error; err != nil {
 				return err
 			}
 			created = true
 		} else if err != nil {
 			return err
+		} else {
+			return errors.New("explicit identity linking required")
 		}
 
 		identity.UserID = resolved.ID

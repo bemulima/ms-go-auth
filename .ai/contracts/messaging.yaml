@@ -20,3 +20,9 @@ signup_role_proof:
   private_key_config: AUTH_RBAC_SIGNUP_PRIVATE_KEY
   missing_key: signup unavailable without unsigned fallback
   other_grant_policy: HUMAN_POLICY_DECISION_REQUIRED
+
+access_session_verification:
+  subject: auth.verifyJWT
+  request_response_shape: unchanged
+  production_validation: signature_claims_and_active_persisted_session_sid
+  reset_revocation: rejected_before_access_jwt_expiry

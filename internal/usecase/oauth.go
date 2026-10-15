@@ -125,7 +125,15 @@ func (s *authService) OAuthCallback(ctx context.Context, traceID, providerName, 
 			return nil, nil, fmt.Errorf("check oauth user role: %w", err)
 		}
 		if !hasRole {
-			if err := s.rbacClient.AssignRole(ctx, user.ID, s.cfg.DefaultRole); err != nil {
+			stored, err := s.identities.FindByProvider(ctx, string(provider.Name()), profile.ProviderUserID)
+			if err != nil {
+				return nil, nil, err
+			}
+			provisioner, ok := s.rbacClient.(domain.SignupRoleProvisioner)
+			if !ok {
+				return nil, nil, fmt.Errorf("signed student provisioning unavailable")
+			}
+			if err := provisioner.AssignSignupRole(ctx, user.ID, stored.ID); err != nil {
 				return nil, nil, fmt.Errorf("assign oauth user role: %w", err)
 			}
 		}

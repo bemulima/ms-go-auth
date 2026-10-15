@@ -19,6 +19,7 @@ box.cfg(cfg)
 for _, migration in ipairs({
     '001_initial_schema', '002_make_secondary_indexes_nonunique',
     '003_signup_consumption_receipts', '004_atomic_verification_functions',
+    '005_email_code_grants',
 }) do
     dofile(migration_dir .. '/' .. migration .. '.lua')
 end
@@ -50,6 +51,7 @@ local reset_ttl = hard_ttl('PASSWORD_RESET_HARD_TTL_SECONDS')
 local function cleanup()
     local now = os.time()
     box.atomic(function()
+        auth_email_code_cleanup(now)
         for _, proof in box.space.user_signup_space:pairs() do
             if proof[5] + signup_ttl <= now then
                 box.space.user_signup_space:delete({proof[1]})

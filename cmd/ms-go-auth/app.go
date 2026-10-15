@@ -19,6 +19,7 @@ import (
 
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/domain"
+	mailadapter "github.com/example/auth-service/internal/infrastructure/mail"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	oauthprovider "github.com/example/auth-service/internal/infrastructure/oauth"
 	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
@@ -43,6 +44,21 @@ type App struct {
 
 func New(ctx context.Context) (*App, error) {
 	cfg := config.MustLoad()
+	if err := cfg.ValidateLocalOAuthBoundary(); err != nil {
+		return nil, err
+	}
+	google := oauthprovider.NewGoogleOAuth2(cfg.OAuthGoogleClientID, cfg.OAuthGoogleClientSecret, cfg.OAuthGoogleRedirectURL)
+	if cfg.OAuthGoogleBoundaryURL != "" {
+		if err := google.UseLocalBoundary(cfg.OAuthGoogleBoundaryURL); err != nil {
+			return nil, err
+		}
+	}
+	github := oauthprovider.NewGitHubOAuth2(cfg.OAuthGitHubClientID, cfg.OAuthGitHubClientSecret, cfg.OAuthGitHubRedirectURL)
+	if cfg.OAuthGitHubBoundaryURL != "" {
+		if err := github.UseLocalBoundary(cfg.OAuthGitHubBoundaryURL); err != nil {
+			return nil, err
+		}
+	}
 	logger := pkglog.New(cfg.AppEnv)
 
 	db, err := gorm.Open(postgres.Open(buildDSN(cfg)), &gorm.Config{
@@ -98,15 +114,18 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	oauthRegistry := oauthprovider.NewRegistry(
-		oauthprovider.NewGoogleOAuth2(cfg.OAuthGoogleClientID, cfg.OAuthGoogleClientSecret, cfg.OAuthGoogleRedirectURL),
-		oauthprovider.NewGitHubOAuth2(cfg.OAuthGitHubClientID, cfg.OAuthGitHubClientSecret, cfg.OAuthGitHubRedirectURL),
+		google,
+		github,
 	)
 	service := usecase.NewAuthService(cfg, logger, userRepo, identityRepo, oauthTxRepo, oauthRegistry, refreshRepo, tarantoool, userClient, rbacClient, signer)
+	if err := usecase.EnableEmailCodes(service, verificationStore, &mailadapter.SMTP{Address: cfg.SMTPAddress, From: cfg.SMTPFrom}, cfg.EmailCodeHMACKey, cfg.EmailOriginLimit); err != nil {
+		return nil, err
+	}
 	handler := handlers.NewAuthHandler(service)
-	authMW := authmw.NewAuthMiddleware(signer)
+	authMW := authmw.NewAuthMiddleware(signer, service)
 	router := httpadapter.NewRouter(cfg, apiv1.NewRouter(handler, authMW.Handler))
 
-	verifyHandler := natsadapter.NewVerifyHandler(signer)
+	verifyHandler := natsadapter.NewVerifyHandler(signer, service)
 	_ = verifyHandler.Subscribe(nc, cfg.NATSVerifySubject, cfg.AppName)
 
 	e := echo.New()

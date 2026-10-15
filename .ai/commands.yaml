@@ -16,3 +16,5 @@ commands:
   - {name: migrate-native, run: 'task migrate:native', requires_approval: true, risk: database-write}
   - {name: migrate-status-native, run: 'task migrate-status:native', requires_approval: true, risk: database-read}
   - {name: run-native, run: 'task run:native', requires_approval: true, risk: lifecycle}
+
+  - {name: external-google-boundary, run: 'AUTH_SMOKE_SERVE_EXTERNAL_ONLY=true go test -tags=integration ./test/integration -run "^TestAuthSmokeServe$" -count=1 -timeout=35m', requires_approval: true, risk: disposable-integration-fixture}

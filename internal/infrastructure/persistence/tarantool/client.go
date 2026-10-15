@@ -48,7 +48,7 @@ func (c *Client) Close() error {
 }
 func (c *Client) Execute(ctx context.Context, action string, args []interface{}) ([]interface{}, error) {
 	switch action {
-	case "signup_start", "signup_resend", "signup_verify", "signup_consume", "email_start", "email_verify", "reset_start", "reset_verify":
+	case "code_start", "code_verify", "grant_consume", "signup_start", "signup_resend", "signup_verify", "signup_consume", "email_start", "email_verify", "reset_start", "reset_verify":
 	default:
 		return nil, errUnavailable
 	}

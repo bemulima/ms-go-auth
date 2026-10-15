@@ -1,8 +1,10 @@
 package natsadapter
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"github.com/example/auth-service/internal/usecase"
 	"time"
 
 	nats "github.com/nats-io/nats.go"
@@ -12,6 +14,7 @@ import (
 
 type VerifyHandler struct {
 	parser    tokenverify.Parser
+	service   usecase.Service
 	respondFn func(msg *nats.Msg, resp VerifyResponse)
 }
 
@@ -27,8 +30,12 @@ type VerifyResponse struct {
 	Claims map[string]any `json:"claims,omitempty"`
 }
 
-func NewVerifyHandler(parser tokenverify.Parser) *VerifyHandler {
-	return &VerifyHandler{parser: parser, respondFn: respond}
+func NewVerifyHandler(parser tokenverify.Parser, services ...usecase.Service) *VerifyHandler {
+	h := &VerifyHandler{parser: parser, respondFn: respond}
+	if len(services) > 0 {
+		h.service = services[0]
+	}
+	return h
 }
 
 // SetResponder allows overriding the responder function (useful for tests).
@@ -53,6 +60,11 @@ func (h *VerifyHandler) Handle(msg *nats.Msg) {
 		return
 	}
 	result, err := tokenverify.Verify(h.parser, req.Token, time.Now)
+	if err == nil && h.service != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		result, err = h.service.VerifyToken(ctx, "", req.Token)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, tokenverify.ErrTokenExpired):

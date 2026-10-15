@@ -129,7 +129,7 @@ func (r *authUserRepo) EnsureSignupPrincipal(ctx context.Context, id string) (*d
 		}
 		now := time.Now().UTC()
 		password := op.PasswordHash
-		user = domain.AuthUser{ID: op.PrincipalID, Email: op.Email, PasswordHash: &password, PasswordUpdatedAt: &now}
+		user = domain.AuthUser{ID: op.PrincipalID, Email: op.Email, EmailVerified: true, PasswordHash: &password, PasswordUpdatedAt: &now}
 		if err := tx.Create(&user).Error; err != nil {
 			return err
 		}

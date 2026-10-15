@@ -93,3 +93,21 @@ only when `T16_AUTH_REPOSITORY_INTEGRATION=true` against a root-owned loopback
 `AUTH_TEST_DATABASE_URL` ending `_test`, using a fresh isolated schema.
 
 Auth also owns the identity-store verification schema and named functions described in [verification storage](verification-storage.md). PostgreSQL and Tarantool retain separate transaction/recovery boundaries.
+
+## Confirmed email registration
+
+Migration `0005_email_verified` adds the account confirmation flag. The email-first
+code/grant path creates no Auth user before code verification and password
+completion. It consumes a grant from Auth-owned Tarantool, then records its HMAC
+fingerprint in the existing signup completion table and creates the reserved
+principal with `email_verified=true`. Existing User/RBAC acknowledgement and
+terminal completion gates apply before a real refresh session is persisted.
+
+## Password recovery revocation
+
+`authUserRepo.ResetPassword` locks the local-password account row and updates its
+password hash/timestamp plus revokes all unrevoked `auth_refresh_token` rows in
+one PostgreSQL transaction. OAuth-only rows with a NULL password cannot acquire
+one through this method. Access JWTs refer to the persisted session through their
+`sid` claim; `VerifyToken` requires that session to remain active, so reset takes
+effect before their JWT TTL elapses. Recovery does not create a new session.

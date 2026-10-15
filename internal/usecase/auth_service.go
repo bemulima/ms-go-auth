@@ -22,6 +22,10 @@ var (
 const signupRole = "student"
 
 type Service interface {
+	StartEmailCode(context.Context, string, string, string) error
+	VerifyEmailCode(context.Context, string, string, string) (string, error)
+	CompleteEmailRegistration(context.Context, string, string, string) (*Tokens, error)
+	CompleteEmailReset(context.Context, string, string, string) error
 	StartSignup(ctx context.Context, traceID, email, password string) error
 	VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error)
 	SignIn(ctx context.Context, traceID, email, password string) (*domain.AuthUser, *Tokens, error)
@@ -48,6 +52,7 @@ type AuthMe struct {
 }
 
 type authService struct {
+	codes       *EmailCodes
 	cfg         *config.Config
 	logger      pkglog.Logger
 	users       domain.AuthUserRepository
@@ -70,6 +75,9 @@ func NewAuthService(cfg *config.Config, logger pkglog.Logger, users domain.AuthU
 }
 
 func (s *authService) StartSignup(ctx context.Context, traceID, email, password string) error {
+	if s.codes != nil {
+		return errors.New("use email-code workflow")
+	}
 	norm := normalizeEmail(email)
 	if err := validateEmail(norm); err != nil {
 		return err
@@ -98,6 +106,9 @@ func (s *authService) StartSignup(ctx context.Context, traceID, email, password 
 }
 
 func (s *authService) VerifySignup(ctx context.Context, traceID, email, code string) (*domain.AuthUser, *Tokens, error) {
+	if s.codes != nil {
+		return nil, nil, errors.New("use email-code workflow")
+	}
 	norm := normalizeEmail(email)
 	if err := validateEmail(norm); err != nil {
 		return nil, nil, err
@@ -143,6 +154,9 @@ func (s *authService) SignIn(ctx context.Context, traceID, email, password strin
 	norm := normalizeEmail(email)
 	user, err := s.users.FindByEmail(ctx, norm)
 	if err != nil {
+		return nil, nil, errInvalidCredentials
+	}
+	if s.codes != nil && !user.EmailVerified {
 		return nil, nil, errInvalidCredentials
 	}
 	if user.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)) != nil {
@@ -267,6 +281,9 @@ func (s *authService) VerifyEmailChange(ctx context.Context, traceID, code strin
 }
 
 func (s *authService) StartPasswordReset(ctx context.Context, traceID, email string) (string, error) {
+	if s.codes != nil {
+		return "", errors.New("use email-code workflow")
+	}
 	norm := normalizeEmail(email)
 	if err := validateEmail(norm); err != nil {
 		return "", err
@@ -283,6 +300,9 @@ func (s *authService) StartPasswordReset(ctx context.Context, traceID, email str
 }
 
 func (s *authService) FinishPasswordReset(ctx context.Context, traceID, email, code, newPassword string) error {
+	if s.codes != nil {
+		return errors.New("use email-code workflow")
+	}
 	norm := normalizeEmail(email)
 	if err := validatePassword(newPassword); err != nil {
 		return err
@@ -366,6 +386,14 @@ func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*
 	if err != nil {
 		return nil, err
 	}
+	if sid, ok := result.Claims["sid"].(string); ok {
+		session, e := s.refresh.FindActive(ctx, hashToken(sid))
+		if e != nil || session.UserID != result.UserID {
+			return nil, errInvalidCredentials
+		}
+	} else if s.codes != nil {
+		return nil, errInvalidCredentials
+	}
 	s.logger.Info().Str("trace_id", traceID).Str("user_id", result.UserID).Msg("token verified")
 	return result, nil
 }
@@ -381,15 +409,15 @@ func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*
 	if pending {
 		return nil, errors.New("signup principal is pending")
 	}
-	claims := map[string]interface{}{"email": user.Email}
+	jti, err := GenerateJTI()
+	if err != nil {
+		return nil, err
+	}
+	claims := map[string]interface{}{"email": user.Email, "sid": jti}
 	if role := s.resolveRole(ctx, user.ID); role != "" {
 		claims["role"] = role
 	}
 	access, err := s.signer.SignAccessToken(user.ID, claims, s.cfg.AccessTTL)
-	if err != nil {
-		return nil, err
-	}
-	jti, err := GenerateJTI()
 	if err != nil {
 		return nil, err
 	}

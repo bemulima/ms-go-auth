@@ -10,12 +10,13 @@ protocol: authenticated_binary_named_call
 functions:
   auth_verification_ready: ok_or_unavailable
   auth_verification:
-    actions: [signup_start, signup_resend, signup_verify, signup_consume, email_start, email_verify, reset_start, reset_verify]
+    actions: [signup_start, signup_resend, signup_verify, signup_consume, email_start, email_verify, reset_start, reset_verify, code_start, code_verify, grant_consume]
     transaction: box_atomic_validation_and_mutation
     errors: [not_found, expired, invalid_code, mismatch, code_conflict, unavailable]
 runtime_privileges: [session, execute_auth_verification, execute_auth_verification_ready]
 forbidden_runtime: [eval, arbitrary_call, schema_mutation, direct_space_reads]
 code:
+  scope: legacy_verification_only
   format: four_decimal_digits
   generator: crypto_rand_fail_closed
   collision_attempts: 10
@@ -43,3 +44,30 @@ cleanup:
   receipts: delete_at_frozen_expiry
   legacy_user_sandbox: retained_no_cleanup
 modern_sandbox: separate_existing_business_and_storage_owner
+
+email_registration:
+  implementation: internal/usecase/email_code.go
+  migration: scripts/tarantool/migrations/005_email_code_grants.lua
+  spaces: [auth_email_code, auth_email_limit, auth_email_grant]
+  code_format: six_decimal_digits
+  storage: purpose_and_email_bound_HMAC_SHA256
+  code_ttl_seconds: 600
+  maximum_wrong_attempts: 5
+  resend_cooldown_seconds: 60
+  resend: replaces_previous_code_and_rejects_same_digest_before_mutation
+  allocation_collision_attempts: 10
+  grant_ttl_seconds: 600
+  grant_consumption: atomic_delete_before_completion
+  delivery_adapter: internal/infrastructure/mail/smtp.go
+
+email_password_recovery:
+  implementation: internal/usecase/email_code.go
+  storage: same_email_code_and_grant_implementation_as_registration
+  purpose: reset
+  code_ttl_seconds: 600
+  maximum_wrong_attempts: 5
+  resend_cooldown_seconds: 60
+  grant_ttl_seconds: 600
+  code_and_grant_replay: denied
+  registration_proof_for_reset: denied_by_purpose_binding
+  oauth_only_without_local_password: no_code_and_no_password_assignment

@@ -4,9 +4,9 @@ ms-go-auth owns credentials, OAuth login identities, OAuth transactions, JWT iss
 
 `internal/domain` owns auth models and ports. `internal/usecase` depends only on those ports for persistence, verification policy, NATS RPC, and OAuth. Inbound HTTP code is in `internal/transport/http/api/v1` and `internal/transport/http/private`; outbound implementations are in `internal/infrastructure`. `cmd/ms-go-auth` wires all dependencies and owns process lifecycle. Neither domain nor usecase imports transport, infrastructure, or GORM.
 
-Google and GitHub OAuth Authorization Code flows are implemented with one-time state and PKCE. This supersedes the former wiki statement that OAuth was only a stub. OAuth can link by normalized verified email and supports accounts without an initial password.
+Google and GitHub OAuth Authorization Code flows are implemented with one-time state and PKCE. This supersedes the former wiki statement that OAuth was only a stub. OAuth creates accounts without an initial password only from trusted verified provider profiles. Existing linked identities sign in by provider/subject. An unlinked identity matching an existing email is rejected with explicit identity linking required; it is never silently linked by email.
 
-Signup completion reserves a random immutable operation and principal in PostgreSQL
+Legacy signup proof completion reserves a random immutable operation and principal in PostgreSQL
 before asking Tarantool to consume proof. The operation is keyed by normalized
 email and a SHA256 fingerprint of length-framed domain, email, and trimmed code;
 raw codes are never stored or logged by Auth. This low-entropy fingerprint is an
@@ -32,3 +32,11 @@ fallback exists in production. The frozen cross-service semantics are defined
 by `.ai/contracts/auth-user-rbac-provisioning-v1.md`.
 
 Verification storage, permissions, migrations, cleanup, and retained legacy state are defined by [verification storage](verification-storage.md).
+
+The mounted email-first registration path reuses this completion table with an
+HMAC fingerprint of the verified single-use grant, rather than the legacy
+email/code SHA256 fingerprint. Code and grant state live in the additive
+Auth-owned `005_email_code_grants` migration. PostgreSQL migration
+`0005_email_verified` records account confirmation. Local Google boundary routing
+is optional and guarded at the production composition root; it changes only the
+external provider endpoints, never Auth's token validation or email workflows.

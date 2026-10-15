@@ -18,3 +18,8 @@ closed for signup, and invalid nonempty keys fail composition. User access or
 refresh tokens cannot replace this proof. Generic unsigned role assignment
 remains a compatibility method without signup authority; OAuth and disposable
 fixture policy require a human decision.
+
+In the production composition, `auth.verifyJWT` also checks the persisted session
+referenced by the access token's `sid`. Password recovery revokes those sessions
+transactionally, so an otherwise valid access JWT is rejected before its TTL.
+The existing request/response fields remain unchanged.

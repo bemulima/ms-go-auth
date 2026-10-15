@@ -1,7 +1,7 @@
 schema_version: 1
 documentation: docs/http-contract.md
 base_path: /api/v1/auth
-public_post: [/signup/start, /signup/verify, /signin, /refresh, /revoke, '/oauth/:provider/start', '/oauth/:provider/callback', /password/reset/start, /password/reset/finish, /verify, /email/change/verify]
+public_post: [/code/reset/start, /code/reset/verify, /code/reset/complete, /code/registration/start, /code/registration/verify, /code/registration/complete, /signup/start, /signup/verify, /signin, /refresh, /revoke, '/oauth/:provider/start', '/oauth/:provider/callback', /password/reset/start, /password/reset/finish, /verify, /email/change/verify]
 protected:
   GET: [/me, /identities]
   POST: [/email/change/start, /password/change, /password/set]
@@ -18,3 +18,45 @@ signup_recovery_storage:
   fallback: forbidden
   terminal_code_replay: denied
   pending_password_signin: repair_required_provisioning_with_exact_verified_credential
+
+email_registration:
+  routes: [/code/registration/start, /code/registration/verify, /code/registration/complete]
+  methods: POST
+  start: {fields: [email], status: 202, account_created: false}
+  verify: {fields: [email, code], response: [grant, expires_in], account_created: false}
+  complete: {fields: [email, grant, password], response: real_access_and_refresh_tokens}
+  grant: {ttl_seconds: 600, consumption: atomic_one_time}
+  account: verified_email_required_before_creation
+  provisioning: existing_durable_User_and_signed_RBAC_completion
+
+email_password_recovery:
+  routes: [/code/reset/start, /code/reset/verify, /code/reset/complete]
+  methods: POST
+  start: {fields: [email], status: 202, response: indistinguishable_for_unknown_oauth_only_cooldown_and_delivery_failure}
+  verify: {fields: [email, code], response: [grant, expires_in]}
+  complete: {fields: [email, grant, password], response: status_ok_without_session_tokens}
+  grants: purpose_and_email_bound_atomic_one_time_consume
+  password_update: atomic_with_all_refresh_session_revocation
+  access_tokens: reject_revoked_session_sid_even_before_jwt_expiry
+  notification: smtp_after_commit_without_credentials
+
+legacy_email_routes:
+  registered: true
+  disabled_when_email_codes_enabled: [/signup/start, /signup/verify, /password/reset/start, /password/reset/finish]
+  fallback: forbidden
+oauth_google:
+  identity_linking: existing_provider_subject_only_or_explicit_linking_for_matching_email
+  verified_profile_required: true
+  local_boundary_env: AUTH_OAUTH_GOOGLE_BOUNDARY_URL
+  local_boundary_guard: test_env_loopback_http_and_postgres_test_database_owner_migrated
+  local_boundary_paths: [/provider/google/authorize, /provider/google/token, /provider/google/userinfo, /provider/google/keys]
+  retained_validation: [PKCE_S256, nonce, RS256, expiry, issuer, audience, subject, trusted_email]
+
+oauth_github:
+  identity_linking: existing_provider_subject_only_or_explicit_linking_for_matching_email
+  verified_profile_required: true
+  local_boundary_env: AUTH_OAUTH_GITHUB_BOUNDARY_URL
+  local_boundary_guard: test_env_loopback_http_and_postgres_test_database_owner_migrated
+  local_boundary_paths: [/provider/github/authorize, /provider/github/token, /provider/github/user, /provider/github/emails]
+  retained_validation: [one_time_state, PKCE_S256, provider_subject, verified_email]
+  local_password_created: false

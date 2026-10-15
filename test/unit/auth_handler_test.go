@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 )
 
 type mockAuthService struct {
+	startEmailCodeFn     func(context.Context, string, string, string) error
 	startSignupFn        func(email, password string) error
 	verifySignupFn       func(email, code string) (*domain.AuthUser, *usecase.Tokens, error)
 	signInFn             func(email, password string) (*domain.AuthUser, *usecase.Tokens, error)
@@ -120,6 +122,24 @@ func (m *mockAuthService) RemoveIdentity(_ context.Context, _, _, _, _ string) e
 
 func (m *mockAuthService) VerifyToken(_ context.Context, _ string, token string) (*usecase.VerificationResult, error) {
 	return m.verifyTokenFn(token)
+}
+
+// The existing handler test double fails closed for the email-code interface.
+// Registration E2E uses real Auth; these methods do not authenticate test callers.
+func (m *mockAuthService) StartEmailCode(ctx context.Context, purpose, email, origin string) error {
+	if m.startEmailCodeFn != nil {
+		return m.startEmailCodeFn(ctx, purpose, email, origin)
+	}
+	return errors.New("not implemented")
+}
+func (m *mockAuthService) VerifyEmailCode(context.Context, string, string, string) (string, error) {
+	return "", errors.New("not implemented")
+}
+func (m *mockAuthService) CompleteEmailRegistration(context.Context, string, string, string) (*usecase.Tokens, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *mockAuthService) CompleteEmailReset(context.Context, string, string, string) error {
+	return errors.New("not implemented")
 }
 
 // ensure interface compliance
@@ -492,3 +512,23 @@ func mustParseTime(value string) (result time.Time) {
 }
 
 func timePtr(value time.Time) *time.Time { return &value }
+
+func TestEmailResetStartDoesNotRevealEligibilityOrCooldown(t *testing.T) {
+	for _, failure := range []error{nil, errors.New("verification throttled"), errors.New("mail delivery failed")} {
+		e := echo.New()
+		svc := &mockAuthService{startEmailCodeFn: func(context.Context, string, string, string) error { return failure }}
+		handler := apihandlers.NewAuthHandler(svc)
+		req := httptest.NewRequest(http.MethodPost, "/code/reset/start", strings.NewReader(`{"email":"reset@example.test"}`))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetParamNames("purpose")
+		c.SetParamValues("reset")
+		if err := handler.EmailCodeStart(c); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != 202 || strings.TrimSpace(rec.Body.String()) != `{"message":"If eligible, a verification code has been sent"}` {
+			t.Fatal("reset start reveals eligibility or delivery outcome")
+		}
+	}
+}

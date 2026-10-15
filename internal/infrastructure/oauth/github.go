@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -125,5 +126,18 @@ func getGitHubJSON(ctx context.Context, client *http.Client, endpoint string, ta
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(target); err != nil {
 		return fmt.Errorf("decode github response: %w", err)
 	}
+	return nil
+}
+
+// UseLocalBoundary changes only GitHub's external endpoints in an isolated runtime.
+func (p *GitHubOAuth2) UseLocalBoundary(base string) error {
+	u, err := url.Parse(base)
+	if err != nil || u.Scheme != "http" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost") || u.Port() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return fmt.Errorf("OAuth boundary must be a loopback HTTP origin with an explicit port")
+	}
+	base = strings.TrimRight(base, "/")
+	p.Config.Endpoint = oauth2.Endpoint{AuthURL: base + "/provider/github/authorize", TokenURL: base + "/provider/github/token", AuthStyle: oauth2.AuthStyleInParams}
+	p.userURL = base + "/provider/github/user"
+	p.emailsURL = base + "/provider/github/emails"
 	return nil
 }

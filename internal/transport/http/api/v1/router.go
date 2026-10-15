@@ -17,6 +17,9 @@ func NewRouter(h *handlers.AuthHandler, authMW echo.MiddlewareFunc) *Router {
 
 func (r *Router) Register(g *echo.Group) {
 	auth := g.Group("/auth")
+	auth.POST("/code/:purpose/start", r.handlers.EmailCodeStart)
+	auth.POST("/code/:purpose/verify", r.handlers.EmailCodeVerify)
+	auth.POST("/code/:purpose/complete", r.handlers.EmailCodeComplete)
 	auth.POST("/signup/start", r.handlers.SignupStart)
 	auth.POST("/signup/verify", r.handlers.SignupVerify)
 	auth.POST("/signin", r.handlers.SignIn)

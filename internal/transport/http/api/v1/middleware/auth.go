@@ -11,11 +11,16 @@ import (
 )
 
 type AuthMiddleware struct {
-	signer usecase.JWTSigner
+	signer  usecase.JWTSigner
+	service usecase.Service
 }
 
-func NewAuthMiddleware(signer usecase.JWTSigner) *AuthMiddleware {
-	return &AuthMiddleware{signer: signer}
+func NewAuthMiddleware(signer usecase.JWTSigner, services ...usecase.Service) *AuthMiddleware {
+	m := &AuthMiddleware{signer: signer}
+	if len(services) > 0 {
+		m.service = services[0]
+	}
+	return m
 }
 
 func (m *AuthMiddleware) Handler(next echo.HandlerFunc) echo.HandlerFunc {
@@ -28,6 +33,11 @@ func (m *AuthMiddleware) Handler(next echo.HandlerFunc) echo.HandlerFunc {
 		tok, claims, err := m.signer.Parse(parts[1])
 		if err != nil || tok == nil || !tok.Valid {
 			return res.ErrorJSON(c, http.StatusUnauthorized, "unauthorized", "invalid token", requestIDFromCtx(c), nil)
+		}
+		if m.service != nil {
+			if _, e := m.service.VerifyToken(c.Request().Context(), requestIDFromCtx(c), parts[1]); e != nil {
+				return res.ErrorJSON(c, 401, "unauthorized", "revoked session", requestIDFromCtx(c), nil)
+			}
 		}
 		sub, _ := claims["sub"].(string)
 		email, _ := claims["email"].(string)

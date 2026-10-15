@@ -66,7 +66,7 @@ func TestT16SignupCompletionPostgres(t *testing.T) {
 		}
 		return db.Exec(string(data)).Error
 	}
-	for _, migration := range []string{"0001_init.up.sql", "0003_oauth_flow.up.sql", "0004_signup_completion.up.sql"} {
+	for _, migration := range []string{"0001_init.up.sql", "0003_oauth_flow.up.sql", "0004_signup_completion.up.sql", "0005_email_verified.up.sql"} {
 		if apply(migration) != nil {
 			t.Fatalf("apply isolated %s", migration)
 		}
@@ -144,7 +144,7 @@ func TestT16SignupCompletionPostgres(t *testing.T) {
 		t.Fatal("rollback erased verified operation")
 	}
 	user, err := r.EnsureSignupPrincipal(ctx, operation)
-	if err != nil || user.ID != beforePrincipal {
+	if err != nil || user.ID != beforePrincipal || !user.EmailVerified {
 		t.Fatal("create reserved principal")
 	}
 	reconstructed := NewAuthUserRepository(db).(domain.SignupCompletionRepository)
@@ -221,6 +221,48 @@ func TestT16SignupCompletionPostgres(t *testing.T) {
 	if db.Model(&domain.SignupCompletion{}).Count(&count).Error != nil || count != 2 {
 		t.Fatal("rollback changed completion rows")
 	}
+
+	t.Run("password_reset_revokes_all_sessions_and_preserves_oauth_only", func(t *testing.T) {
+		repository := NewAuthUserRepository(db)
+		refresh := NewRefreshTokenRepository(db)
+		for _, marker := range []string{"a", "b"} {
+			session := &domain.RefreshToken{UserID: user.ID, RefreshTokenHash: strings.Repeat(marker, 64), ExpiresAt: time.Now().Add(time.Hour)}
+			if refresh.Create(ctx, session) != nil {
+				t.Fatal("create isolated sessions")
+			}
+		}
+		reset := repository.(domain.PasswordResetRepository)
+		if reset.ResetPassword(ctx, email, string(otherHash), time.Now().UTC()) != nil {
+			t.Fatal("reset persisted password")
+		}
+		changed, err := repository.FindByID(ctx, user.ID)
+		if err != nil || changed.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*changed.PasswordHash), []byte("different-repository-credential")) != nil {
+			t.Fatal("new credential not persisted")
+		}
+		if bcrypt.CompareHashAndPassword([]byte(*changed.PasswordHash), []byte("t16-private-repository-credential")) == nil {
+			t.Fatal("old credential retained")
+		}
+		var active int64
+		if db.Model(&domain.RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", user.ID).Count(&active).Error != nil || active != 0 {
+			t.Fatal("existing session survived reset")
+		}
+		for _, marker := range []string{"a", "b"} {
+			if _, err := refresh.FindActive(ctx, strings.Repeat(marker, 64)); err == nil {
+				t.Fatal("revoked session accepted by repository")
+			}
+		}
+		oauthOnly := &domain.AuthUser{Email: "oauth-only-repository@example.test", EmailVerified: true}
+		if repository.Create(ctx, oauthOnly) != nil {
+			t.Fatal("isolated OAuth-only principal")
+		}
+		if reset.ResetPassword(ctx, oauthOnly.Email, string(otherHash), time.Now().UTC()) == nil {
+			t.Fatal("OAuth-only password assigned")
+		}
+		stored, err := repository.FindByID(ctx, oauthOnly.ID)
+		if err != nil || stored.PasswordHash != nil {
+			t.Fatal("OAuth-only credential changed")
+		}
+	})
 	t.Log("owned isolated repository schema preserved with pending ownership and terminal replay evidence")
 }
 func t16RepoUUID(t *testing.T) string {

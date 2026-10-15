@@ -19,3 +19,20 @@ Real verification tests use `T16_DIRECT_VERIFICATION=true` and explicit owned lo
 Coordinator restart acceptance runs `TestActualVerificationRestart` twice with `AUTH_VERIFICATION_RESTART_PHASE=seed|resume` and an absolute `AUTH_VERIFICATION_RESTART_STATE_FILE` private fixture path. The coordinator restarts the same disposable store/volume between phases. State is created exclusively with 0600 permissions and contains sensitive fixture proof/credential bindings; never publish or log it. Resume reconstructs the adapter and verifies the exact frozen receipt, retained live pending proof, replay/conflicting owner denial, and expired proof denial. `AUTH_VERIFICATION_RESTART_LEGACY_COUNTS=true` inventories retained legacy record counts when the separate fixture principal has read-only access to `user`/`sandbox`; resume compares those counts. Runtime remains unable to read those spaces.
 
 Cleanup acceptance uses the coordinator-only `test/integration/fixtures/verification_cleanup_seed.lua`, loaded locally after production bootstrap on a disposable store. Explicit `AUTH_VERIFICATION_CLEANUP_FIXTURE_ENABLED=true` and a stable synthetic `AUTH_VERIFICATION_CLEANUP_PREFIX` within `T16_RUN_PREFIX` are required. It atomically seeds 1,205 expired records per verification kind, reverse indexes, live verification sentinels, and old legacy presence/sandbox sentinels. A separate fixture marker records the committed inventory; repeated startup with the same prefix never reseeds or overwrites records. Grant the fixture principal read-only access to that marker and the verification/legacy spaces. `TestActualVerificationCleanup` only reads those fixtures and waits up to 75 seconds for the production minute fiber. It checks complete removal beyond 1,000 records, preserves a live reverse mapping sharing an expired record's code, and compares retained tuples exactly. No cleanup trigger, clock override, remote administration, or production fixture hook is introduced.
+
+## Six-digit email registration
+
+The email-first registration workflow uses the additive
+`005_email_code_grants.lua` migration and the same `auth_verification` function
+and restricted runtime principal. `code_start` persists a purpose/email-bound
+HMAC for 600 seconds, with five guesses and a 60-second resend cooldown.
+Replacing a challenge invalidates its prior code; equal digests are rejected
+before mutation and the use case retries bounded CSPRNG allocation. `code_verify`
+atomically removes the challenge and creates a 600-second grant. `grant_consume`
+checks purpose, email, digest and expiry, then deletes the grant atomically.
+Only successful consumption can enter the existing durable account/provisioning
+completion. Raw codes, grants and credentials are never logged. Delivery uses
+`internal/infrastructure/mail/smtp.go`; local tests may receive actual SMTP via
+Mailpit. These spaces share the existing single verification cleanup fiber.
+The four-digit legacy verification flows described above remain compatibility
+paths, separate from the mounted email-first registration UI.

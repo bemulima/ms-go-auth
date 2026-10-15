@@ -283,3 +283,56 @@ func requestIDFromCtx(c echo.Context) string {
 	}
 	return c.Request().Header.Get(echo.HeaderXRequestID)
 }
+
+// Code routes expose grants, never session tokens before registration completion.
+func (h *AuthHandler) EmailCodeStart(c echo.Context) error {
+	var r struct {
+		Email string `json:"email"`
+	}
+	if c.Bind(&r) != nil {
+		return c.NoContent(400)
+	}
+	// Reset eligibility, cooldown and SMTP outcome must not reveal an account.
+	if err := h.service.StartEmailCode(c.Request().Context(), c.Param("purpose"), r.Email, c.RealIP()); err != nil && c.Param("purpose") != "reset" {
+		return res.ErrorJSON(c, 400, "code_failed", "Code request failed", requestIDFromCtx(c), nil)
+	}
+	return c.JSON(202, map[string]string{"message": "If eligible, a verification code has been sent"})
+}
+func (h *AuthHandler) EmailCodeVerify(c echo.Context) error {
+	var r struct {
+		Email string `json:"email"`
+		Code  string `json:"code"`
+	}
+	if c.Bind(&r) != nil {
+		return c.NoContent(400)
+	}
+	grant, err := h.service.VerifyEmailCode(c.Request().Context(), c.Param("purpose"), r.Email, r.Code)
+	if err != nil {
+		return res.ErrorJSON(c, 400, "code_failed", "Code verification failed", requestIDFromCtx(c), nil)
+	}
+	return c.JSON(200, map[string]interface{}{"grant": grant, "expires_in": 600})
+}
+func (h *AuthHandler) EmailCodeComplete(c echo.Context) error {
+	var r struct {
+		Email    string `json:"email"`
+		Grant    string `json:"grant"`
+		Password string `json:"password"`
+	}
+	if c.Bind(&r) != nil {
+		return c.NoContent(400)
+	}
+	if c.Param("purpose") == "registration" {
+		tokens, err := h.service.CompleteEmailRegistration(c.Request().Context(), r.Email, r.Grant, r.Password)
+		if err != nil {
+			return res.ErrorJSON(c, 400, "registration_failed", "Registration completion failed", requestIDFromCtx(c), nil)
+		}
+		return c.JSON(200, tokens)
+	}
+	if c.Param("purpose") != "reset" {
+		return c.NoContent(400)
+	}
+	if err := h.service.CompleteEmailReset(c.Request().Context(), r.Email, r.Grant, r.Password); err != nil {
+		return res.ErrorJSON(c, 400, "reset_failed", "Password reset failed", requestIDFromCtx(c), nil)
+	}
+	return c.JSON(200, map[string]string{"status": "ok"})
+}
