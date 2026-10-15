@@ -4,49 +4,57 @@
   "source_pins": [
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
       "path": "internal/transport/http/api/v1/router.go",
-      "blob_sha": "ca186ac3d75a975437a31f814bfbe6f94eb58e0f",
-      "content_sha256": "b46aaae20c625652104b30b2279a3f887144dffdbba8b52ecb83cd54060c79e7"
+      "blob_sha": "66ee6f010735dac91faf4460f36057e09b7c867a",
+      "content_sha256": "c6d3cdc290d77524b60df55dd325bd18dda7d891bd54bffec7049f7720c062e1"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
       "path": "internal/transport/http/private/router.go",
       "blob_sha": "d2adf3f976a118c8ea658aa9d3ffcba1f570fc51",
       "content_sha256": "2ec56f6647f798c92c4e53bcaf28d0f5afcb4efa18ed2e9121b9b5586104e6ae"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
       "path": "internal/transport/http/router.go",
       "blob_sha": "bd3785e232ed37f61cc2abcdce195deb4e87eb40",
       "content_sha256": "cdc083e840923771040288d07a69fd1a0cccb89fbae76b1c439f98f8f45d89b4"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
       "path": "config/config.go",
-      "blob_sha": "45fdc4fde1f4cf29052abe21b47f1717ed11e1b2",
-      "content_sha256": "bf088c593ef7b4ca5ce3805a44564545ecb5a29ddb67a26a27fd651dd366d299"
+      "blob_sha": "2ddfba0af43c6e8cee421dcd01387d8d330753f0",
+      "content_sha256": "ec3a5cd7375ee3363736b27afeb601d3904b858a3d1605e588f0e78f060e1a8f"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
       "path": "cmd/ms-go-auth/app.go",
-      "blob_sha": "3b805452b8e3da0c8f33ed7267e7c9f4d3eb001d",
-      "content_sha256": "35415311dedb7e740768aaad944f03c775a7d5991e60ecd10980d1b8451b88ac"
+      "blob_sha": "5066a98051fbcca4f23e7472860c9a398d3b8be7",
+      "content_sha256": "5cb456ad5dc67528f35e585e44a6663dbf8a0bbf798249af4a7622c7d2a5ab19"
     },
     {
       "repository": "bemulima/ms-go-auth",
-      "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
       "path": "internal/infrastructure/messaging/nats/server.go",
-      "blob_sha": "b0c35bb380813491bb042b9e6fcca5dc8cb1a078",
-      "content_sha256": "7a6970a84e1e33bfab56564d5bc8cfaa97f62e7bf288b1e878ad6eb5557b573b"
+      "blob_sha": "83c77689d4eca3eeb098de2cc8a9314d9bae7d23",
+      "content_sha256": "9927899d39dbdb4624d4ef3b5911df48920ffa2d439eec2e65c20affc998b8a8"
+    },
+    {
+      "repository": "bemulima/ms-go-auth",
+      "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
+      "path": ".ai/contracts/http.yaml",
+      "blob_sha": "49c272a9ccde2831e43494b88388aac6fd16788e",
+      "content_sha256": "68954fbe7b8d1d77a580b59aa2c9602fb35f2cde85e0bfe14104bd0d65826aea"
     }
   ],
-  "reason": "Published committed router composition and route registration expose the HTTP operations in the normalized contract set. Provided Core NATS request/reply subjects and emitted subjects are included where present; foreign lifecycle subscriptions and outbound request subjects are excluded. HTTP version follows actual path contour; event version follows serialized payload discriminator or explicit subject version, otherwise unversioned.",
+  "reason": "Committed router composition and route registration expose the HTTP operations in the normalized contract set. Provided Core NATS request/reply subjects and emitted subjects are included where present; foreign lifecycle subscriptions and outbound request subjects are excluded. HTTP version follows actual path contour; event version follows serialized payload discriminator or explicit subject version, otherwise unversioned. The six concrete email-code registration/reset operations are declared by the owned HTTP contract and mounted through the purpose-scoped router.",
   "inspected_paths": [
+    ".ai/contracts/http.yaml",
     "cmd/ms-go-auth/app.go",
     "config/config.go",
     "internal/infrastructure/messaging/nats/server.go",
@@ -57,7 +65,7 @@
   "contract_set_path": ".ai/contracts/provider-contract-set.v1.json",
   "provider": {
     "repository": "bemulima/ms-go-auth",
-    "commit_sha": "997c28df410155ec10dd95a1ea0450ce55b7b7c9",
+    "commit_sha": "f8f4d5cc92c359de33066182a7c292a67aaf37e2",
     "service": "ms-go-auth"
   }
 }
