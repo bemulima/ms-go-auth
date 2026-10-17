@@ -11,6 +11,8 @@ import (
 )
 
 type Config struct {
+	C2BProofExpires  time.Time
+	C2BProofEnabled  bool   `env:"AUTH_C2B_PROOF_ENABLED" envDefault:"false"`
 	EmailCodeHMACKey string `env:"AUTH_EMAIL_CODE_HMAC_KEY"`
 	SMTPAddress      string `env:"AUTH_SMTP_ADDRESS"`
 	SMTPFrom         string `env:"AUTH_SMTP_FROM" envDefault:"auth@example.test"`

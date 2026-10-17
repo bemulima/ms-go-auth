@@ -9,3 +9,5 @@ This repository owns auth architecture and its HTTP, NATS, and database contract
 - [Native development](native-development.md)
 
 - [Verification storage](verification-storage.md)
+
+- [C2-B isolated MENTOR bootstrap](c2-b-isolated-mentor-bootstrap-contract.md).

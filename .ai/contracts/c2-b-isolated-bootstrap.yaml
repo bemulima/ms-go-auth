@@ -1,0 +1,18 @@
+schema_version: 1
+contract: docs/c2-b-isolated-mentor-bootstrap-contract.md
+status: owner_agreed_implementation_independent_review_pending
+scope: closed_verification_cli_only
+production_admission: unchanged
+allowlist:
+  mentor: 01a58012-c6df-58a4-b1ac-0f646d7f47c5
+  learner_negative_probe: fab713c1-218e-49cb-8e57-7bc9bf8606a8
+isolated_databases: [c2b_auth_20261016, c2b_rbac_20261016]
+requires: [explicit_fixture_enablement, proof_environment, private_ownership_marker, dedicated_database_principal, fixed_run_and_execution, dedicated_signature]
+identity_and_role_replay: immutable_audited_no_password_reset_no_role_upgrade
+public_role_parameter: forbidden
+publication: separate_independent_review_required
+isolated_postgres_endpoint: '127.0.0.1:49920'
+isolated_postgres_query: 'sslmode=disable'
+postgres_environment: 'reject any present PG* variable before driver parsing'
+connection_configuration: 'validate effective pgx config and pass same parsed object to connector'
+connection_fallbacks: forbidden

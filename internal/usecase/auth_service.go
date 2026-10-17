@@ -414,7 +414,14 @@ func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*
 		return nil, err
 	}
 	claims := map[string]interface{}{"email": user.Email, "sid": jti}
-	if role := s.resolveRole(ctx, user.ID); role != "" {
+	role, err := s.c2bRole(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	if role == "" {
+		role = s.resolveRole(ctx, user.ID)
+	}
+	if role != "" {
 		claims["role"] = role
 	}
 	access, err := s.signer.SignAccessToken(user.ID, claims, s.cfg.AccessTTL)

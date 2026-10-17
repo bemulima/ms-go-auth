@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"log"
 	"net"
 	"net/http"
@@ -19,6 +22,7 @@ import (
 
 	"github.com/example/auth-service/config"
 	"github.com/example/auth-service/internal/domain"
+	"github.com/example/auth-service/internal/infrastructure/c2bfixture"
 	mailadapter "github.com/example/auth-service/internal/infrastructure/mail"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	oauthprovider "github.com/example/auth-service/internal/infrastructure/oauth"
@@ -44,6 +48,18 @@ type App struct {
 
 func New(ctx context.Context) (*App, error) {
 	cfg := config.MustLoad()
+	if err := cfg.ValidateC2BProof(); err != nil {
+		return nil, err
+	}
+	var proofConnection *pgx.ConnConfig
+	if cfg.C2BProofEnabled {
+		marker, connection, err := c2bfixture.PrepareConnection("auth-runtime", cfg.C2BDatabaseURL())
+		if err != nil {
+			return nil, err
+		}
+		cfg.C2BProofExpires = marker.Expires
+		proofConnection = connection
+	}
 	if err := cfg.ValidateLocalOAuthBoundary(); err != nil {
 		return nil, err
 	}
@@ -61,11 +77,20 @@ func New(ctx context.Context) (*App, error) {
 	}
 	logger := pkglog.New(cfg.AppEnv)
 
-	db, err := gorm.Open(postgres.Open(buildDSN(cfg)), &gorm.Config{
+	dialector := postgres.Open(buildDSN(cfg))
+	var proofPool *sql.DB
+	if proofConnection != nil {
+		proofPool = stdlib.OpenDB(*proofConnection)
+		dialector = postgres.New(postgres.Config{Conn: proofPool})
+	}
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger:         loggerForGorm(cfg),
 		NamingStrategy: schema.NamingStrategy{SingularTable: true},
 	})
 	if err != nil {
+		if proofPool != nil {
+			_ = proofPool.Close()
+		}
 		return nil, err
 	}
 	if err := applyDatabaseMigrations(db, cfg); err != nil {
