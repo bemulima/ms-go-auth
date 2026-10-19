@@ -19,3 +19,6 @@ commands:
   - {name: run-native, run: 'task run:native', requires_approval: true, risk: lifecycle}
 
   - {name: external-google-boundary, run: 'AUTH_SMOKE_SERVE_EXTERNAL_ONLY=true go test -tags=integration ./test/integration -run "^TestAuthSmokeServe$" -count=1 -timeout=35m', requires_approval: true, risk: disposable-integration-fixture}
+
+  - {name: lc07-b0-fixture-guards, run: go test ./test/lc07b0 -run TestOwnershipGuards, requires_approval: false, risk: verification}
+  - {name: lc07-b0-disposable-provision, run: go test ./test/lc07b0 -run TestProvisionDisposable -count=1, requires_approval: true, risk: isolated-owner-test-provisioning}
