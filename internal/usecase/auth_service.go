@@ -16,7 +16,7 @@ import (
 
 var (
 	errInvalidCredentials = errors.New("invalid credentials")
-	tokenRoleCandidates   = []string{"admin", "moderator", "teacher", "student", "user", "guest"}
+	tokenRoleCandidates   = []string{"admin", "moderator", "teacher", "student_pro", "student", "user", "guest"}
 )
 
 const signupRole = "student"
@@ -204,10 +204,17 @@ func (s *authService) Refresh(ctx context.Context, traceID, refreshToken string)
 	if err != nil {
 		return nil, errInvalidCredentials
 	}
-	if err := s.refresh.RevokeByHash(ctx, hash); err != nil {
+	tokens, replacement, err := s.prepareTokens(ctx, user)
+	if err != nil {
 		return nil, err
 	}
-	return s.issueTokens(ctx, user)
+	if err := s.refresh.Rotate(ctx, hash, sub, replacement); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, errInvalidCredentials
+		}
+		return nil, err
+	}
+	return tokens, nil
 }
 
 func (s *authService) RevokeRefreshToken(ctx context.Context, traceID, refreshToken string) error {
@@ -399,19 +406,32 @@ func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*
 }
 
 func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*Tokens, error) {
+	tokens, replacement, err := s.prepareTokens(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.refresh.Create(ctx, replacement); err != nil {
+		return nil, err
+	}
+	return tokens, nil
+}
+
+// prepareTokens performs all fallible validation and signing before a session
+// is mutated. The caller must persist the returned session before using tokens.
+func (s *authService) prepareTokens(ctx context.Context, user *domain.AuthUser) (*Tokens, *domain.RefreshToken, error) {
 	if s.completions == nil {
-		return nil, errors.New("signup completion persistence unavailable")
+		return nil, nil, errors.New("signup completion persistence unavailable")
 	}
 	pending, err := s.completions.SignupPrincipalPending(ctx, user.ID)
 	if err != nil {
-		return nil, fmt.Errorf("read signup readiness: %w", err)
+		return nil, nil, fmt.Errorf("read signup readiness: %w", err)
 	}
 	if pending {
-		return nil, errors.New("signup principal is pending")
+		return nil, nil, errors.New("signup principal is pending")
 	}
 	jti, err := GenerateJTI()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	claims := map[string]interface{}{"email": user.Email, "sid": jti}
 	if role := s.resolveRole(ctx, user.ID); role != "" {
@@ -419,21 +439,18 @@ func (s *authService) issueTokens(ctx context.Context, user *domain.AuthUser) (*
 	}
 	access, err := s.signer.SignAccessToken(user.ID, claims, s.cfg.AccessTTL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	refresh, err := s.signer.SignRefreshToken(user.ID, jti, s.cfg.RefreshTTL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// persist refresh
-	if err := s.refresh.Create(ctx, &domain.RefreshToken{
+	replacement := &domain.RefreshToken{
 		UserID:           user.ID,
 		RefreshTokenHash: hashToken(jti),
 		ExpiresAt:        time.Now().Add(s.cfg.RefreshTTL),
-	}); err != nil {
-		return nil, err
 	}
-	return &Tokens{AccessToken: access, RefreshToken: refresh, ExpiresIn: int64(s.cfg.AccessTTL.Seconds())}, nil
+	return &Tokens{AccessToken: access, RefreshToken: refresh, ExpiresIn: int64(s.cfg.AccessTTL.Seconds())}, replacement, nil
 }
 
 func (s *authService) resolveRole(ctx context.Context, userID string) string {

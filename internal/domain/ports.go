@@ -54,6 +54,9 @@ type RefreshTokenRepository interface {
 	Create(context.Context, *RefreshToken) error
 	FindActive(context.Context, string) (*RefreshToken, error)
 	RevokeByHash(context.Context, string) error
+	// Rotate atomically consumes one unexpired session for userID and persists
+	// its replacement. A lost commit response must not make the old token reusable.
+	Rotate(context.Context, string, string, *RefreshToken) error
 }
 
 type VerificationClient interface {

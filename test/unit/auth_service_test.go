@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -176,6 +177,7 @@ func (mockIdentityRepo) ListByUser(_ context.Context, _ string) ([]domain.AuthId
 func (mockIdentityRepo) Delete(_ context.Context, _, _, _ string) error { return nil }
 
 type mockRefreshRepo struct {
+	mu        sync.Mutex
 	tokens    map[string]domain.RefreshToken
 	createErr error
 }
@@ -185,6 +187,8 @@ func newMockRefreshRepo() *mockRefreshRepo {
 }
 
 func (r *mockRefreshRepo) Create(_ context.Context, token *domain.RefreshToken) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.createErr != nil {
 		return r.createErr
 	}
@@ -193,6 +197,8 @@ func (r *mockRefreshRepo) Create(_ context.Context, token *domain.RefreshToken) 
 }
 
 func (r *mockRefreshRepo) FindActive(_ context.Context, hash string) (*domain.RefreshToken, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	tok, ok := r.tokens[hash]
 	if !ok || tok.RevokedAt != nil || tok.ExpiresAt.Before(time.Now()) {
 		return nil, domain.ErrNotFound
@@ -201,11 +207,31 @@ func (r *mockRefreshRepo) FindActive(_ context.Context, hash string) (*domain.Re
 }
 
 func (r *mockRefreshRepo) RevokeByHash(_ context.Context, hash string) error {
-	if tok, ok := r.tokens[hash]; ok {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if tok, ok := r.tokens[hash]; ok && tok.RevokedAt == nil {
 		now := time.Now()
 		tok.RevokedAt = &now
 		r.tokens[hash] = tok
+		return nil
 	}
+	return domain.ErrNotFound
+}
+
+func (r *mockRefreshRepo) Rotate(_ context.Context, hash, userID string, replacement *domain.RefreshToken) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tok, ok := r.tokens[hash]
+	if !ok || tok.UserID != userID || tok.RevokedAt != nil || !tok.ExpiresAt.After(time.Now()) {
+		return domain.ErrNotFound
+	}
+	if r.createErr != nil {
+		return r.createErr
+	}
+	now := time.Now()
+	tok.RevokedAt = &now
+	r.tokens[hash] = tok
+	r.tokens[replacement.RefreshTokenHash] = *replacement
 	return nil
 }
 
@@ -550,12 +576,28 @@ func TestRefresh(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create initial refresh session: %v", err)
 	}
+	oldAccess, err := deps.signer.SignAccessToken(user.ID, map[string]interface{}{"sid": jti}, deps.cfg.AccessTTL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = svc.VerifyToken(context.Background(), "trace", oldAccess); err != nil {
+		t.Fatalf("initial session not valid: %v", err)
+	}
 	tokens, err := svc.Refresh(context.Background(), "trace", refreshTok)
 	if err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
 	if tokens.AccessToken == "" {
 		t.Fatalf("expected new access token")
+	}
+	if _, err := svc.VerifyToken(context.Background(), "trace", tokens.AccessToken); err != nil {
+		t.Fatalf("new access session must be usable: %v", err)
+	}
+	if _, err := svc.VerifyToken(context.Background(), "trace", oldAccess); err == nil {
+		t.Fatal("old access session must not survive rotation")
+	}
+	if _, err := svc.Refresh(context.Background(), "trace", refreshTok); err == nil {
+		t.Fatal("consumed refresh token was accepted on retry")
 	}
 	oldSession, ok := deps.refresh.tokens[hashToken(jti)]
 	if !ok {
@@ -602,6 +644,47 @@ func TestRefreshRejectsMismatchedSession(t *testing.T) {
 	}
 }
 
+func TestConcurrentRefreshSingleWinnerAndLostResponseFailsClosed(t *testing.T) {
+	svc, deps := newTestService(t)
+	user := &domain.AuthUser{ID: "user-concurrent", Email: "concurrent@example.test"}
+	if err := deps.users.Create(context.Background(), user); err != nil {
+		t.Fatal(err)
+	}
+	const oldJTI = "old-concurrent-session"
+	old, err := deps.signer.SignRefreshToken(user.ID, oldJTI, deps.cfg.RefreshTTL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.refresh.Create(context.Background(), &domain.RefreshToken{UserID: user.ID, RefreshTokenHash: hashToken(oldJTI), ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	results := make(chan error, 12)
+	for i := 0; i < cap(results); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := svc.Refresh(context.Background(), "trace", old)
+			results <- err
+		}()
+	}
+	wg.Wait()
+	close(results)
+	success := 0
+	for err := range results {
+		if err == nil {
+			success++
+		}
+	}
+	if success != 1 {
+		t.Fatalf("expected one successful rotation, got %d", success)
+	}
+	// Simulate a lost HTTP response by discarding the one returned pair.
+	if _, err := svc.Refresh(context.Background(), "trace", old); err == nil {
+		t.Fatal("consumed token must not recover a lost response")
+	}
+}
+
 func TestRefreshFailsWhenNewSessionPersistFails(t *testing.T) {
 	svc, deps := newTestService(t)
 	user := &domain.AuthUser{ID: "user-1", Email: "user@example.com"}
@@ -622,6 +705,9 @@ func TestRefreshFailsWhenNewSessionPersistFails(t *testing.T) {
 
 	if _, err := svc.Refresh(context.Background(), "trace", refreshTok); err == nil {
 		t.Fatalf("expected refresh failure when persisting new session fails")
+	}
+	if _, err := deps.refresh.FindActive(context.Background(), hashToken(jti)); err != nil {
+		t.Fatal("failed persistence must not revoke old session")
 	}
 }
 

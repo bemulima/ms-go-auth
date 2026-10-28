@@ -3,6 +3,11 @@ documentation: docs/database-contract.md
 owner: ms-go-auth
 tables: [auth_user, auth_identity, auth_refresh_token, auth_oauth_transaction, auth_signup_completion]
 migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow, 0004_signup_completion, 0005_email_verified]
+refresh_rotation:
+  isolation: principal_lock_then_conditional_active_session_consume_and_replacement_insert_in_one_postgres_transaction
+  replay: rejected
+  lost_response: unknown_outcome_requires_reauthentication_no_receipt
+  logout_race: old_session_linearized_stale_logout_fails_if_refresh_wins
 signup_completion:
   operation_key: [normalized_email, workflow_specific_proof_fingerprint]
   proof_fingerprints:
