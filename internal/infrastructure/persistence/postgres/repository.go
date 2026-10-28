@@ -193,11 +193,44 @@ func (r *refreshTokenRepo) FindActive(ctx context.Context, hash string) (*domain
 }
 
 func (r *refreshTokenRepo) RevokeByHash(ctx context.Context, hash string) error {
-	now := time.Now()
-	return r.db.WithContext(ctx).
-		Model(&domain.RefreshToken{}).
-		Where("refresh_token_hash = ?", hash).
-		Updates(map[string]interface{}{"revoked_at": &now}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		result := tx.Model(&domain.RefreshToken{}).
+			Where("refresh_token_hash = ? AND revoked_at IS NULL", hash).
+			Updates(map[string]interface{}{"revoked_at": &now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return domain.ErrNotFound
+		}
+		return nil
+	})
+}
+
+func (r *refreshTokenRepo) Rotate(ctx context.Context, oldHash, userID string, replacement *domain.RefreshToken) error {
+	if replacement == nil || userID == "" || replacement.UserID != userID || oldHash == "" || replacement.RefreshTokenHash == "" || oldHash == replacement.RefreshTokenHash {
+		return errors.New("invalid refresh rotation")
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Password reset takes this same principal lock before revoking sessions.
+		// The common order prevents a concurrent reset from missing a replacement.
+		var user domain.AuthUser
+		if err := tx.Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		now := time.Now()
+		result := tx.Model(&domain.RefreshToken{}).
+			Where("refresh_token_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?", oldHash, userID, now).
+			Update("revoked_at", now)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return domain.ErrNotFound
+		}
+		return tx.Create(replacement).Error
+	})
 }
 
 func (r *oauthTransactionRepo) Create(ctx context.Context, transaction *domain.OAuthTransaction) error {

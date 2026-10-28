@@ -130,3 +130,25 @@ least 32 bytes and the existing SMTP adapter settings `AUTH_SMTP_ADDRESS` and
 `AUTH_SMTP_FROM`. Set `AUTH_EMAIL_ORIGIN_HOURLY_LIMIT` to a positive integer
 (default 20). Keep all credentials outside version control; `.env.example`
 contains empty secret placeholders. Mailpit is an isolated test receiver only.
+
+## Auth/RBAC role claim contract — additive role key
+
+The existing JWT wire format is unversioned: `role` remains an optional signed
+string claim, and `/auth/verify` returns the verified subject in `user_id` and
+other verified claims under `claims`. Previously issued tokens are neither
+rewritten nor reinterpreted. The source-level role selection contract
+`auth-rbac-role-claim.v1` admits the RBAC key `student_pro` in addition to the
+existing candidate keys. Auth may sign that value only after its existing RBAC
+role-check port returns true for that principal; it is never inferred from a
+client cookie, configured default, or subscription hint. A configured default
+is merely an additional role to check, not proof of an assignment.
+
+This is an additive Auth candidate, not an RBAC role migration, grant, or
+assignment. The RBAC seed currently defines `student` but not `student_pro`;
+operators must not assume that the new candidate proves a deployed RBAC role
+exists. RBAC unavailability produces no role claim; it does not justify an
+unverified privileged role. Consumers requiring a role must fail closed when it
+is absent. Existing role-candidate ordering continues to prefer admin,
+moderator and teacher over student roles. Revalidation and new signed tokens are
+required to observe a newly confirmed role; legacy access tokens retain their
+existing claim until refresh or expiry.

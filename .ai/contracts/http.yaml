@@ -60,3 +60,13 @@ oauth_github:
   local_boundary_paths: [/provider/github/authorize, /provider/github/token, /provider/github/user, /provider/github/emails]
   retained_validation: [one_time_state, PKCE_S256, provider_subject, verified_email]
   local_password_created: false
+
+role_claim_contract:
+  source_semantics_version: auth-rbac-role-claim.v1
+  jwt_wire_format: legacy_unversioned
+  verified_claims_only: true
+  allowed_candidates: [admin, moderator, teacher, student_pro, student, user, guest]
+  student_pro_requires_confirmed_rbac_assignment: true
+  rbac_unavailable: omit_role_claim
+  configured_default_role: checked_by_rbac_never_authoritative
+  rbac_role_seed_or_assignment: not_changed

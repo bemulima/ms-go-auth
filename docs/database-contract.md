@@ -1,6 +1,8 @@
 # Database contract
 
-auth_user owns normalized email and optional password hash. auth_identity owns provider/subject links with uniqueness per provider subject and per user/provider. auth_refresh_token stores hashed refresh session identifiers and revocation/expiry. auth_oauth_transaction stores hashed one-time state, PKCE verifier, return target, expiry, and consumption.
+auth_user owns normalized email and optional password hash. auth_identity owns provider/subject links with uniqueness per provider subject and per user/provider. auth_refresh_token stores hashed refresh session identifiers and revocation/expiry. Refresh rotation locks the owning principal, conditionally consumes exactly one unexpired unrevoked token and inserts its replacement in the same PostgreSQL transaction. An insert failure before commit rolls back consumption; a commit error or lost commit response can leave the outcome unknown and must not be treated as proof that the old token remains usable. Password reset takes the same principal lock before revoking sessions. auth_oauth_transaction stores hashed one-time state, PKCE verifier, return target, expiry, and consumption.
+
+Refresh is a single-use operation. When a commit or HTTP response is lost, callers must treat the outcome as unknown; a retry of the consumed token is rejected. Without a durable encrypted response receipt, recovering the issued pair is not possible and the user must authenticate again. Logout racing refresh is linearized against the old refresh row: a logout that wins prevents rotation, whereas a rotation that wins has already produced a new session and a later logout of the old token fails rather than falsely claiming to revoke that replacement.
 
 ## Migration lifecycle
 
