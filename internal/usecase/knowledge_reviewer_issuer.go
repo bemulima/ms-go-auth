@@ -133,9 +133,10 @@ func canonicalReviewerDigest(value string) bool {
 		return false
 	}
 	for _, r := range value {
-		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
-			return false
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
+			continue
 		}
+		return false
 	}
 	return true
 }
