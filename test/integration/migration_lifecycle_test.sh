@@ -593,7 +593,7 @@ for retained_state in pending verified completed; do
   assert_contains "$retained_down_output" "cannot roll back signup completion with retained operations"
   assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT state FROM auth_signup_completion WHERE operation_id = '10000000-0000-0000-0000-0000000000d1'")" "$retained_state"
   assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_signup_completion')" "1"
-  assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "3"
+  assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "4"
   assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
 done
 query "$legacy_compose" "$project-legacy" \
