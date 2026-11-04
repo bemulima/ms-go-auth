@@ -38,7 +38,11 @@ func TestLC08AtomicRefreshPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sqlDB.Close()
+	t.Cleanup(func() {
+		if closeErr := sqlDB.Close(); closeErr != nil {
+			t.Errorf("close isolated refresh test database: %v", closeErr)
+		}
+	})
 	ctx := context.Background()
 	repo := NewRefreshTokenRepository(db)
 	freshUser := func() string {
