@@ -4,7 +4,7 @@ base_path: /api/v1/auth
 public_post: [/code/reset/start, /code/reset/verify, /code/reset/complete, /code/registration/start, /code/registration/verify, /code/registration/complete, /signup/start, /signup/verify, /signin, /refresh, /revoke, '/oauth/:provider/start', '/oauth/:provider/callback', /password/reset/start, /password/reset/finish, /verify, /email/change/verify]
 protected:
   GET: [/me, /identities]
-  POST: [/email/change/start, /password/change, /password/set]
+  POST: [/email/change/start, /password/change, /password/set, /knowledge-graph/reviewer-token]
   DELETE: ['/identities/:provider/:provider_user_id']
 internal: [{method: GET, path: /internal/health}]
 

@@ -121,7 +121,15 @@ func New(ctx context.Context) (*App, error) {
 	if err := usecase.EnableEmailCodes(service, verificationStore, &mailadapter.SMTP{Address: cfg.SMTPAddress, From: cfg.SMTPFrom}, cfg.EmailCodeHMACKey, cfg.EmailOriginLimit); err != nil {
 		return nil, err
 	}
+	permissionClient := natsadapter.NewRBACPermissionClient(nc, cfg.NATSCheckPermissionSubject, cfg.RBACPermissionDecisionPublicKey)
+	reviewerIssuer, err := usecase.NewKnowledgeReviewerTokenIssuer(cfg.JWTIssuer, cfg.JWTPrivateKey, cfg.JWTPublicKey, permissionClient)
+	if err != nil {
+		return nil, err
+	}
 	handler := handlers.NewAuthHandler(service)
+	if reviewerIssuer != nil {
+		handler = handlers.NewAuthHandler(service, reviewerIssuer)
+	}
 	authMW := authmw.NewAuthMiddleware(signer, service)
 	router := httpadapter.NewRouter(cfg, apiv1.NewRouter(handler, authMW.Handler))
 

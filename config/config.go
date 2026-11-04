@@ -40,13 +40,15 @@ type Config struct {
 	AccessTTL     time.Duration `env:"AUTH_JWT_ACCESS_TTL" envDefault:"15m"`
 	RefreshTTL    time.Duration `env:"AUTH_JWT_REFRESH_TTL" envDefault:"720h"`
 
-	RBACSignupPrivateKey string `env:"AUTH_RBAC_SIGNUP_PRIVATE_KEY"`
+	RBACSignupPrivateKey            string `env:"AUTH_RBAC_SIGNUP_PRIVATE_KEY"`
+	RBACPermissionDecisionPublicKey string `env:"AUTH_RBAC_PERMISSION_DECISION_PUBLIC_KEY"`
 
-	NATSURL               string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
-	NATSVerifySubject     string `env:"NATS_SUBJECT_VERIFY_JWT" envDefault:"auth.verifyJWT"`
-	NATSUserCreateSubject string `env:"NATS_SUBJECT_USER_CREATE" envDefault:"user.create-user"`
-	NATSAssignRoleSubject string `env:"NATS_SUBJECT_ASSIGN_ROLE" envDefault:"rbac.assign-role"`
-	NATSCheckRoleSubject  string `env:"NATS_SUBJECT_CHECK_ROLE" envDefault:"rbac.checkRole"`
+	NATSURL                    string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
+	NATSVerifySubject          string `env:"NATS_SUBJECT_VERIFY_JWT" envDefault:"auth.verifyJWT"`
+	NATSUserCreateSubject      string `env:"NATS_SUBJECT_USER_CREATE" envDefault:"user.create-user"`
+	NATSAssignRoleSubject      string `env:"NATS_SUBJECT_ASSIGN_ROLE" envDefault:"rbac.assign-role"`
+	NATSCheckRoleSubject       string `env:"NATS_SUBJECT_CHECK_ROLE" envDefault:"rbac.checkRole"`
+	NATSCheckPermissionSubject string `env:"NATS_SUBJECT_CHECK_PERMISSION" envDefault:"rbac.checkPermission"`
 
 	TarantoolHost             string        `env:"TARANTOOL_HOST" envDefault:"localhost"`
 	TarantoolPort             string        `env:"TARANTOOL_PORT" envDefault:"3301"`

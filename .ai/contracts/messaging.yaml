@@ -2,7 +2,7 @@ schema_version: 2
 documentation: docs/messaging-contract.md
 core_nats_rpc:
   consumes: [{subject: auth.verifyJWT, queue: auth-service}]
-  produces: [user.create-user, rbac.assign-role, rbac.checkRole]
+  produces: [user.create-user, rbac.assign-role, rbac.checkRole, rbac.checkPermission]
 delivery_note: Signup profile and role calls are synchronous required acknowledgements; OAuth coordination returns failures.
 signup_role_proof:
   application_contract: AUTH_RBAC_STUDENT_PROVISIONING_V1
@@ -20,6 +20,47 @@ signup_role_proof:
   private_key_config: AUTH_RBAC_SIGNUP_PRIVATE_KEY
   missing_key: signup unavailable without unsigned fallback
   other_grant_policy: HUMAN_POLICY_DECISION_REQUIRED
+
+knowledge_graph_review_permission_proof:
+  application_contract: AUTH_RBAC_KNOWLEDGE_GRAPH_REVIEW_PERMISSION_V1
+  rpc_subject: rbac.checkPermission
+  request: [proof]
+  algorithm: RS256
+  header: {alg: RS256, typ: JWT}
+  auth_key_pair: [AUTH_JWT_PRIVATE_KEY, AUTH_JWT_PUBLIC_KEY]
+  rbac_verifier_key: AUTH_JWT_PUBLIC_KEY
+  issuer: AUTH_JWT_ISSUER
+  audience: ms-go-rbac-knowledge-review
+  type: knowledge_graph_permission_check
+  purpose: AUTH_RBAC_KNOWLEDGE_GRAPH_REVIEW_PERMISSION_V1
+  permission: knowledge_graph.review
+  claims: [iss, aud, sub, typ, purpose, permission, jti, iat, exp]
+  identity_source: validated_auth_middleware_subject
+  subject_and_jti: lowercase_canonical_non_nil_uuid
+  lifetime_seconds: 30
+  future_iat_skew_seconds: 5
+  missing_or_mismatched_key: issuance_disabled
+  unsigned_or_raw_identity_fallback: forbidden
+
+knowledge_graph_review_permission_decision:
+  response: {envelope: [decision_jwt]}
+  algorithm: RS256
+  header: {alg: RS256, typ: JWT}
+  claims: [iss, aud, sub, typ, purpose, permission, decision, jti, request_jti, request_digest, iat, exp]
+  issuer: ms-go-rbac
+  audience: ms-go-auth-knowledge-review-permission-decision
+  type: knowledge_graph_permission_decision
+  purpose: RBAC_AUTH_KNOWLEDGE_GRAPH_REVIEW_DECISION_V1
+  permission: knowledge_graph.review
+  decision_values: [ALLOW, DENY]
+  jti: fresh_nonzero_canonical_uuid
+  request_binding: [request_jti, lowercase_sha256_of_exact_auth_proof]
+  rbac_private_key_config: RBAC_REVIEWER_PERMISSION_DECISION_PRIVATE_KEY
+  auth_public_key_config: AUTH_RBAC_PERMISSION_DECISION_PUBLIC_KEY
+  maximum_lifetime_seconds: 30
+  issued_lifetime_seconds: 15
+  unsigned_bool_response: forbidden
+  invalid_missing_or_replayed_signature: fail_closed
 
 access_session_verification:
   subject: auth.verifyJWT

@@ -2,6 +2,30 @@
 
 The base path defaults to /api/v1. Auth routes are listed in .ai/contracts/http.yaml and internal/transport/http/api/v1/router.go. Protected routes use JWT middleware. /internal/health is GET.
 
+`POST /auth/knowledge-graph/reviewer-token` is protected by the existing Auth
+JWT/session middleware. It accepts only `decision` (`APPROVE` or `REJECT`) and
+the lowercase SHA-256 `review_binding_digest`. Auth asks the RBAC owner for the
+exact `knowledge_graph.review` permission before issuing an RS256 token bound
+to the actor and supplied digest. The RBAC lookup receives a short-lived,
+Auth-signed permission proof whose subject comes from the validated Auth JWT
+middleware context; it does not accept a caller-supplied user ID or permission.
+Both the lookup proof and reviewer token use the existing Auth RSA key pair,
+and issuance is disabled unless its private and public keys are configured and
+match. The reviewer token audience is `planner-knowledge-review`, its lifetime
+is at most 90 seconds, and its JTI is unique. Planner must still atomically
+consume JTI and record the immutable review receipt; this endpoint alone does
+not approve or publish a graph.
+
+Auth accepts the RBAC permission result only as a signed RS256 decision JWT in
+the exact decision_jwt response envelope. It verifies issuer, audience, type,
+purpose, subject, fixed permission, ALLOW/DENY, response JTI, request proof JTI,
+SHA-256 request digest, and the 30-second maximum lifetime. Reused response
+JTIs, generic ok:true bodies, unsigned errors and mismatched bindings fail
+closed. Auth uses a fresh permission-proof JTI on every request. Configure
+RBAC_REVIEWER_PERMISSION_DECISION_PRIVATE_KEY only in RBAC and the matched
+AUTH_RBAC_PERMISSION_DECISION_PUBLIC_KEY in Auth; source changes do not add or
+install runtime key material.
+
 OAuth start and callback are implemented for registered Google and GitHub providers.
 Validation errors use the shared JSON error envelope.
 
