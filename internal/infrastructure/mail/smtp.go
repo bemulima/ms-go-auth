@@ -25,6 +25,15 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) (sendErr erro
 	if err != nil {
 		return errors.New("mail transport unavailable")
 	}
+	rawConnOwned := true
+	defer func() {
+		if !rawConnOwned {
+			return
+		}
+		if closeErr := conn.Close(); closeErr != nil && sendErr == nil {
+			sendErr = errors.New("mail transport unavailable")
+		}
+	}()
 	deadline := time.Now().Add(10 * time.Second)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
@@ -34,6 +43,7 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) (sendErr erro
 	if err != nil {
 		return errors.New("mail transport unavailable")
 	}
+	rawConnOwned = false
 	quitSucceeded := false
 	defer func() {
 		if quitSucceeded {
