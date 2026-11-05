@@ -178,3 +178,14 @@ required to observe a newly confirmed role; legacy access tokens retain their
 existing claim until refresh or expiry.
 
 The additive protected `POST /api/v1/auth/v2/knowledge-graph/reviewer-token` uses the same strict request and signed permission chain and additionally accepts `NEEDS_REVISION`. The legacy endpoint retains its original decision set. Planner owns and verifies the exact versioned review binding digest; Auth signs it without deriving Graph identity.
+
+The additive protected `POST /api/v1/auth/v2/knowledge-graph/reviewer-read-token`
+reuses the signed RBAC permission lookup for the authenticated actor. Queue request
+is exactly `{"scope":"queue"}` (graph fields forbidden); version request is exactly
+`{"scope":"version","graph_id":"kgf1:…","graph_version":"…"}`. Unknown, null,
+duplicate, actor or role fields fail before issuance. The RS256 JWT has distinct
+`aud=planner-knowledge-review-read`, `typ=knowledge_graph_reviewer_read`, canonical
+sub, permission, scope, graph_id/graph_version (both empty for queue), iat/exp90s
+and fresh JTI. It contains no review decision and cannot authorize writes. Pure
+read replay within TTL is allowed; Planner verifies audience/scope/path and its
+dedicated admin service boundary. Existing review-decision JWTs remain unchanged.
