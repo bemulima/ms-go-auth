@@ -76,3 +76,15 @@ knowledge_reviewer_token_v2:
   decision_values: [APPROVE, REJECT, NEEDS_REVISION]
   identity: authenticated_subject_only
   authorization: signed_RBAC_decision_with_canonical_admin_universal_allow
+
+knowledge_reviewer_read_token_v1:
+  route: POST /api/v1/auth/v2/knowledge-graph/reviewer-read-token
+  request_queue: {scope: queue}
+  request_version: {scope: version, required_fields: [graph_id, graph_version]}
+  audience: planner-knowledge-review-read
+  type: knowledge_graph_reviewer_read
+  permission: knowledge_graph.review
+  ttl_seconds: 90
+  graph_claims: always_present_empty_for_queue_exact_for_version
+  authority: authenticated_subject_and_signed_RBAC_decision
+  write_decision_authority: false
