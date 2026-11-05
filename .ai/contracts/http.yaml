@@ -70,3 +70,9 @@ role_claim_contract:
   rbac_unavailable: omit_role_claim
   configured_default_role: checked_by_rbac_never_authoritative
   rbac_role_seed_or_assignment: not_changed
+
+knowledge_reviewer_token_v2:
+  route: /api/v1/auth/v2/knowledge-graph/reviewer-token
+  decision_values: [APPROVE, REJECT, NEEDS_REVISION]
+  identity: authenticated_subject_only
+  authorization: signed_RBAC_decision_with_canonical_admin_universal_allow

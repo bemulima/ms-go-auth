@@ -176,3 +176,5 @@ is absent. Existing role-candidate ordering continues to prefer admin,
 moderator and teacher over student roles. Revalidation and new signed tokens are
 required to observe a newly confirmed role; legacy access tokens retain their
 existing claim until refresh or expiry.
+
+The additive protected `POST /api/v1/auth/v2/knowledge-graph/reviewer-token` uses the same strict request and signed permission chain and additionally accepts `NEEDS_REVISION`. The legacy endpoint retains its original decision set. Planner owns and verifies the exact versioned review binding digest; Auth signs it without deriving Graph identity.

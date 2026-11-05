@@ -91,3 +91,44 @@ func TestKnowledgeReviewerEndpointDoesNotAcceptCallerIdentityHeaders(t *testing.
 		t.Fatalf("status=%d issuerCalled=%v body=%s, want 401 without issuance", rec.Code, called, rec.Body.String())
 	}
 }
+
+func (f reviewerIssuerFunc) IssueV2(ctx context.Context, actor, decision, digest string) (string, error) {
+	return f(ctx, actor, decision, digest)
+}
+
+func TestLifecycleReviewerEndpointV2UsesAuthenticatedBinding(t *testing.T) {
+	const actor = "11111111-1111-4111-8111-111111111111"
+	const digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	for _, tc := range []struct {
+		actor, body string
+		want        int
+	}{
+		{actor, `{"decision":"NEEDS_REVISION","review_binding_digest":"` + digest + `"}`, 200},
+		{"", `{"decision":"NEEDS_REVISION","review_binding_digest":"` + digest + `"}`, 401},
+		{actor, `{"decision":"NEEDS_REVISION","review_binding_digest":"` + digest + `","role":"admin"}`, 400},
+	} {
+		called := false
+		h := NewAuthHandler(nil, reviewerIssuerFunc(func(_ context.Context, gotActor, decision, gotDigest string) (string, error) {
+			called = true
+			if gotActor != actor || decision != "NEEDS_REVISION" || gotDigest != digest {
+				t.Fatal("review binding changed")
+			}
+			return "signed-token", nil
+		}))
+		e := echo.New()
+		req := httptest.NewRequest("POST", "/api/v1/auth/v2/knowledge-graph/reviewer-token", strings.NewReader(tc.body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("X-Role", "admin")
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		if tc.actor != "" {
+			c.Set("user_id", tc.actor)
+		}
+		if err := h.IssueKnowledgeReviewerTokenV2(c); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != tc.want || called != (tc.want == 200) {
+			t.Fatalf("status=%d called=%v", rec.Code, called)
+		}
+	}
+}

@@ -99,6 +99,14 @@ type knowledgeReviewerTokenRequest struct {
 }
 
 func (h *AuthHandler) IssueKnowledgeReviewerToken(c echo.Context) error {
+	return h.issueKnowledgeReviewerToken(c, false)
+}
+
+func (h *AuthHandler) IssueKnowledgeReviewerTokenV2(c echo.Context) error {
+	return h.issueKnowledgeReviewerToken(c, true)
+}
+
+func (h *AuthHandler) issueKnowledgeReviewerToken(c echo.Context, v2 bool) error {
 	if h.reviewerIssuer == nil {
 		return res.ErrorJSON(c, http.StatusServiceUnavailable, "reviewer_unavailable", "reviewer token issuance unavailable", requestIDFromCtx(c), nil)
 	}
@@ -110,7 +118,17 @@ func (h *AuthHandler) IssueKnowledgeReviewerToken(c echo.Context) error {
 	if !ok || actorID == "" {
 		return res.ErrorJSON(c, http.StatusUnauthorized, "unauthorized", "authenticated subject missing", requestIDFromCtx(c), nil)
 	}
-	token, err := h.reviewerIssuer.Issue(c.Request().Context(), actorID, request.Decision, request.ReviewBindingDigest)
+	issue := h.reviewerIssuer.Issue
+	if v2 {
+		versioned, ok := h.reviewerIssuer.(interface {
+			IssueV2(context.Context, string, string, string) (string, error)
+		})
+		if !ok {
+			return res.ErrorJSON(c, http.StatusServiceUnavailable, "reviewer_unavailable", "reviewer token issuance unavailable", requestIDFromCtx(c), nil)
+		}
+		issue = versioned.IssueV2
+	}
+	token, err := issue(c.Request().Context(), actorID, request.Decision, request.ReviewBindingDigest)
 	if errors.Is(err, usecase.ErrKnowledgeReviewerDenied) {
 		return res.ErrorJSON(c, http.StatusForbidden, "forbidden", "review permission required", requestIDFromCtx(c), nil)
 	}

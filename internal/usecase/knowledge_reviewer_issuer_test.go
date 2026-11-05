@@ -123,6 +123,18 @@ func TestKnowledgeReviewerTokenIssuerRequiresExactRBACPermission(t *testing.T) {
 	if secondReviewerJTI == reviewerJTI || secondProofJTI == proofJTI || secondReviewerJTI == secondProofJTI {
 		t.Fatalf("reviewer issuance reused a jti: first=(%q,%q) second=(%q,%q)", reviewerJTI, proofJTI, secondReviewerJTI, secondProofJTI)
 	}
+	revisionToken, err := issuer.IssueV2(context.Background(), actor, "NEEDS_REVISION", binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisionClaims := jwt.MapClaims{}
+	if _, err := jwt.ParseWithClaims(revisionToken, revisionClaims, func(*jwt.Token) (any, error) { return &key.PublicKey, nil }, jwt.WithTimeFunc(issuer.clock)); err != nil {
+		t.Fatal(err)
+	}
+	if revisionClaims["decision"] != "NEEDS_REVISION" || revisionClaims["review_binding_digest"] != binding || revisionClaims["sub"] != actor {
+		t.Fatal("revision review lost binding")
+	}
+
 }
 
 func TestKnowledgeReviewerTokenIssuerFailsClosedForRBACAndMalformedInput(t *testing.T) {
@@ -151,7 +163,7 @@ func TestKnowledgeReviewerTokenIssuerFailsClosedForRBACAndMalformedInput(t *test
 		t.Fatal(err)
 	}
 	for _, input := range []struct{ actor, decision, digest string }{
-		{"not-uuid", "APPROVE", binding}, {actor, "PUBLISH", binding}, {actor, "APPROVE", "ABC"},
+		{"not-uuid", "APPROVE", binding}, {actor, "PUBLISH", binding}, {actor, "NEEDS_REVISION", binding}, {actor, "APPROVE", "ABC"},
 		{"AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA", "APPROVE", binding},
 	} {
 		if token, err := issuer.Issue(context.Background(), input.actor, input.decision, input.digest); token != "" || !errors.Is(err, ErrKnowledgeReviewerUnavailable) {

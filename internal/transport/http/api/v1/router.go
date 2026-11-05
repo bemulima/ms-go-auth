@@ -40,4 +40,5 @@ func (r *Router) Register(g *echo.Group) {
 	protected.GET("/identities", r.handlers.ListIdentities)
 	protected.DELETE("/identities/:provider/:provider_user_id", r.handlers.RemoveIdentity)
 	protected.POST("/knowledge-graph/reviewer-token", r.handlers.IssueKnowledgeReviewerToken)
+	protected.POST("/v2/knowledge-graph/reviewer-token", r.handlers.IssueKnowledgeReviewerTokenV2)
 }

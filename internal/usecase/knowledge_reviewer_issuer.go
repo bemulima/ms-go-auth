@@ -58,8 +58,17 @@ func NewKnowledgeReviewerTokenIssuer(issuer, privateKeyPEM, publicKeyPEM string,
 }
 
 func (issuer *KnowledgeReviewerTokenIssuer) Issue(ctx context.Context, actorID, decision, bindingDigest string) (string, error) {
+	return issuer.issue(ctx, actorID, decision, bindingDigest, false)
+}
+
+// IssueV2 authorizes the additive asynchronous review lifecycle.
+func (issuer *KnowledgeReviewerTokenIssuer) IssueV2(ctx context.Context, actorID, decision, bindingDigest string) (string, error) {
+	return issuer.issue(ctx, actorID, decision, bindingDigest, true)
+}
+
+func (issuer *KnowledgeReviewerTokenIssuer) issue(ctx context.Context, actorID, decision, bindingDigest string, lifecycleV2 bool) (string, error) {
 	if issuer == nil || issuer.key == nil || issuer.rbac == nil || !canonicalReviewerUUID(actorID) ||
-		(decision != "APPROVE" && decision != "REJECT") || !canonicalReviewerDigest(bindingDigest) {
+		(decision != "APPROVE" && decision != "REJECT" && (!lifecycleV2 || decision != "NEEDS_REVISION")) || !canonicalReviewerDigest(bindingDigest) {
 		return "", ErrKnowledgeReviewerUnavailable
 	}
 	proof, proofJTI, err := issuer.signKnowledgePermissionProof(actorID)
