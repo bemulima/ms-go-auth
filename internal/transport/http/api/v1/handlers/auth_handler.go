@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -10,10 +14,21 @@ import (
 )
 
 type AuthHandler struct {
-	service usecase.Service
+	service        usecase.Service
+	reviewerIssuer reviewerTokenIssuer
 }
 
-func NewAuthHandler(s usecase.Service) *AuthHandler { return &AuthHandler{service: s} }
+type reviewerTokenIssuer interface {
+	Issue(context.Context, string, string, string) (string, error)
+}
+
+func NewAuthHandler(s usecase.Service, issuers ...reviewerTokenIssuer) *AuthHandler {
+	handler := &AuthHandler{service: s}
+	if len(issuers) > 0 {
+		handler.reviewerIssuer = issuers[0]
+	}
+	return handler
+}
 
 type signupStartRequest struct {
 	Email    string `json:"email"`
@@ -76,6 +91,92 @@ type oauthCallbackRequest struct {
 
 type verifyTokenRequest struct {
 	Token string `json:"token"`
+}
+
+type knowledgeReviewerTokenRequest struct {
+	Decision            string `json:"decision"`
+	ReviewBindingDigest string `json:"review_binding_digest"`
+}
+
+func (h *AuthHandler) IssueKnowledgeReviewerToken(c echo.Context) error {
+	return h.issueKnowledgeReviewerToken(c, false)
+}
+
+func (h *AuthHandler) IssueKnowledgeReviewerTokenV2(c echo.Context) error {
+	return h.issueKnowledgeReviewerToken(c, true)
+}
+
+func (h *AuthHandler) issueKnowledgeReviewerToken(c echo.Context, v2 bool) error {
+	if h.reviewerIssuer == nil {
+		return res.ErrorJSON(c, http.StatusServiceUnavailable, "reviewer_unavailable", "reviewer token issuance unavailable", requestIDFromCtx(c), nil)
+	}
+	request, err := decodeKnowledgeReviewerTokenRequest(http.MaxBytesReader(c.Response(), c.Request().Body, 4096))
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusBadRequest, "bad_request", "invalid payload", requestIDFromCtx(c), nil)
+	}
+	actorID, ok := c.Get("user_id").(string)
+	if !ok || actorID == "" {
+		return res.ErrorJSON(c, http.StatusUnauthorized, "unauthorized", "authenticated subject missing", requestIDFromCtx(c), nil)
+	}
+	issue := h.reviewerIssuer.Issue
+	if v2 {
+		versioned, ok := h.reviewerIssuer.(interface {
+			IssueV2(context.Context, string, string, string) (string, error)
+		})
+		if !ok {
+			return res.ErrorJSON(c, http.StatusServiceUnavailable, "reviewer_unavailable", "reviewer token issuance unavailable", requestIDFromCtx(c), nil)
+		}
+		issue = versioned.IssueV2
+	}
+	token, err := issue(c.Request().Context(), actorID, request.Decision, request.ReviewBindingDigest)
+	if errors.Is(err, usecase.ErrKnowledgeReviewerDenied) {
+		return res.ErrorJSON(c, http.StatusForbidden, "forbidden", "review permission required", requestIDFromCtx(c), nil)
+	}
+	if err != nil {
+		return res.ErrorJSON(c, http.StatusServiceUnavailable, "reviewer_unavailable", "reviewer token issuance unavailable", requestIDFromCtx(c), nil)
+	}
+	return c.JSON(http.StatusOK, map[string]string{"token": token})
+}
+
+func decodeKnowledgeReviewerTokenRequest(body io.Reader) (knowledgeReviewerTokenRequest, error) {
+	decoder := json.NewDecoder(body)
+	first, err := decoder.Token()
+	if err != nil || first != json.Delim('{') {
+		return knowledgeReviewerTokenRequest{}, errors.New("invalid object")
+	}
+	var result knowledgeReviewerTokenRequest
+	seen := map[string]bool{}
+	for decoder.More() {
+		keyToken, err := decoder.Token()
+		key, ok := keyToken.(string)
+		if err != nil || !ok || seen[key] {
+			return knowledgeReviewerTokenRequest{}, errors.New("invalid or duplicate field")
+		}
+		seen[key] = true
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil || len(value) == 0 || value[0] != '"' {
+			return knowledgeReviewerTokenRequest{}, errors.New("field must be a string")
+		}
+		var text string
+		if err := json.Unmarshal(value, &text); err != nil {
+			return knowledgeReviewerTokenRequest{}, errors.New("invalid string field")
+		}
+		switch key {
+		case "decision":
+			result.Decision = text
+		case "review_binding_digest":
+			result.ReviewBindingDigest = text
+		default:
+			return knowledgeReviewerTokenRequest{}, errors.New("unknown field")
+		}
+	}
+	if _, err := decoder.Token(); err != nil || len(seen) != 2 || !seen["decision"] || !seen["review_binding_digest"] {
+		return knowledgeReviewerTokenRequest{}, errors.New("missing field")
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return knowledgeReviewerTokenRequest{}, errors.New("trailing input")
+	}
+	return result, nil
 }
 
 func (h *AuthHandler) SignupStart(c echo.Context) error {

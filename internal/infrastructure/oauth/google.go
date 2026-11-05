@@ -55,7 +55,7 @@ func (p *GoogleOAuth2) Authenticate(ctx context.Context, code, verifier string) 
 		return nil, fmt.Errorf("google ID token required")
 	}
 	claims := jwt.MapClaims{}
-	_, err = jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (interface{}, error) {
+	_, err = jwt.ParseWithClaims(raw, claims, func(t *jwt.Token) (key interface{}, keyErr error) {
 		kid, _ := t.Header["kid"].(string)
 		if kid == "" {
 			return nil, fmt.Errorf("google signing key required")
@@ -68,7 +68,12 @@ func (p *GoogleOAuth2) Authenticate(ctx context.Context, code, verifier string) 
 		if e != nil {
 			return nil, fmt.Errorf("google keys unavailable")
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil && keyErr == nil {
+				key = nil
+				keyErr = fmt.Errorf("google keys unavailable")
+			}
+		}()
 		if resp.StatusCode != 200 {
 			return nil, fmt.Errorf("google keys unavailable")
 		}

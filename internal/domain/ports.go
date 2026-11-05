@@ -100,6 +100,13 @@ type RoleClient interface {
 	CheckRole(context.Context, string, string) (bool, error)
 }
 
+// PermissionChecker asks RBAC to verify a scoped Auth-signed permission proof
+// and requires a signed decision bound to the expected subject and proof JTI.
+// Missing or unavailable authority must be treated as a denial by callers.
+type PermissionChecker interface {
+	HasPermission(context.Context, string, string, string) (bool, error)
+}
+
 type OAuthProviderName string
 
 type OAuthProfileData struct {

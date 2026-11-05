@@ -72,7 +72,11 @@ func TestLC08AuthHTTPHarness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer raw.Close()
+	t.Cleanup(func() {
+		if closeErr := raw.Close(); closeErr != nil {
+			t.Errorf("close isolated auth test database: %v", closeErr)
+		}
+	})
 	key := make([]byte, 32)
 	if _, err = rand.Read(key); err != nil {
 		t.Fatal(err)

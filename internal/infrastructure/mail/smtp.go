@@ -13,7 +13,7 @@ import (
 
 type SMTP struct{ Address, From string }
 
-func (s *SMTP) Send(ctx context.Context, to, subject, body string) error {
+func (s *SMTP) Send(ctx context.Context, to, subject, body string) (sendErr error) {
 	if strings.ContainsAny(to+s.From+subject, "\r\n") {
 		return errors.New("invalid mail header")
 	}
@@ -25,7 +25,15 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) error {
 	if err != nil {
 		return errors.New("mail transport unavailable")
 	}
-	defer conn.Close()
+	rawConnOwned := true
+	defer func() {
+		if !rawConnOwned {
+			return
+		}
+		if closeErr := conn.Close(); closeErr != nil && sendErr == nil {
+			sendErr = errors.New("mail transport unavailable")
+		}
+	}()
 	deadline := time.Now().Add(10 * time.Second)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
@@ -35,7 +43,16 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) error {
 	if err != nil {
 		return errors.New("mail transport unavailable")
 	}
-	defer c.Close()
+	rawConnOwned = false
+	quitSucceeded := false
+	defer func() {
+		if quitSucceeded {
+			return
+		}
+		if closeErr := c.Close(); closeErr != nil && sendErr == nil {
+			sendErr = errors.New("mail transport unavailable")
+		}
+	}()
 	if ok, _ := c.Extension("STARTTLS"); ok {
 		if err = c.StartTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}); err != nil {
 			return errors.New("mail transport unavailable")
@@ -60,5 +77,9 @@ func (s *SMTP) Send(ctx context.Context, to, subject, body string) error {
 	if err = w.Close(); err != nil {
 		return errors.New("mail delivery failed")
 	}
-	return c.Quit()
+	if err = c.Quit(); err != nil {
+		return err
+	}
+	quitSucceeded = true
+	return nil
 }

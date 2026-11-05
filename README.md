@@ -14,7 +14,7 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 
 ## Messaging Boundary
 
-- Retained broker scope for this service is limited to Core NATS RPC: `auth.verifyJWT`, `user.create-user`, `rbac.assign-role`, `rbac.checkRole`.
+- Retained broker scope for this service is limited to Core NATS RPC: `auth.verifyJWT`, `user.create-user`, `rbac.assign-role`, `rbac.checkRole`, and `rbac.checkPermission`.
 - Auth owns signup, email-change, and password-reset verification. Its persistence adapter calls the identity-store directly through restricted Tarantool functions; these operations are not part of the retained broker catalog. See [verification storage](docs/verification-storage.md).
 - Retained Core NATS RPC subjects are request/reply only and are expected to run queue-group-safe under multi-instance deployment. `auth.verifyJWT` is the read/check owner endpoint used by other services.
 
@@ -33,6 +33,7 @@ User authentication microservice extracted from ms-go-user. Handles credentials,
 - `DELETE /identities/:provider/:provider_user_id` (JWT) — remove an identity while preserving at least one login method
 - `POST /password/set` (JWT) — set the first password for an OAuth-only account
 - `POST /password/change` (JWT) — change an existing password
+- `POST /knowledge-graph/reviewer-token` (JWT) — issue a short-lived review assertion only after RBAC confirms `knowledge_graph.review`; Planner remains responsible for one-use JTI consumption and review persistence.
 
 ## NATS
 - RPC handler `auth.verifyJWT`
