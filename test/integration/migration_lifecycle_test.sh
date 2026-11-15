@@ -211,22 +211,25 @@ assert_contains "$local_first" "applied 0002_seed_auth_users.up.sql"
 assert_contains "$local_first" "applied 0003_oauth_flow.up.sql"
 assert_contains "$local_first" "applied 0004_signup_completion.up.sql"
 assert_contains "$local_first" "applied 0005_email_verified.up.sql"
+assert_contains "$local_first" "applied 0006_mcp_external_codes.up.sql"
 assert_completion_schema "$local_compose" "$project-local"
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_user')" "7"
 assert_eq "$(query "$local_compose" "$project-local" "SELECT count(*) FROM auth_user WHERE email = 'student1@example.com'")" "1"
-assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "5"
+assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "6"
 
 local_second=$(run_task "$local_compose" "$project-local" local migrate-up)
 assert_contains "$local_second" "already applied 0001_init.up.sql"
 assert_contains "$local_second" "already applied 0004_signup_completion.up.sql"
 assert_contains "$local_second" "already applied 0005_email_verified.up.sql"
+assert_contains "$local_second" "already applied 0006_mcp_external_codes.up.sql"
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_user')" "7"
-assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "5"
+assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "6"
 
 local_status=$(run_task "$local_compose" "$project-local" local migrate-status)
 assert_contains "$local_status" "0002_seed_auth_users.up.sql"
 assert_contains "$local_status" "applied"
 assert_migration_status "$local_status" "0005_email_verified.up.sql" "applied"
+assert_migration_status "$local_status" "0006_mcp_external_codes.up.sql" "applied"
 
 set +e
 prod_up_output=$(run_task_default_env "$local_compose" "$project-local" migrate-up 2>&1)
@@ -272,7 +275,7 @@ assert_contains "$checksum_down_output" "checksum mismatch for applied migration
 assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_user')" "7"
 assert_eq "$(query "$local_compose" "$project-local" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
 assert_completion_schema "$local_compose" "$project-local"
-assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "5"
+assert_eq "$(query "$local_compose" "$project-local" 'SELECT count(*) FROM auth_schema_migration')" "6"
 
 provision_stage "$prod_compose" "$project-prod" start
 wait_for_db "$prod_compose" "$project-prod"
@@ -287,9 +290,10 @@ assert_eq "$(query "$prod_compose" "$project-prod" "SELECT to_regclass('public.a
 prod_output=$(run_task_default_env "$prod_compose" "$project-prod" migrate-up)
 assert_contains "$prod_output" "skipped local/dev seed 0002_seed_auth_users.up.sql"
 assert_contains "$prod_output" "applied 0004_signup_completion.up.sql"
+assert_contains "$prod_output" "applied 0006_mcp_external_codes.up.sql"
 assert_completion_schema "$prod_compose" "$project-prod"
 assert_eq "$(query "$prod_compose" "$project-prod" 'SELECT count(*) FROM auth_user')" "0"
-assert_eq "$(query "$prod_compose" "$project-prod" 'SELECT count(*) FROM auth_schema_migration')" "4"
+assert_eq "$(query "$prod_compose" "$project-prod" 'SELECT count(*) FROM auth_schema_migration')" "5"
 
 prod_status=$(run_task_default_env "$prod_compose" "$project-prod" migrate-status)
 assert_contains "$prod_status" "0002_seed_auth_users.up.sql"
@@ -320,9 +324,10 @@ apply_sql "$legacy_compose" "$project-legacy" "$repo_root/migrations/0002_seed_a
 legacy_exact_adopt=$(run_task "$legacy_compose" "$project-legacy" local migrate-up)
 assert_contains "$legacy_exact_adopt" "applied 0002_seed_auth_users.up.sql"
 assert_contains "$legacy_exact_adopt" "applied 0004_signup_completion.up.sql"
+assert_contains "$legacy_exact_adopt" "applied 0006_mcp_external_codes.up.sql"
 assert_completion_schema "$legacy_compose" "$project-legacy"
 assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_user')" "7"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "5"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "6"
 seed_hash=$(file_checksum "$repo_root/migrations/0002_seed_auth_users.up.sql")
 assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT checksum FROM auth_schema_migration WHERE name = '0002_seed_auth_users.up.sql'")" "$seed_hash"
 
@@ -539,8 +544,9 @@ assert_contains "$empty_down_output" "migration evidence is empty while owned au
 legacy_adopt=$(run_task_default_env "$legacy_compose" "$project-legacy" migrate-up)
 assert_contains "$legacy_adopt" "applied 0001_init.up.sql"
 assert_contains "$legacy_adopt" "applied 0004_signup_completion.up.sql"
+assert_contains "$legacy_adopt" "applied 0006_mcp_external_codes.up.sql"
 assert_completion_schema "$legacy_compose" "$project-legacy"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "4"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "5"
 query "$legacy_compose" "$project-legacy" \
   "UPDATE auth_schema_migration SET down_checksum = repeat('0', 64) WHERE name = '0001_init.up.sql'" >/dev/null
 set +e
@@ -553,7 +559,7 @@ if [[ $down_checksum_status == 0 ]]; then
 fi
 assert_contains "$down_checksum_output" "rollback checksum mismatch for applied migration 0001_init.up.sql"
 assert_eq "$(query "$legacy_compose" "$project-legacy" "SELECT to_regclass('public.auth_oauth_transaction') IS NOT NULL")" "t"
-assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "4"
+assert_eq "$(query "$legacy_compose" "$project-legacy" 'SELECT count(*) FROM auth_schema_migration')" "5"
 down_hash=$(file_checksum "$repo_root/migrations/0001_init.down.sql")
 query "$legacy_compose" "$project-legacy" \
   "UPDATE auth_schema_migration SET down_checksum = '$down_hash' WHERE name = '0001_init.up.sql'" >/dev/null
