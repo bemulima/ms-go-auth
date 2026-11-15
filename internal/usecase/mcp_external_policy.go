@@ -37,6 +37,8 @@ type MCPExternalClient struct {
 // MCPExternalConsent must be fetched by Auth for the verified Student; it is
 // not a field supplied by the external client or an LLM prompt.
 type MCPExternalConsent struct {
+	// ID is an Auth-persisted consent row key, never a client-supplied value.
+	ID          string
 	StudentID   string
 	ClientID    string
 	ResourceURI string
@@ -111,6 +113,18 @@ func validMCPResourceURI(raw string) bool {
 }
 
 func registeredMCPRedirect(raw string, registered []string) bool {
+	if !validMCPRedirectURI(raw) {
+		return false
+	}
+	for _, candidate := range registered {
+		if raw == candidate { // deliberately exact, no prefix or wildcard matching
+			return true
+		}
+	}
+	return false
+}
+
+func validMCPRedirectURI(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u == nil || u.Host == "" || u.User != nil || u.Opaque != "" ||
 		u.Fragment != "" || strings.Contains(raw, "#") {
@@ -120,12 +134,7 @@ func registeredMCPRedirect(raw string, registered []string) bool {
 		(u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")) {
 		return false
 	}
-	for _, candidate := range registered {
-		if raw == candidate { // deliberately exact, no prefix or wildcard matching
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 func parseMCPRequestedScopes(raw string) ([]string, bool) {
