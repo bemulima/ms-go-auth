@@ -1,9 +1,10 @@
-name: MCP-00C2 PostgreSQL repository gate
+name: MCP-00C2/C3C PostgreSQL repository gate
 
 on:
   pull_request:
     paths:
       - 'internal/infrastructure/persistence/postgres/mcp_external_code_repository*'
+      - 'internal/infrastructure/persistence/postgres/mcp_external_auth_grant_repository*'
       - 'migrations/0006_mcp_external_codes*'
       - '.github/workflows/mcp00c2-postgres.yml'
       - '.ai/commands.yaml'
@@ -34,7 +35,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Isolated live GORM / PostgreSQL code store tests
+      - name: Isolated live GORM / PostgreSQL code and Auth grant readback tests
         env:
           MCP_AUTH_CODE_PG_ENABLE: 'true'
           MCP_AUTH_CODE_PG_DSN: postgres://codeci@127.0.0.1:5432/mcp_external_codes_ci_test?sslmode=disable
