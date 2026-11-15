@@ -34,8 +34,8 @@ function main() {
   temporaryDirectory = fs.mkdtempSync(path.join(cacheRoot, 'mentor-wire-conformance-'));
   const producer = path.join(temporaryDirectory, 'producer');
   const consumer = path.join(temporaryDirectory, 'consumer');
-  run('go', ['build', '-tags=mentorconformance', '-o', producer, './test/mentorconformance'], { cwd: authRoot }, 'Auth bridge build');
-  run('go', ['build', '-tags=mentorconformance', '-o', consumer, './test/mentorconformance'], { cwd: rbacRoot }, 'RBAC bridge build');
+  run('go', ['build', '-buildvcs=false', '-tags=mentorconformance', '-o', producer, './test/mentorconformance'], { cwd: authRoot }, 'Auth bridge build');
+  run('go', ['build', '-buildvcs=false', '-tags=mentorconformance', '-o', consumer, './test/mentorconformance'], { cwd: rbacRoot }, 'RBAC bridge build');
   const wire = run(producer, [], { cwd: temporaryDirectory }, 'Auth issuer');
   const envelope = JSON.parse(wire);
   assert(Object.keys(envelope.proofs).length === 4, 'expected four real Auth assertions');

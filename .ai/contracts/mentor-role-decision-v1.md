@@ -22,8 +22,11 @@ decision digest and committed decision revision. APPROVE must correspond to
 the current `APPROVAL_PENDING_GRANT` intent; SUSPEND to the current `SUSPENDED`
 intent. Unknown,
 foreign, stale, unavailable or mismatched confirmations produce no assertion.
-The source issuer uses explicit mandatory owner ports; until their real trusted
-adapters exist it must not be wired into a production route or composition.
+The source issuer uses explicit mandatory owner ports. Dedicated signed
+request/reply source adapters are specified by
+[AUTH_MENTOR_OWNER_LOOKUPS_V1](mentor-owner-lookups-v1.md). They remain unmounted;
+trusted key distribution, broker ACLs and runtime composition must be verified
+before this issuer is wired into a production route.
 
 No bearer or refresh token is persisted. The caller supplies a fresh live Admin
 session when a new assertion is needed. Expired assertion/session does not grant

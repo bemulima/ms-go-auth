@@ -39,11 +39,13 @@ caller-selected actor, role or service. Every invocation independently:
    is checked between owner calls and before returning a signed assertion.
 
 The source ports describe trust obligations; they do not manufacture trust.
-Neither authenticated canonical-Admin nor committed-Mentor-intent transport is
-implemented in this slice. A boolean from an unsigned response, a cached actor ID,
-or an arbitrary implementation of the interfaces must never be wired as authority.
-Real adapters must authenticate each owner and bind fresh responses to the exact
-lookup. Key distribution and runtime wiring remain separate owner work.
+The dedicated authenticated source client and owner providers now follow
+[AUTH_MENTOR_OWNER_LOOKUPS_V1](../.ai/contracts/mentor-owner-lookups-v1.md).
+They authenticate both directions and bind fresh responses to the exact lookup,
+but are not mounted in a runtime. A boolean from an unsigned response, a cached
+actor ID, or an arbitrary implementation of the interfaces must never be wired
+as authority. Key distribution, broker ACLs, live owner verification and runtime
+wiring remain separate owner work.
 
 ## Retry and failure behavior
 
@@ -79,5 +81,17 @@ assertions/private keys. It is not a substitute for mounted authenticated owner
 transports, live-session/SQL integration, durable atomic role storage, broker
 authentication, signed readback, or executable Gherkin acceptance.
 
+Both conformance runners build test-only binaries with `-buildvcs=false` to
+support source exports/isolated worktrees; commit and file identity are checked
+separately at publication. This disables only build-metadata stamping, not
+compiler checks, signature checks or application behavior.
+
 No service startup, database migration, role grant, key installation or deployment
 is performed by these source tests.
+
+The next source conformance command composes both actual signed owner clients
+and providers before issuing the final Mentor decision:
+`node scripts/test-mentor-owner-conformance.cjs --rbac /absolute/path/to/ms-go-rbac --mentor /absolute/path/to/ms-go-mentor`.
+It uses private-pipe transport and controlled read fixtures instead of a live
+broker/PostgreSQL. The earlier paired role-proof command remains independently
+useful and unchanged.
