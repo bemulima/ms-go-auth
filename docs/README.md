@@ -9,3 +9,7 @@ This repository owns auth architecture and its HTTP, NATS, and database contract
 - [Native development](native-development.md)
 
 - [Verification storage](verification-storage.md)
+
+## Proposals (not active contracts)
+
+- [MCP-00A: external Student MCP authorization](mcp00-external-client-authorization-proposal.md) — design proposal only; no OAuth authorization-server routes are live.
