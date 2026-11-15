@@ -167,8 +167,12 @@ func TestMCPExternalCodeFailClosedOnConsentAndRepository(t *testing.T) {
 		{"unpersisted-consent", func(_ *MCPExternalCodeUsecase, _ *fakeMCPExternalCodeStore, c *MCPExternalConsent) { c.ID = "" }},
 		{"revoked-consent", func(_ *MCPExternalCodeUsecase, _ *fakeMCPExternalCodeStore, c *MCPExternalConsent) { c.Revoked = true }},
 		{"no-repository", func(s *MCPExternalCodeUsecase, _ *fakeMCPExternalCodeStore, _ *MCPExternalConsent) { s.Codes = nil }},
-		{"excessive-ttl", func(s *MCPExternalCodeUsecase, _ *fakeMCPExternalCodeStore, _ *MCPExternalConsent) { s.TTL = 6 * time.Minute }},
-		{"repository-refusal", func(_ *MCPExternalCodeUsecase, f *fakeMCPExternalCodeStore, _ *MCPExternalConsent) { f.failCreate = true }},
+		{"excessive-ttl", func(s *MCPExternalCodeUsecase, _ *fakeMCPExternalCodeStore, _ *MCPExternalConsent) {
+			s.TTL = 6 * time.Minute
+		}},
+		{"repository-refusal", func(_ *MCPExternalCodeUsecase, f *fakeMCPExternalCodeStore, _ *MCPExternalConsent) {
+			f.failCreate = true
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, store, policy, req, client, consent, student, now := newMCPCodeFixture(t)

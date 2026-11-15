@@ -130,8 +130,8 @@ func validMCPRedirectURI(raw string) bool {
 		u.Fragment != "" || strings.Contains(raw, "#") {
 		return false
 	}
-	if u.Scheme != "https" && !(u.Scheme == "http" &&
-		(u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")) {
+	if u.Scheme != "https" && (u.Scheme != "http" ||
+		(u.Hostname() != "127.0.0.1" && u.Hostname() != "::1")) {
 		return false
 	}
 	return true

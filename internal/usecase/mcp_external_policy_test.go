@@ -101,33 +101,92 @@ func TestMCPExternalAuthorizationFailClosedMatrix(t *testing.T) {
 		name   string
 		change func(*MCPExternalPolicy, *MCPExternalAuthorizationRequest, *MCPExternalClient, *MCPExternalConsent, *string, *time.Time)
 	}{
-		{"anonymous-subject", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, student *string, _ *time.Time) { *student = "" }},
-		{"response-type-token", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.ResponseType = "token" }},
-		{"different-client", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.ClientID = "unregistered" }},
-		{"redirect-prefix-attack", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.RedirectURI += ".evil.test" }},
-		{"redirect-host-prefix-attack", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.RedirectURI = "https://client.example.test.evil.test/callback" }},
-		{"redirect-fragment", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.RedirectURI += "#fragment" }},
-		{"unregistered-loopback-port", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.RedirectURI = "http://127.0.0.1:4568/callback" }},
-		{"unsafe-localhost", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, c *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.RedirectURI = "http://localhost:4567/callback"; c.RedirectURIs = append(c.RedirectURIs, r.RedirectURI) }},
-		{"http-remote-redirect", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, c *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.RedirectURI = "http://client.example.test/callback"; c.RedirectURIs = append(c.RedirectURIs, r.RedirectURI) }},
-		{"wrong-audience", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.ResourceURI = "https://another.example.test/mcp" }},
-		{"wrong-policy-resource", func(p *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { p.ResourceURI = "http://mcp.example.test/mcp" }},
-		{"resource-query", func(p *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) { p.ResourceURI += "?x=1"; r.ResourceURI = p.ResourceURI; c.ResourceURI = p.ResourceURI }},
-		{"plain-pkce", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.CodeChallengeMethod = "plain" }},
-		{"missing-pkce", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.CodeChallenge = "" }},
-		{"missing-scopes", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.Scope = "" }},
-		{"duplicate-scopes", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.Scope = "courses:read courses:read" }},
-		{"wildcard-scope", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.Scope = "*" }},
-		{"client-scope-not-allowed", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, c *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.Scope = "courses:read"; c.AllowedScopes = []string{"tasks:read"} }},
-		{"role-policy-scope-not-allowed", func(p *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { p.AllowedStudentScopes = []string{"tasks:read"} }},
-		{"newline-scope", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.Scope = "courses:read\nlessons:read" }},
-		{"consent-scope-not-granted", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) { r.Scope = "tasks:read" }},
-		{"no-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) { c.Scopes = nil }},
-		{"revoked-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) { c.Revoked = true }},
-		{"expired-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, now *time.Time) { c.ExpiresAt = *now }},
-		{"other-student-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) { c.StudentID = "student-B" }},
-		{"other-client-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) { c.ClientID = "client-B" }},
-		{"other-resource-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) { c.ResourceURI = "https://other.example.test/mcp" }},
+		{"anonymous-subject", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, student *string, _ *time.Time) {
+			*student = ""
+		}},
+		{"response-type-token", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.ResponseType = "token"
+		}},
+		{"different-client", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.ClientID = "unregistered"
+		}},
+		{"redirect-prefix-attack", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.RedirectURI += ".evil.test"
+		}},
+		{"redirect-host-prefix-attack", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.RedirectURI = "https://client.example.test.evil.test/callback"
+		}},
+		{"redirect-fragment", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.RedirectURI += "#fragment"
+		}},
+		{"unregistered-loopback-port", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.RedirectURI = "http://127.0.0.1:4568/callback"
+		}},
+		{"unsafe-localhost", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, c *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.RedirectURI = "http://localhost:4567/callback"
+			c.RedirectURIs = append(c.RedirectURIs, r.RedirectURI)
+		}},
+		{"http-remote-redirect", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, c *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.RedirectURI = "http://client.example.test/callback"
+			c.RedirectURIs = append(c.RedirectURIs, r.RedirectURI)
+		}},
+		{"wrong-audience", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.ResourceURI = "https://another.example.test/mcp"
+		}},
+		{"wrong-policy-resource", func(p *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			p.ResourceURI = "http://mcp.example.test/mcp"
+		}},
+		{"resource-query", func(p *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) {
+			p.ResourceURI += "?x=1"
+			r.ResourceURI = p.ResourceURI
+			c.ResourceURI = p.ResourceURI
+		}},
+		{"plain-pkce", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.CodeChallengeMethod = "plain"
+		}},
+		{"missing-pkce", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.CodeChallenge = ""
+		}},
+		{"missing-scopes", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.Scope = ""
+		}},
+		{"duplicate-scopes", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.Scope = "courses:read courses:read"
+		}},
+		{"wildcard-scope", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.Scope = "*"
+		}},
+		{"client-scope-not-allowed", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, c *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.Scope = "courses:read"
+			c.AllowedScopes = []string{"tasks:read"}
+		}},
+		{"role-policy-scope-not-allowed", func(p *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			p.AllowedStudentScopes = []string{"tasks:read"}
+		}},
+		{"newline-scope", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.Scope = "courses:read\nlessons:read"
+		}},
+		{"consent-scope-not-granted", func(_ *MCPExternalPolicy, r *MCPExternalAuthorizationRequest, _ *MCPExternalClient, _ *MCPExternalConsent, _ *string, _ *time.Time) {
+			r.Scope = "tasks:read"
+		}},
+		{"no-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) {
+			c.Scopes = nil
+		}},
+		{"revoked-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) {
+			c.Revoked = true
+		}},
+		{"expired-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, now *time.Time) {
+			c.ExpiresAt = *now
+		}},
+		{"other-student-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) {
+			c.StudentID = "student-B"
+		}},
+		{"other-client-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) {
+			c.ClientID = "client-B"
+		}},
+		{"other-resource-consent", func(_ *MCPExternalPolicy, _ *MCPExternalAuthorizationRequest, _ *MCPExternalClient, c *MCPExternalConsent, _ *string, _ *time.Time) {
+			c.ResourceURI = "https://other.example.test/mcp"
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
