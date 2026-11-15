@@ -9,6 +9,7 @@ commands:
   - {name: verification-real-store, run: 'go test -tags=integration ./test/integration -run TestActualDirectVerification -count=1', requires_approval: false, risk: disposable-integration-test}
   - {name: verification-cleanup-observation, run: 'go test -tags=integration ./test/integration -run TestActualVerificationCleanup -count=1', requires_approval: false, risk: disposable-integration-test}
   - {name: migration-integration-test, run: task migration-integration-test, requires_approval: false, risk: disposable-integration-test}
+  - {name: mcp-code-postgres-integration, run: 'go test -race -count=1 -timeout=3m -run "^TestMCPExternalCodePostgres$" ./internal/infrastructure/persistence/postgres', requires_approval: false, risk: disposable-integration-test}
   - {name: lint, run: golangci-lint run ./..., requires_approval: false, risk: verification}
   - {name: run, run: go run ./cmd/ms-go-auth, requires_approval: true, risk: lifecycle}
   - {name: migrate-up, run: task migrate-up, requires_approval: true, risk: database-write}
