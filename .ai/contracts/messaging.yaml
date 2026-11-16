@@ -62,6 +62,55 @@ knowledge_graph_review_permission_decision:
   unsigned_bool_response: forbidden
   invalid_missing_or_replayed_signature: fail_closed
 
+mcp_student_role_readback_candidate:
+  status: dormant_not_wired
+  parent: https://github.com/bemulima/learning-platform-business/issues/53
+  rbac_dependency: https://github.com/bemulima/ms-go-rbac/pull/15
+  rpc_subject: rbac.checkMCPStudentRole
+  rpc_subject_registration: deferred
+  request: [proof]
+  request_max_bytes: 9216
+  algorithm: RS256
+  header: {alg: RS256, typ: JWT}
+  auth_key_pair: [AUTH_JWT_PRIVATE_KEY, AUTH_JWT_PUBLIC_KEY]
+  issuer: AUTH_JWT_ISSUER
+  audience: ms-go-rbac-mcp-student-role
+  type: mcp_student_role_check
+  purpose: AUTH_RBAC_MCP_STUDENT_ROLE_V1
+  role: student
+  claims: [iss, aud, sub, typ, purpose, role, jti, iat, exp]
+  identity_source: future_trusted_auth_student_account_grant_readback
+  subject_and_jti: lowercase_canonical_non_nil_uuid
+  proof_lifetime_seconds: 30
+  future_iat_skew_seconds: 5
+  missing_key: disabled
+  invalid_or_mismatched_key: fail_closed
+  unsigned_identity_or_access_token_fallback: forbidden
+  request_transport_timeout_seconds: 3
+  decision:
+    response: {envelope: [decision_jwt]}
+    algorithm: RS256
+    header: {alg: RS256, typ: JWT}
+    claims: [iss, aud, sub, typ, purpose, role, decision, jti, request_jti, request_digest, iat, exp]
+    issuer: ms-go-rbac
+    audience: ms-go-auth-mcp-student-role-decision
+    type: mcp_student_role_decision
+    purpose: RBAC_AUTH_MCP_STUDENT_ROLE_DECISION_V1
+    role: student
+    decision_values: [ALLOW, DENY]
+    request_binding: [request_jti, lowercase_sha256_of_exact_auth_proof]
+    rbac_private_key_config: RBAC_MCP_STUDENT_ROLE_DECISION_PRIVATE_KEY
+    auth_public_key_candidate_config: AUTH_RBAC_MCP_STUDENT_DECISION_PUBLIC_KEY
+    public_key_runtime_wiring: deferred
+    issued_lifetime_seconds: 15
+    max_lifetime_seconds: 30
+    future_iat_skew_seconds: 5
+    replay_guard: response_jti
+    unsigned_or_invalid_decision: fail_closed
+  scope_authority: none_role_only
+  rbac_student_scopes: not_populated
+  oauth_access_token_issuance: forbidden_until_future_composition
+
 access_session_verification:
   subject: auth.verifyJWT
   request_response_shape: unchanged
