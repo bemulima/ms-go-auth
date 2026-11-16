@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-// MCPExternalASMetadataConfig is a proposed, source-only authorization-server
-// discovery contract. Nothing invokes it from the Auth HTTP router. The caller
-// must not set PublicationApproved or mount discovery until the issuer, URLs,
-// scope vocabulary, client-registration policy, consent and token endpoint
-// implementation have passed the separate owner/runtime acceptance gate.
+// MCPExternalASMetadataConfig models the feature-gated authorization-server
+// discovery contract. Auth invokes it only when its separate browser gate is
+// explicitly enabled. Operators must not enable that gate until issuer URLs,
+// consent, token exchange and the complete browser vertical pass runtime
+// acceptance in an isolated environment.
 type MCPExternalASMetadataConfig struct {
 	PublicationApproved    bool
 	Issuer                 string

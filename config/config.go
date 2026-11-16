@@ -44,6 +44,10 @@ type Config struct {
 	RBACPermissionDecisionPublicKey string `env:"AUTH_RBAC_PERMISSION_DECISION_PUBLIC_KEY"`
 	// The external MCP issuer is opt-in and separate from frontend JWTs.
 	MCPStudentEnabled             bool          `env:"AUTH_MCP_STUDENT_ENABLED" envDefault:"false"`
+	// Browser OAuth discovery is a separate opt-in until the first-party consent
+	// UI and its exact Gateway entrypoints have been qualified end-to-end.
+	MCPBrowserEnabled             bool          `env:"AUTH_MCP_BROWSER_ENABLED" envDefault:"false"`
+	MCPConsentUIURI               string        `env:"AUTH_MCP_CONSENT_UI_URI"`
 	MCPIssuerURI                  string        `env:"AUTH_MCP_ISSUER_URI"`
 	MCPResourceURI                string        `env:"AUTH_MCP_RESOURCE_URI"`
 	MCPAccessTTL                  time.Duration `env:"AUTH_MCP_ACCESS_TTL" envDefault:"5m"`

@@ -31,11 +31,12 @@ type MCPExternalJWTSigner interface {
 }
 
 type MCPExternalOAuthHandler struct {
-	Codes    MCPExternalCodeIssuer
-	Tokens   MCPExternalAccessTokenIssuer
-	Signer   MCPExternalJWTSigner
-	Revoker  domain.MCPExternalConsentRevoker
-	Resource string
+	Codes        MCPExternalCodeIssuer
+	Tokens       MCPExternalAccessTokenIssuer
+	Signer       MCPExternalJWTSigner
+	Revoker      domain.MCPExternalConsentRevoker
+	Resource     string
+	ConsentUIURI string
 }
 
 // RevokeConsent is a Student-owned disconnect operation. It invalidates every

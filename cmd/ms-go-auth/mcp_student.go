@@ -74,10 +74,34 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 		Revoker: repo.NewMCPExternalConsentRevoker(db), Resource: cfg.MCPResourceURI,
 	}
 	group := e.Group(cfg.HTTPBasePath + "/auth/mcp")
+	if cfg.MCPBrowserEnabled {
+		if cfg.HTTPBasePath != "/api/v1" {
+			return errors.New("MCP browser issuer requires canonical Gateway Auth path")
+		}
+		handler.ConsentUIURI = cfg.MCPConsentUIURI
+		if err := handler.ValidateBrowserUI(); err != nil {
+			return err
+		}
+		metadata, discoveryPath, err := usecase.BuildMCPExternalASMetadata(usecase.MCPExternalASMetadataConfig{
+			PublicationApproved:    true,
+			Issuer:                 cfg.MCPIssuerURI,
+			AuthorizationEndpoint:  cfg.MCPIssuerURI + "/api/auth/v1/auth/mcp/authorize",
+			TokenEndpoint:          cfg.MCPIssuerURI + "/api/auth/v1/auth/mcp/token",
+			SupportedStudentScopes: []string{"courses:read"},
+		})
+		if err != nil || discoveryPath != "/.well-known/oauth-authorization-server" {
+			return errors.New("MCP authorization-server discovery prerequisites unavailable")
+		}
+		group.GET("/authorize", handler.StartBrowserAuthorization)
+		e.GET(discoveryPath, func(c echo.Context) error {
+			c.Response().Header().Set("Cache-Control", "no-store")
+			return c.JSON(200, metadata)
+		})
+	}
 	group.POST("/authorization/complete", handler.CompleteAuthorization, studentAuth)
 	group.POST("/token", handler.ExchangeToken)
 	group.POST("/consent/revoke", handler.RevokeConsent, studentAuth)
-	// Browser GET authorization and discovery are deliberately absent until the
-	// first-party consent screen can safely authenticate the Student session.
+	// Browser GET and metadata remain disabled unless explicitly configured;
+	// all codes and OAuth access still require Auth-owned consent and fresh RBAC.
 	return nil
 }
