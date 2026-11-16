@@ -8,6 +8,17 @@ protected:
   DELETE: ['/identities/:provider/:provider_user_id']
 internal: [{method: GET, path: /internal/health}]
 
+mentor_authority_source_only:
+  owner_contract: AUTH_MENTOR_HTTP_AUTHORITY_V1
+  documentation: .ai/contracts/mentor-http-authority-v1.md
+  registered: false
+  method: POST
+  paths: [/internal/v1/mentor/session/verify, /internal/v1/mentor/admin-session/verify, /internal/v1/mentor/role-decisions]
+  transport: direct_authenticated_https
+  session_authority: concrete_strict_current_auth_session_with_mandatory_owner_store
+  admin_authority: authenticated_canonical_default_admin_then_same_session_revalidation
+  production_composition: false
+
 signup_recovery_storage:
   owner: ms-go-auth
   protocol: direct_authenticated_tarantool_call
