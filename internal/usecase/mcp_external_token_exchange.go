@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"sort"
 	"strings"
 	"time"
 
@@ -56,10 +57,9 @@ type MCPExternalAccessTokenIntent struct {
 	JWTID     string `json:"jti"`
 }
 
-// MCPExternalTokenExchangeUsecase is deliberately not instantiated at startup
-// or mounted on any Auth HTTP route. The sole Prepare entrypoint consumes a
-// one-use code before obtaining a FRESH trusted grant+RBAC readback. There is
-// no standalone intent builder accepting a forged/unused code receipt.
+// MCPExternalTokenExchangeUsecase is mounted only under Auth's explicit MCP
+// opt-in. Prepare consumes a one-use code before a FRESH trusted grant+RBAC
+// readback. It cannot accept a forged/unused code receipt.
 type MCPExternalTokenExchangeUsecase struct {
 	Codes  domain.MCPExternalCodeRepository
 	Grants domain.MCPExternalTokenGrantReadback
@@ -115,6 +115,8 @@ func (u MCPExternalTokenExchangeUsecase) Prepare(
 			return nil, ErrMCPExternalDenied
 		}
 	}
+	signedScopes := append([]string(nil), receipt.Scopes...)
+	sort.Strings(signedScopes)
 
 	expiry := now.Add(u.Policy.AccessTTL)
 	if status.ConsentExpiresAt.Before(expiry) {
@@ -133,7 +135,7 @@ func (u MCPExternalTokenExchangeUsecase) Prepare(
 		Audience:  u.Policy.ResourceURI,
 		ClientID:  receipt.ClientID,
 		GrantID:   receipt.ConsentID,
-		Scope:     strings.Join(receipt.Scopes, " "),
+		Scope:     strings.Join(signedScopes, " "),
 		IssuedAt:  now.UTC().Unix(),
 		ExpiresAt: expiry.UTC().Unix(),
 		JWTID:     base64.RawURLEncoding.EncodeToString(entropy[:]),

@@ -138,6 +138,11 @@ func New(ctx context.Context) (*App, error) {
 
 	e := echo.New()
 	router.Setup(e)
+	if cfg.MCPStudentEnabled {
+		if err := enableMCPStudentAccess(e, cfg, db, nc, authMW.Handler); err != nil {
+			return nil, err
+		}
+	}
 
 	initialized = true
 	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e, verificationStore: verificationStore}, nil

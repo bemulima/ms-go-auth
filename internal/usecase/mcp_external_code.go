@@ -14,9 +14,9 @@ import (
 
 const maxMCPExternalCodeTTL = 5 * time.Minute
 
-// MCPExternalCodeUsecase is dormant until HTTP authentication, CSRF, signed
-// Student RBAC readback, and registered-client resolution are wired by Auth.
-// No token signer, HTTP handler or permission bypass is provided here.
+// MCPExternalCodeUsecase persists one-use PKCE codes. The separate Auth-owned
+// completion and token handlers must provide verified identity, registered
+// client/consent state and fresh RBAC scope decisions before using it.
 type MCPExternalCodeUsecase struct {
 	Codes domain.MCPExternalCodeRepository
 	TTL   time.Duration
