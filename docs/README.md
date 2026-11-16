@@ -20,3 +20,5 @@ This repository owns auth architecture and its HTTP, NATS, and database contract
 - [MCP-00C3C: Auth-owned PostgreSQL grant readback](mcp00-external-auth-grant-readback-source.md) — source-only persisted account/client/consent status and exact scopes, checked in disposable PostgreSQL; signed RBAC composition remains unimplemented.
 - [MCP-00C3D2: Auth-signed RBAC Student role request/readback](mcp00-external-rbac-role-readback-source.md) — source-only signed proof and strict signed role decision verification; no scopes, token issuance or service wiring.
 - [MCP-00C3D4B: Auth-signed RBAC Student scopes request/readback](mcp00-external-rbac-scopes-readback-source.md) — dormant exact read-only proof and signed subset verifier; grant composition and runtime remain disabled.
+
+- [MCP-53 Student browser OAuth read scopes](mcp53-browser-authorize-source.md) — V0 issuer extended to the three existing, independently consented and RBAC-signed Student read scopes. Write scopes remain denied; source tests NOT_RUN for this extension.

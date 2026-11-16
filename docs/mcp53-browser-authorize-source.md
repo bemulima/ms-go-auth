@@ -13,7 +13,8 @@ completion, token exchange, consent readback and revocation APIs.
 - Auth now conditionally serves RFC 8414 metadata at
   `GET /.well-known/oauth-authorization-server`, advertising only
   `authorization_code`, PKCE `S256`, `none` token client auth and the registered
-  `courses:read` scope. It advertises neither refresh nor dynamic registration.
+  `courses:read`, `profile:read`, `tasks:read` read scopes (MCP-01 pilot).
+  It advertises neither write scope, refresh nor dynamic registration.
 - The metadata points to the canonical public Gateway
   `GET /api/auth/v1/auth/mcp/authorize` and existing
   `POST /api/auth/v1/auth/mcp/token`. A non-canonical issuer path or non-default
@@ -33,3 +34,14 @@ OAuth client and existing Student consent. Client ID Metadata Documents,
 dynamic registration, creation of new consent, refresh-token rotation,
 automated unauthenticated sign-in restoration, external client live proof,
 runtime Gherkin and deployment are **outside this source checkpoint**.
+
+MCP-01 source extension: the authorization-server platform ceiling now includes
+the other two **already signed by RBAC** read scopes. These are never granted
+by default. The client registry, the exact Student consent snapshot and the
+fresh RBAC Student role + per-scope permission must independently allow a
+scope before Auth can issue a token containing it. Existing V0 consent for
+`courses:read` remains just that scope. Runtime and Practice Catalog may use
+`tasks:read` for qualified, subject-scoped read projections only. All MCP-02
+write scopes and MCP-03 Calendar/Teacher scopes stay **DENIED**, until their
+separate owner, consent, permission and API contracts are implemented. This
+extension's unit/real-service/Gherkin checks are **NOT_RUN** here.
