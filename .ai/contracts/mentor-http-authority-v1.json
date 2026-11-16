@@ -2,7 +2,7 @@
   "contract": "AUTH_MENTOR_HTTP_AUTHORITY_V1",
   "owner": "ms-go-auth",
   "consumer": "ms-go-mentor",
-  "status": "source_only_unmounted",
+  "status": "source_wiring_default_off_runtime_not_run",
   "transport": "direct_authenticated_https",
   "method": "POST",
   "authorization": "one Authorization Bearer header; current access token only",
@@ -28,5 +28,10 @@
   "issuance_authority": "existing AUTH_RBAC_MENTOR_ROLE_DECISION_V1 issuer with the same strict session verifier and authenticated owner confirmations",
   "forbidden_authority": ["caller actor or role headers", "access token role claim", "legacy stateless tokens", "refresh tokens", "unsigned owner replies", "stored Admin ID", "cached ALLOW"],
   "client_obligations": ["fixed trusted HTTPS origin", "certificate and hostname verification", "no redirects", "no credential forwarding through proxies", "bounded body and deadline", "no automatic retry", "independent proof signature and exact command binding verification"],
-  "runtime_registration": false
+  "runtime_registration": false,
+  "runtime_registration_semantics": "default; explicit AUTH_MENTOR_ENABLED opt-in mounts only dedicated HTTPS, never plaintext Echo",
+  "runtime_configuration": "docs/mentor-runtime.md",
+  "runtime_startup_migrations": "enabled Mentor startup requires AUTH_DB_MIGRATE_ON_START=false",
+  "runtime_https": {"minimum_tls": "1.2", "protocol": "http/1.1", "read_header_seconds": 3, "read_seconds": 5, "write_seconds": 10, "idle_seconds": 30, "shutdown_seconds": 5, "maximum_header_bytes": 16384},
+  "runtime_owner_requester": "separate mandatory authenticated verified-TLS NATS connection; bounded credentials snapshot; no anonymous/plaintext/reconnect/fallback"
 }

@@ -3,8 +3,10 @@
 The canonical Auth-owned wire contract is
 [AUTH_RBAC_MENTOR_ROLE_DECISION_V1](../.ai/contracts/mentor-role-decision-v1.md),
 with its [machine-readable companion](../.ai/contracts/mentor-role-decision-v1.json).
-This additive issuer is **not mounted** in HTTP, NATS, the Auth composition root,
-or a background recovery worker. It neither assigns a role nor activates Mentor
+This additive issuer is **disabled by default**; the explicit
+[runtime wrapper](mentor-runtime.md) composes its existing strict HTTP authority
+only on a dedicated HTTPS listener. It has no background recovery worker and
+neither assigns a role nor activates Mentor
 private access. Existing signup, OAuth/MCP, reviewer and JWT role-claim paths are
 unchanged.
 
@@ -46,13 +48,13 @@ the concrete strict current-session verifier. At that boundary, typed session
 unauthenticated and unavailable outcomes produce 401 and 503 respectively;
 unknown errors from older session-port implementations retain denial semantics.
 Shared login/refresh, `authService.VerifyToken`, JWT parsing and configuration are
-unchanged. The source handler remains unmounted.
+unchanged. The handler remains off the legacy plaintext router.
 
 The source ports describe trust obligations; they do not manufacture trust.
 The dedicated authenticated source client and owner providers now follow
 [AUTH_MENTOR_OWNER_LOOKUPS_V1](../.ai/contracts/mentor-owner-lookups-v1.md).
 They authenticate both directions and bind fresh responses to the exact lookup,
-but are not mounted in a runtime. A boolean from an unsigned response, a cached
+and now have default-off executable wiring. A boolean from an unsigned response, a cached
 actor ID, or an arbitrary implementation of the interfaces must never be wired
 as authority. Key distribution, broker ACLs, live owner verification and runtime
 wiring remain separate owner work.

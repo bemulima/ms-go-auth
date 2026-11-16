@@ -4,12 +4,14 @@ ms-go-auth owns credentials, OAuth login identities, OAuth transactions, JWT iss
 
 `internal/domain` owns auth models and ports. `internal/usecase` depends only on those ports for persistence, verification policy, NATS RPC, and OAuth. Inbound HTTP code is in `internal/transport/http/api/v1` and `internal/transport/http/private`; outbound implementations are in `internal/infrastructure`. `cmd/ms-go-auth` wires all dependencies and owns process lifecycle. Neither domain nor usecase imports transport, infrastructure, or GORM.
 
-The additive [Mentor HTTP authority](mentor-http-authority.md) is a source-only,
-unmounted private handler. Its concrete usecase requires Auth's actual token
+The additive [Mentor HTTP authority](mentor-http-authority.md) is disabled by
+default. Its concrete usecase requires Auth's actual token
 parser and mandatory owner session reader, then authenticated owner confirmations
 for Admin verification/role issuance. A narrow PostgreSQL bridge normalizes known
-session absence without exposing GORM to the usecase. Existing routers and
-composition remain unchanged.
+session absence without exposing GORM to the usecase. Existing plaintext routes
+remain unchanged. The explicit [runtime wrapper](mentor-runtime.md) uses a
+dedicated HTTPS listener and a separate authenticated TLS NATS requester,
+preserving default-off behavior.
 
 Google and GitHub OAuth Authorization Code flows are implemented with one-time state and PKCE. This supersedes the former wiki statement that OAuth was only a stub. OAuth creates accounts without an initial password only from trusted verified provider profiles. Existing linked identities sign in by provider/subject. An unlinked identity matching an existing email is rejected with explicit identity linking required; it is never silently linked by email.
 

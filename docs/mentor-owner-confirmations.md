@@ -7,8 +7,10 @@ RBAC and Mentor own their respective signed response contracts and repositories.
 
 `NewMentorOwnerConfirmationClient` is an additive outbound NATS adapter for the
 existing `domain.CanonicalAdminVerifier` and
-`domain.MentorCommittedIntentVerifier` ports. It is **not mounted** in Auth's
-composition root or any HTTP/NATS subscription. Construction does not connect to
+`domain.MentorCommittedIntentVerifier` ports. Explicit default-off
+[runtime wiring](mentor-runtime.md) now composes it with a separate authenticated
+TLS NATS requester, never the legacy global connection. It does not register an
+inbound subscription. Construction of this client alone does not connect to
 a broker, install keys, change a role or alter an application.
 
 ## Trust and keys

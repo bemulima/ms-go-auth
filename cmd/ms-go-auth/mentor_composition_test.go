@@ -265,7 +265,8 @@ func TestMentorCompositionRejectsIncompleteAndSharedAuthority(t *testing.T) {
 		{"missing database", func(_ *MentorCompositionConfig, d *MentorCompositionDependencies) { d.DB = nil }},
 		{"incomplete database", func(_ *MentorCompositionConfig, d *MentorCompositionDependencies) { d.DB = &gorm.DB{} }},
 		{"typed nil database pool", func(_ *MentorCompositionConfig, d *MentorCompositionDependencies) {
-			copyDB, copyConfig, copyStatement := *d.DB, *d.DB.Config, *d.DB.Statement
+			copyDB, copyConfig := *d.DB, *d.DB.Config
+			copyStatement := gorm.Statement{DB: &copyDB}
 			copyConfig.ConnPool, copyStatement.ConnPool = (*sql.DB)(nil), (*sql.DB)(nil)
 			copyDB.Config, copyDB.Statement = &copyConfig, &copyStatement
 			d.DB = &copyDB

@@ -23,8 +23,8 @@ type MentorCompositionKeyPair struct {
 	PublicPEM  string
 }
 
-// MentorCompositionConfig is deliberately separate from runtime Config. Its
-// zero value is disabled; no existing environment variable enables this cut.
+// MentorCompositionConfig remains a pure constructor input. Its zero value is
+// disabled; the explicit runtime opt-in maps validated configuration into it.
 type MentorCompositionConfig struct {
 	Enabled              bool
 	RoleDecision         MentorCompositionKeyPair

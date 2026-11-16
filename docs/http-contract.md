@@ -2,14 +2,16 @@
 
 The base path defaults to /api/v1. Auth routes are listed in .ai/contracts/http.yaml and internal/transport/http/api/v1/router.go. Protected routes use JWT middleware. /internal/health is GET.
 
-## Unmounted Mentor authority
+## Default-off Mentor authority
 
 [AUTH_MENTOR_HTTP_AUTHORITY_V1](../.ai/contracts/mentor-http-authority-v1.md)
-defines a separate strict direct-HTTPS source provider for live user/Admin
-verification and exact role-decision issuance. Its standalone handler is **not
-registered** in the existing private/public router or composition root.
+defines a separate strict direct-HTTPS provider for live user/Admin verification
+and exact role-decision issuance. It is never registered in the existing
+plaintext private/public Echo router. Explicit validated `AUTH_MENTOR_ENABLED`
+now composes and serves it on a dedicated HTTPS listener; default is disabled.
 Construction and runtime prerequisites are described in
-[Mentor HTTP authority](mentor-http-authority.md). Existing `/auth/verify`, NATS,
+[Mentor HTTP authority](mentor-http-authority.md) and
+[runtime wiring](mentor-runtime.md). Existing `/auth/verify`, NATS,
 login/refresh, reviewer, OAuth and MCP paths are unchanged.
 
 ## Existing reviewer authority

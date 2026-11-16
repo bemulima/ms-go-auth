@@ -1,11 +1,13 @@
-# Mentor HTTP authority (source only)
+# Mentor HTTP authority (default off)
 
 The canonical wire contract is
 [AUTH_MENTOR_HTTP_AUTHORITY_V1](../.ai/contracts/mentor-http-authority-v1.md), with
 its [machine companion](../.ai/contracts/mentor-http-authority-v1.json). This
-additive handler is **unmounted**: no existing route, listener, configuration,
-JWT parser, broker subscription, login/refresh behavior or composition root is
-changed. It does not assign roles or activate Mentor private access.
+additive handler is **disabled by default**. Its wire behavior, JWT parser,
+broker subjects and login/refresh behavior are unchanged. An explicit
+[runtime opt-in](mentor-runtime.md) now composes this handler on a dedicated
+HTTPS listener; it is never installed in plaintext Echo. Source construction
+alone does not assign roles or activate Mentor private access.
 
 ## Concrete source construction
 
@@ -82,7 +84,8 @@ runtime acceptance. No raw bearer, proof or private key should be output.
 The three-second bound is an operation-context deadline, preserving an earlier
 caller deadline. It cannot interrupt a stalled `io.Reader` by itself. Before
 mounting, the real listener must enforce bounded header/body read and response
-write deadlines as well as TLS identity and origin trust. Runtime composition,
-listener configuration, actual session/SQL integration, key custody, owner
+write deadlines as well as TLS identity and origin trust. The default-off
+[executable wrapper](mentor-runtime.md) configures those deadlines and the
+actual composition. Live listener acceptance, actual session/SQL integration, key custody, owner
 transport authentication/ACLs, deployment and executable Gherkin remain separate
 acceptance gates. No production service startup or migration is part of this cut.

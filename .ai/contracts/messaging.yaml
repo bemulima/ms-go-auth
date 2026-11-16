@@ -4,6 +4,14 @@ core_nats_rpc:
   consumes: [{subject: auth.verifyJWT, queue: auth-service}]
   produces: [user.create-user, rbac.assign-role, rbac.checkRole, rbac.checkPermission]
 delivery_note: Signup profile and role calls are synchronous required acknowledgements; OAuth coordination returns failures.
+mentor_owner_lookups_opt_in:
+  enabled_by_default: false
+  enable_config: AUTH_MENTOR_ENABLED
+  produces: [rbac.checkMentorCanonicalAdmin.v1, mentor.confirmCommittedRoleIntent.v1]
+  requester: dedicated_authenticated_verified_tls_nats_not_legacy_connection
+  reconnect_or_fallback: forbidden
+  wire_contract: AUTH_MENTOR_OWNER_LOOKUPS_V1
+  runtime_documentation: docs/mentor-runtime.md
 signup_role_proof:
   application_contract: AUTH_RBAC_STUDENT_PROVISIONING_V1
   envelope: [key_id, payload, signature]

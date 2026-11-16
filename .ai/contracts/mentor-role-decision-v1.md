@@ -3,8 +3,9 @@
 Owner: Auth (assertion producer). Consumer: RBAC (signature admission and role
 mutation owner). Business lifecycle owner: Mentor. Parent: bemulima/learning-platform-business#27.
 
-Status: source-only additive contract. No HTTP route, NATS subscription,
-runtime key, database migration or role mutation is activated by this cut.
+Status: additive contract with default-off Auth HTTPS wiring. No HTTP route,
+NATS subscription, runtime key, database migration or role mutation is activated
+merely by this source change.
 Existing signup, reviewer, OAuth/MCP, JWT role claim and default Student flows
 are unchanged. This document is canonical for the assertion; RBAC owns its
 separate atomic application/receipt/fence contract.
@@ -19,7 +20,7 @@ Student-only default-role RPC, and a stored AdminID are not authority.
 
 After both owner confirmations, Auth must revalidate the same current bearer,
 actor and sid before signing, without renewing authority from a stored actor ID.
-The additive unmounted [AUTH_MENTOR_HTTP_AUTHORITY_V1](mentor-http-authority-v1.md)
+The default-off [AUTH_MENTOR_HTTP_AUTHORITY_V1](mentor-http-authority-v1.md)
 requires the concrete strict current-session boundary. Its typed unauthenticated
 and unavailable outcomes remain distinct; unknown legacy session-port errors
 retain their previous denial semantics. The signed proof's clock and
@@ -32,9 +33,9 @@ intent. Unknown,
 foreign, stale, unavailable or mismatched confirmations produce no assertion.
 The source issuer uses explicit mandatory owner ports. Dedicated signed
 request/reply source adapters are specified by
-[AUTH_MENTOR_OWNER_LOOKUPS_V1](mentor-owner-lookups-v1.md). They remain unmounted;
-trusted key distribution, broker ACLs and runtime composition must be verified
-before this issuer is wired into a production route.
+[AUTH_MENTOR_OWNER_LOOKUPS_V1](mentor-owner-lookups-v1.md). Explicit enabled
+composition uses only the separately authenticated TLS requester; trusted key
+distribution, broker ACLs and actual owner runtime acceptance remain mandatory.
 
 No bearer or refresh token is persisted. The caller supplies a fresh live Admin
 session when a new assertion is needed. Expired assertion/session does not grant

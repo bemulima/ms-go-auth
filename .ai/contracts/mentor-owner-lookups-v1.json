@@ -1,7 +1,8 @@
 {
   "contract": "AUTH_MENTOR_OWNER_LOOKUPS_V1",
   "owner": "ms-go-auth",
-  "status": "source_only_unmounted",
+  "status": "source_wiring_default_off_runtime_not_run",
+  "runtime_requester": "AUTH_MENTOR_ENABLED; separate authenticated verified-TLS NATS only; no legacy connection reuse",
   "algorithm": "RS256",
   "minimum_rsa_bits": 2048,
   "header": {"alg": "RS256", "typ": "JWT"},

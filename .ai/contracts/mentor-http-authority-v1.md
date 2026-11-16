@@ -1,10 +1,15 @@
 # AUTH_MENTOR_HTTP_AUTHORITY_V1
 
 Auth owns this additive direct HTTPS boundary; Mentor is its consumer. Parent:
-bemulima/learning-platform-business#27, MENT-01A. Status: **source-only and
-unmounted**. It neither changes the existing `/auth/verify`/`auth.verifyJWT`
-contracts nor mounts a route, starts a service, installs keys, applies SQL or
-grants a role. The machine companion is `mentor-http-authority-v1.json`.
+bemulima/learning-platform-business#27, MENT-01A. Status: **default-off executable
+wiring; runtime not run**. The wire operations below and existing
+`/auth/verify`/`auth.verifyJWT` contracts are unchanged. Only explicit validated
+`AUTH_MENTOR_ENABLED=true` mounts these operations on a dedicated HTTPS server,
+never plaintext Echo. With the default false, no Mentor key/file read, new
+connection or route is introduced. This source change does not activate a
+runtime, install keys, apply SQL or grant a role. The machine companion is
+`mentor-http-authority-v1.json`; runtime gates are in
+[Mentor runtime](../../docs/mentor-runtime.md).
 
 ## Exact operations
 
@@ -63,8 +68,10 @@ every dependency boundary and before a success response.
 This is an operation-context limit, not a hard wall-clock deadline for a stalled
 request-body read. Runtime mounting additionally requires bounded listener
 header/body read and response-write deadlines; the handler does not configure a
-listener or install those deadlines. A deployment must satisfy that gate before
-exposing these routes.
+listener or install those deadlines. The default-off executable wrapper now
+sets bounded HTTPS header/read/write/idle/shutdown deadlines and uses the actual
+Auth composition. Live TLS, key custody and deployment acceptance still remain
+separate gates before exposing these routes.
 
 ## Current-session authority
 

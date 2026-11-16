@@ -21,6 +21,20 @@ type Config struct {
 	HTTPPort         string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
 	HTTPBasePath     string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
 
+	MentorEnabled              bool   `env:"AUTH_MENTOR_ENABLED" envDefault:"false"`
+	MentorHTTPSAddress         string `env:"AUTH_MENTOR_HTTPS_ADDR"`
+	MentorTLSCertFile          string `env:"AUTH_MENTOR_TLS_CERT_FILE"`
+	MentorTLSKeyFile           string `env:"AUTH_MENTOR_TLS_KEY_FILE"`
+	MentorRolePrivateKey       string `env:"AUTH_MENTOR_ROLE_DECISION_PRIVATE_KEY"`
+	MentorRolePublicKey        string `env:"AUTH_MENTOR_ROLE_DECISION_PUBLIC_KEY"`
+	MentorLookupPrivateKey     string `env:"AUTH_MENTOR_OWNER_LOOKUP_PRIVATE_KEY"`
+	MentorLookupPublicKey      string `env:"AUTH_MENTOR_OWNER_LOOKUP_PUBLIC_KEY"`
+	MentorRBACReplyPublicKey   string `env:"AUTH_MENTOR_RBAC_REPLY_PUBLIC_KEY"`
+	MentorIntentReplyPublicKey string `env:"AUTH_MENTOR_INTENT_REPLY_PUBLIC_KEY"`
+	MentorNATSURL              string `env:"AUTH_MENTOR_NATS_URL"`
+	MentorNATSCredentialsFile  string `env:"AUTH_MENTOR_NATS_CREDENTIALS_FILE"`
+	MentorNATSCAFile           string `env:"AUTH_MENTOR_NATS_CA_FILE"`
+
 	DBHost     string `env:"AUTH_DB_HOST" envDefault:"localhost"`
 	DBPort     string `env:"AUTH_DB_PORT" envDefault:"5432"`
 	DBUser     string `env:"AUTH_DB_USER" envDefault:"app"`

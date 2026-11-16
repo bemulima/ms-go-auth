@@ -1,6 +1,6 @@
 # AUTH_MENTOR_OWNER_LOOKUPS_V1
 
-Status: source-only, unmounted. Parent: bemulima/learning-platform-business#27,
+Status: default-off Auth requester wiring; runtime not run. Parent: bemulima/learning-platform-business#27,
 MENT-01A. Auth owns the requests and its response acceptance below. RBAC and
 Mentor own their respective signed response contracts and repository lookups.
 No existing subject, proof purpose, key configuration or role mutation changes.
@@ -106,8 +106,12 @@ request/reply call to three seconds, preserving shorter caller deadlines and
 checking cancellation before returning. Missing/unsigned/malformed replies,
 wrong keys, purpose/scope swaps and owner errors all return unavailable.
 
-Source adapters are not subscriptions or runtime configuration. Mounting them
-requires separately reviewed key custody/distribution, broker ACLs and service
-wiring. Tests may exercise real signing, handlers, clients and owner usecases
+These outbound adapters do not register provider subscriptions. Auth's explicit
+Mentor opt-in now composes them with a separate authenticated, verified-TLS NATS
+requester: one configured endpoint, frozen credential snapshot, broker
+`AuthRequired`, verified TLS chain and no reconnect/fallback. The global legacy
+requester is not reused. See [runtime gates](../../docs/mentor-runtime.md).
+Actual key custody/distribution, broker ACLs and owner provider deployment still
+require runtime acceptance. Tests may exercise real signing, handlers, clients and owner usecases
 with controlled repository/transport fixtures. They must not be labelled live
 owner, SQL, Gherkin or complete MENT-01A acceptance.
