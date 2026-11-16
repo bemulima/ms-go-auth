@@ -26,7 +26,7 @@ const (
 )
 
 type mcpStudentRoleReplyRequester struct {
-	reply       []byte
+	reply      []byte
 	request    []byte
 	subject    string
 	calls      int
@@ -88,25 +88,27 @@ func TestMCPStudentRoleClientRejectsWrongSignedDecisionBindingsAndAuthority(t *t
 	otherKey, _ := reviewerDecisionTestKey(t)
 	now := time.Unix(1_800_000_000, 0).UTC()
 	mutators := map[string]func(map[string]any){
-		"wrong issuer":             func(m map[string]any) { m["iss"] = "auth-service" },
-		"wrong audience":           func(m map[string]any) { m["aud"] = "ms-go-auth-knowledge-review-permission-decision" },
-		"wrong type":               func(m map[string]any) { m["typ"] = "knowledge_graph_permission_decision" },
-		"wrong purpose":            func(m map[string]any) { m["purpose"] = "RBAC_AUTH_KNOWLEDGE_GRAPH_REVIEW_DECISION_V1" },
-		"wrong role":               func(m map[string]any) { m["role"] = "admin" },
-		"wrong decision":           func(m map[string]any) { m["decision"] = "ALLOW_ALL" },
-		"wrong subject":            func(m map[string]any) { m["sub"] = "00000000-0000-4000-8000-000000000924" },
-		"noncanonical subject":     func(m map[string]any) { m["sub"] = strings.ToUpper(mcpDecisionTestStudent) },
-		"zero response JTI":       func(m map[string]any) { m["jti"] = "00000000-0000-0000-0000-000000000000" },
-		"bad request JTI":         func(m map[string]any) { m["request_jti"] = "00000000-0000-4000-8000-000000000924" },
-		"bad request digest":      func(m map[string]any) { m["request_digest"] = strings.Repeat("0", 64) },
-		"uppercase digest":        func(m map[string]any) { m["request_digest"] = strings.ToUpper(fmt.Sprintf("%x", sha256.Sum256([]byte(mcpDecisionTestProof)))) },
-		"expired decision":        func(m map[string]any) { m["exp"] = now.Unix() },
-		"future issued":           func(m map[string]any) { m["iat"] = now.Unix() + domain.MCPStudentRoleDecisionFutureSkewSecs + 1 },
-		"overlong lifetime":       func(m map[string]any) { m["exp"] = now.Unix() + domain.MCPStudentRoleDecisionMaxAgeSeconds + 1 },
-		"invalid time type":       func(m map[string]any) { m["iat"] = "now" },
-		"additional scope":        func(m map[string]any) { m["scope"] = "tasks:write" },
-		"missing role":            func(m map[string]any) { delete(m, "role") },
-		"null decision":           func(m map[string]any) { m["decision"] = nil },
+		"wrong issuer":         func(m map[string]any) { m["iss"] = "auth-service" },
+		"wrong audience":       func(m map[string]any) { m["aud"] = "ms-go-auth-knowledge-review-permission-decision" },
+		"wrong type":           func(m map[string]any) { m["typ"] = "knowledge_graph_permission_decision" },
+		"wrong purpose":        func(m map[string]any) { m["purpose"] = "RBAC_AUTH_KNOWLEDGE_GRAPH_REVIEW_DECISION_V1" },
+		"wrong role":           func(m map[string]any) { m["role"] = "admin" },
+		"wrong decision":       func(m map[string]any) { m["decision"] = "ALLOW_ALL" },
+		"wrong subject":        func(m map[string]any) { m["sub"] = "00000000-0000-4000-8000-000000000924" },
+		"noncanonical subject": func(m map[string]any) { m["sub"] = strings.ToUpper(mcpDecisionTestStudent) },
+		"zero response JTI":    func(m map[string]any) { m["jti"] = "00000000-0000-0000-0000-000000000000" },
+		"bad request JTI":      func(m map[string]any) { m["request_jti"] = "00000000-0000-4000-8000-000000000924" },
+		"bad request digest":   func(m map[string]any) { m["request_digest"] = strings.Repeat("0", 64) },
+		"uppercase digest": func(m map[string]any) {
+			m["request_digest"] = strings.ToUpper(fmt.Sprintf("%x", sha256.Sum256([]byte(mcpDecisionTestProof))))
+		},
+		"expired decision":  func(m map[string]any) { m["exp"] = now.Unix() },
+		"future issued":     func(m map[string]any) { m["iat"] = now.Unix() + domain.MCPStudentRoleDecisionFutureSkewSecs + 1 },
+		"overlong lifetime": func(m map[string]any) { m["exp"] = now.Unix() + domain.MCPStudentRoleDecisionMaxAgeSeconds + 1 },
+		"invalid time type": func(m map[string]any) { m["iat"] = "now" },
+		"additional scope":  func(m map[string]any) { m["scope"] = "tasks:write" },
+		"missing role":      func(m map[string]any) { delete(m, "role") },
+		"null decision":     func(m map[string]any) { m["decision"] = nil },
 	}
 	for name, mutate := range mutators {
 		t.Run(name, func(t *testing.T) {
@@ -157,7 +159,7 @@ func TestMCPStudentRoleDecisionRejectsMalformedJWTAndResponseJSON(t *testing.T) 
 		t.Fatal(err)
 	}
 	for name, payload := range map[string]string{
-		"extra signed JWT claim":   strings.TrimSuffix(string(claimsBytes), "}") + `,"scope":"tasks:write"}`,
+		"extra signed JWT claim":     strings.TrimSuffix(string(claimsBytes), "}") + `,"scope":"tasks:write"}`,
 		"duplicate signed JWT claim": strings.TrimSuffix(string(claimsBytes), "}") + `,"role":"student"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -196,8 +198,8 @@ func TestMCPStudentRoleClientRejectsReplayMissingKeysOversizeAndOutage(t *testin
 		t.Fatalf("nil NATS connection accepted: %v, %v", allowed, err)
 	}
 	for name, candidate := range map[string]*mcpStudentRoleClient{
-		"no configured verifier": {conn: requester},
-		"no requester":           {decisionVerifier: client.decisionVerifier},
+		"no configured verifier":  {conn: requester},
+		"no requester":            {decisionVerifier: client.decisionVerifier},
 		"invalid verifier config": {conn: requester, decisionVerifierErr: errors.New("invalid key")},
 	} {
 		t.Run(name, func(t *testing.T) {

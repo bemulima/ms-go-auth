@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	mcpStudentRoleSubject           = "rbac.checkMCPStudentRole"
-	maxMCPStudentRoleRequestBytes  = 9 << 10
-	mcpStudentRoleRequestTimeout   = 3 * time.Second
+	mcpStudentRoleSubject         = "rbac.checkMCPStudentRole"
+	maxMCPStudentRoleRequestBytes = 9 << 10
+	mcpStudentRoleRequestTimeout  = 3 * time.Second
 )
 
 // mcpStudentRoleClient is source-only: neither bootstrap nor token exchange
