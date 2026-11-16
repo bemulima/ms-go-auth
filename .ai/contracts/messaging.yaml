@@ -111,6 +111,59 @@ mcp_student_role_readback_candidate:
   rbac_student_scopes: not_populated
   oauth_access_token_issuance: forbidden_until_future_composition
 
+mcp_student_scope_readback_candidate:
+  status: dormant_not_wired
+  parent: https://github.com/bemulima/learning-platform-business/issues/53
+  auth_parent: https://github.com/bemulima/ms-go-auth/pull/23
+  rbac_dependency: https://github.com/bemulima/ms-go-rbac/pull/18
+  rpc_subject: rbac.checkMCPStudentScopes
+  rpc_subject_registration: deferred
+  request: [proof]
+  proof_max_bytes: 8192
+  request_max_bytes: 9216
+  request_timeout_seconds: 3
+  auth_key_pair: [AUTH_JWT_PRIVATE_KEY, AUTH_JWT_PUBLIC_KEY]
+  algorithm: RS256
+  header: {alg: RS256, typ: JWT}
+  issuer: AUTH_JWT_ISSUER
+  audience: ms-go-rbac-mcp-student-scopes
+  type: mcp_student_scope_check
+  purpose: AUTH_RBAC_MCP_STUDENT_SCOPES_V1
+  claims: [iss, aud, sub, typ, purpose, scopes, jti, iat, exp]
+  identity_source: future_fresh_auth_verified_student_client_consent_readback
+  requested_scopes: [courses:read, profile:read, tasks:read]
+  required_scope_order: sorted_unique_nonempty
+  required_scope_membership: both_persisted_client_and_consent
+  subject_and_jti: lowercase_canonical_non_nil_uuid
+  proof_lifetime_seconds_maximum: 30
+  proof_lifetime_clamped_to_consent: true
+  missing_key: disabled
+  invalid_or_mismatched_key: fail_closed
+  unsigned_identity_role_scope_fallback: forbidden
+  decision:
+    response: {envelope: [decision_jwt]}
+    algorithm: RS256
+    header: {alg: RS256, typ: JWT}
+    claims: [iss, aud, sub, typ, purpose, requested_scopes, allowed_scopes, jti, request_jti, request_digest, iat, exp]
+    issuer: ms-go-rbac
+    audience: ms-go-auth-mcp-student-scopes-decision
+    type: mcp_student_scopes_decision
+    purpose: RBAC_AUTH_MCP_STUDENT_SCOPES_DECISION_V1
+    requested_scopes: exact_proof_request
+    allowed_scopes: signed_non_null_sorted_subset_including_empty
+    request_binding: [request_jti, lowercase_sha256_of_exact_auth_proof]
+    rbac_private_key_config: RBAC_MCP_STUDENT_SCOPES_DECISION_PRIVATE_KEY
+    auth_public_key_candidate_config: AUTH_RBAC_MCP_STUDENT_SCOPES_DECISION_PUBLIC_KEY
+    public_key_runtime_wiring: deferred
+    issued_lifetime_seconds: 15
+    maximum_lifetime_seconds: 30
+    future_iat_skew_seconds: 5
+    replay_guard: response_jti
+    role_or_reviewer_decision_substitution: forbidden
+    unsigned_or_invalid_decision: fail_closed
+  composite_grant_readback: not_implemented
+  oauth_access_token_issuance: forbidden_until_future_composition
+
 access_session_verification:
   subject: auth.verifyJWT
   request_response_shape: unchanged
