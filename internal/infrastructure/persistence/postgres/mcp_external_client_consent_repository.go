@@ -48,7 +48,7 @@ func (r *mcpExternalClientConsentRepo) ReadMCPExternalClientConsent(
 	if err != nil || client.ClientID != clientID {
 		return nil, nil, errors.New("MCP client/consent unavailable")
 	}
-	redirects, ok := decodeMCPExternalStoredScopes(client.RedirectsJSON)
+	redirects, ok := decodeMCPExternalRedirectURIs(client.RedirectsJSON)
 	if !ok || len(redirects) == 0 {
 		return nil, nil, errors.New("MCP client/consent unavailable")
 	}
