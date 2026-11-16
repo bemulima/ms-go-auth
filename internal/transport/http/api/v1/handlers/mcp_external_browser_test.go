@@ -9,7 +9,7 @@ import (
 
 func TestMCPExternalBrowserStartOnlyForExactPKCEStudentRequest(t *testing.T) {
 	h := MCPExternalOAuthHandler{
-		Resource: "https://api.test/mcp",
+		Resource:     "https://api.test/mcp",
 		ConsentUIURI: "https://web.test/student/mcp/consent",
 	}
 	params := url.Values{

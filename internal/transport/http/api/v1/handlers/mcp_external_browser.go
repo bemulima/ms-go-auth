@@ -64,9 +64,11 @@ func (h MCPExternalOAuthHandler) StartBrowserAuthorization(c echo.Context) error
 	}
 	redirect, err := url.Parse(params.Get("redirect_uri"))
 	if err != nil || redirect == nil || redirect.Host == "" || redirect.User != nil ||
-		redirect.Fragment != "" || redirect.Opaque != "" ||
-		(redirect.Scheme != "https" && !(redirect.Scheme == "http" &&
-			(redirect.Hostname() == "localhost" || redirect.Hostname() == "127.0.0.1" || redirect.Hostname() == "::1"))) {
+		redirect.Fragment != "" || redirect.Opaque != "" {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	if redirect.Scheme != "https" && (redirect.Scheme != "http" ||
+		(redirect.Hostname() != "localhost" && redirect.Hostname() != "127.0.0.1" && redirect.Hostname() != "::1")) {
 		return c.NoContent(http.StatusBadRequest)
 	}
 	for _, forbidden := range []string{"code", "state", "error", "access_token"} {

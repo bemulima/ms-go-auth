@@ -23,8 +23,8 @@ func (f *fakeMCPClientConsent) ReadMCPExternalClientConsent(_ context.Context, _
 
 func authorizeFixture(t *testing.T) (MCPExternalAuthorizeUsecase, *fakeMCPExternalGrantReadback, MCPExternalAuthorizationRequest, string, time.Time) {
 	t.Helper()
-	codes, _, policy, req, client, consent, student, now := newMCPCodeFixture(t)
-	student = "00000000-0000-4000-8000-000000000123"
+	codes, _, policy, req, client, consent, _, now := newMCPCodeFixture(t)
+	student := "00000000-0000-4000-8000-000000000123"
 	consent.StudentID = student
 	req.Scope = "courses:read"
 	policy.AllowedStudentScopes = []string{"courses:read"}
