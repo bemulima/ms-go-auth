@@ -5,6 +5,9 @@ commands:
   - {name: format-check, run: 'test -z "$(gofmt -l $(git ls-files ''*.go''))"', requires_approval: false, risk: verification}
   - {name: vet, run: go vet ./..., requires_approval: false, risk: verification}
   - {name: test, run: go test ./..., requires_approval: false, risk: verification}
+  - {name: mentor-http-authority-targeted, run: 'go test -count=1 ./internal/usecase ./internal/transport/http/private ./internal/infrastructure/persistence/postgres -run "^(TestMentorLiveSession|TestMentorHTTPAuthority|TestMentorSessionReader|TestMentorRoleDecision)"', requires_approval: false, risk: verification}
+  - {name: mentor-http-authority-race, run: 'go test -race -count=1 ./internal/usecase ./internal/transport/http/private ./internal/infrastructure/persistence/postgres -run "^(TestMentorLiveSession|TestMentorHTTPAuthority|TestMentorSessionReader|TestMentorRoleDecision)"', requires_approval: false, risk: verification}
+  - {name: mentor-source-tests-without-sql, run: 'env -u LC08_AUTH_HTTP_HARNESS -u LC08_AUTH_ATOMIC_TEST_DSN -u T16_AUTH_REPOSITORY_INTEGRATION go test -count=1 ./...', requires_approval: false, risk: verification}
   - {name: mentor-role-conformance, run: 'node scripts/test-mentor-role-conformance.cjs --rbac /absolute/path/to/ms-go-rbac', requires_approval: false, risk: verification}
   - {name: mentor-owner-conformance, run: 'node scripts/test-mentor-owner-conformance.cjs --rbac /absolute/path/to/ms-go-rbac --mentor /absolute/path/to/ms-go-mentor', requires_approval: false, risk: verification}
   - {name: signup-contract-regression, run: 'go test -tags=integration ./test/integration -run "TestT16ActualSignupRecovery|TestT17StudentProvisioningHTTPContract"', requires_approval: false, risk: disposable-integration-test}

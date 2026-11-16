@@ -17,6 +17,14 @@ authenticated Mentor-owner confirmation of the exact **committed** decision.
 The caller's actor/role headers, a legacy role lookup with scope fallback, a
 Student-only default-role RPC, and a stored AdminID are not authority.
 
+After both owner confirmations, Auth must revalidate the same current bearer,
+actor and sid before signing, without renewing authority from a stored actor ID.
+The additive unmounted [AUTH_MENTOR_HTTP_AUTHORITY_V1](mentor-http-authority-v1.md)
+requires the concrete strict current-session boundary. Its typed unauthenticated
+and unavailable outcomes remain distinct; unknown legacy session-port errors
+retain their previous denial semantics. The signed proof's clock and
+cancellation are checked again after signing, before any assertion is returned.
+
 Mentor confirmation binds the derived Admin, target user, application, request,
 decision digest and committed decision revision. APPROVE must correspond to
 the current `APPROVAL_PENDING_GRANT` intent; SUSPEND to the current `SUSPENDED`

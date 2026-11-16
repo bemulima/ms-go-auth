@@ -219,7 +219,7 @@ func TestMentorRoleDecisionExactSignedClaims(t *testing.T) {
 			if json.Unmarshal(claims["jti"], &jti) != nil || !canonicalReviewerUUID(jti) {
 				t.Fatal("fresh canonical nonzero JTI required")
 			}
-			if sessions.calls != 1 || admins.calls != 1 || intents.calls != 1 || admins.actor != mentorTestActor ||
+			if sessions.calls != 2 || admins.calls != 1 || intents.calls != 1 || admins.actor != mentorTestActor ||
 				intents.seen != (domain.MentorRoleDecisionBinding{MentorRoleDecisionRequest: request, AdminActorID: mentorTestActor}) {
 				t.Fatal("issuance did not check each exact owner binding")
 			}
@@ -239,12 +239,12 @@ func TestMentorRoleDecisionFreshSessionAndJTIEveryRetry(t *testing.T) {
 		t.Fatal("same-command authorized retry failed")
 	}
 	one, two := mentorDecodeClaims(t, first, issuer), mentorDecodeClaims(t, second, issuer)
-	if string(one["jti"]) == string(two["jti"]) || string(one["request_id"]) != string(two["request_id"]) || sessions.calls != 2 || admins.calls != 2 || intents.calls != 2 {
+	if string(one["jti"]) == string(two["jti"]) || string(one["request_id"]) != string(two["request_id"]) || sessions.calls != 4 || admins.calls != 2 || intents.calls != 2 {
 		t.Fatal("retry must reauthenticate all owners, preserve command and generate a new JTI")
 	}
 	sessions.err = errors.New("revoked session")
 	raw, err := issuer.Issue(context.Background(), "trace", "revoked-session", request)
-	if raw != "" || !errors.Is(err, ErrMentorRoleDecisionDenied) || sessions.calls != 3 || admins.calls != 2 || intents.calls != 2 {
+	if raw != "" || !errors.Is(err, ErrMentorRoleDecisionDenied) || sessions.calls != 5 || admins.calls != 2 || intents.calls != 2 {
 		t.Fatal("previous successful issuance must not bypass the current session")
 	}
 }
@@ -484,11 +484,11 @@ func TestMentorRoleDecisionUsesExistingCurrentAuthSession(t *testing.T) {
 	if err != nil {
 		t.Fatal("access token setup failed")
 	}
-	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw == "" || err != nil || store.calls != 1 {
+	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw == "" || err != nil || store.calls != 2 {
 		t.Fatal("active persisted Auth session did not authorize source issuance")
 	}
 	store.revoked = true
-	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw != "" || !errors.Is(err, ErrMentorRoleDecisionDenied) || store.calls != 2 || admins.calls != 1 {
+	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw != "" || !errors.Is(err, ErrMentorRoleDecisionDenied) || store.calls != 3 || admins.calls != 1 {
 		t.Fatal("revoked persisted session must deny without new Admin lookup")
 	}
 	store.revoked = false

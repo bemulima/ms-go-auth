@@ -23,5 +23,8 @@
   "maximum_integer_time": 9007199254740991,
   "decision_digest": "sha256(UTF8(decision|admin_actor_id|application_id|request_id|application_revision-1))",
   "authority": ["current_auth_session", "authenticated_unique_canonical_default_admin", "authenticated_exact_committed_mentor_intent"],
+  "current_session_revalidation": "same bearer, actor and sid after both owner confirmations before signing; no stored-ID renewal",
+  "strict_session_errors": "typed unauthenticated and unavailable outcomes preserved; unknown legacy session errors remain denied",
+  "source_http_boundary": "AUTH_MENTOR_HTTP_AUTHORITY_V1; unmounted",
   "prerequisites_not_mounted": ["authenticated_owner_lookup_runtime_wiring", "rbac_atomic_role_store", "signed_fresh_scoped_readback", "runtime_key_configuration"]
 }

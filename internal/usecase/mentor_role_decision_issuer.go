@@ -74,7 +74,10 @@ func (issuer *MentorRoleDecisionIssuer) Issue(ctx context.Context, traceID, acce
 	if canceled := ctx.Err(); canceled != nil {
 		return "", canceled
 	}
-	if err != nil || verified == nil || !canonicalMentorUUID(verified.UserID) {
+	if err != nil {
+		return "", mentorRoleSessionFailure(err)
+	}
+	if verified == nil || !canonicalMentorUUID(verified.UserID) {
 		return "", ErrMentorRoleDecisionDenied
 	}
 	// Existing current Auth access tokens have a persisted sid and no typ claim.
@@ -118,6 +121,24 @@ func (issuer *MentorRoleDecisionIssuer) Issue(ctx context.Context, traceID, acce
 	if intent == nil || !intent.Committed || !intent.Current || intent.State != wantState || intent.Binding != binding {
 		return "", ErrMentorRoleDecisionDenied
 	}
+	// Owner confirmations can be delayed. Recheck the same presented credential
+	// and immutable actor/session binding before signing; a stored actor ID or
+	// a different session must never renew this command's authority.
+	current, err := issuer.sessions.VerifyToken(ctx, traceID, accessToken)
+	if canceled := ctx.Err(); canceled != nil {
+		return "", canceled
+	}
+	if err != nil {
+		return "", mentorRoleSessionFailure(err)
+	}
+	if current == nil || current.UserID != actor {
+		return "", ErrMentorRoleDecisionDenied
+	}
+	currentSID, hasSID := current.Claims["sid"].(string)
+	_, currentHasType := current.Claims["typ"]
+	if !hasSID || currentSID != sid || currentHasType {
+		return "", ErrMentorRoleDecisionDenied
+	}
 	jti, err := GenerateJTI()
 	if err != nil {
 		return "", ErrMentorRoleDecisionUnavailable
@@ -147,7 +168,28 @@ func (issuer *MentorRoleDecisionIssuer) Issue(ctx context.Context, traceID, acce
 	if err != nil || len(signed) > domain.MentorRoleDecisionMaxBytes {
 		return "", ErrMentorRoleDecisionUnavailable
 	}
+	finished := issuer.clock().Unix()
+	if finished < now || finished >= now+domain.MentorRoleDecisionTTLSeconds {
+		return "", ErrMentorRoleDecisionUnavailable
+	}
+	if canceled := ctx.Err(); canceled != nil {
+		return "", canceled
+	}
 	return signed, nil
+}
+
+func mentorRoleSessionFailure(err error) error {
+	// The strict production boundary returns these exact credential-neutral
+	// sentinels. Do not inspect diagnostics or classify mixed/unknown legacy
+	// error trees as a known outage or known unauthenticated result.
+	switch err {
+	case ErrMentorSessionUnavailable:
+		return ErrMentorRoleDecisionUnavailable
+	case ErrMentorSessionUnauthenticated:
+		return ErrMentorSessionUnauthenticated
+	default:
+		return ErrMentorRoleDecisionDenied
+	}
 }
 
 func validMentorRoleRequest(request domain.MentorRoleDecisionRequest) bool {

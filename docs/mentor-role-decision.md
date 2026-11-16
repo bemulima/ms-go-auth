@@ -33,10 +33,20 @@ caller-selected actor, role or service. Every invocation independently:
 5. Requires authenticated Mentor-owner confirmation that the entire binding is
    exact, current and committed. `APPROVE` revision 2 requires state
    `APPROVAL_PENDING_GRANT`; `SUSPEND` revision 3 or 4 requires `SUSPENDED`.
-6. Signs the contract's exact 16 claims with a fresh JTI and a 30-second lifetime.
+6. Revalidates the same current bearer, actor and sid after both owner reads.
+   Revocation, expiry, changed binding, outage or cancellation returns no proof.
+7. Signs the contract's exact 16 claims with a fresh JTI and a 30-second lifetime.
    Timestamps are positive integer seconds; addition is checked before execution
    and both timestamps stay within the contract's safe-integer bound. Cancellation
-   is checked between owner calls and before returning a signed assertion.
+   is checked between owner calls and before returning a signed assertion. A final
+   clock check also rejects expiry or backward clock movement during signing.
+
+The additive [Mentor HTTP authority](mentor-http-authority.md) constructor uses
+the concrete strict current-session verifier. At that boundary, typed session
+unauthenticated and unavailable outcomes produce 401 and 503 respectively;
+unknown errors from older session-port implementations retain denial semantics.
+Shared login/refresh, `authService.VerifyToken`, JWT parsing and configuration are
+unchanged. The source handler remains unmounted.
 
 The source ports describe trust obligations; they do not manufacture trust.
 The dedicated authenticated source client and owner providers now follow
