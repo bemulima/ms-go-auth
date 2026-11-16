@@ -19,7 +19,7 @@ import (
 // ceilings, NOT default grants: every scope still requires a registered client,
 // persisted explicit consent, and an RBAC-signed per-scope permission decision.
 func approvedMCPStudentReadScopes() []string {
-	return []string{"courses:read", "profile:read", "tasks:read"}
+	return []string{"calendar:read", "courses:read", "profile:read", "tasks:read"}
 }
 
 // enableMCPStudentAccess is deliberately opt-in. Do not attach frontend JWT

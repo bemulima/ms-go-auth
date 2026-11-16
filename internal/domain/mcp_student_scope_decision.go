@@ -15,7 +15,7 @@ const (
 	MCPStudentScopeDecisionPurpose        = "RBAC_AUTH_MCP_STUDENT_SCOPES_DECISION_V1"
 	MCPStudentScopeDecisionMaxAgeSeconds  = 30
 	MCPStudentScopeDecisionFutureSkewSecs = 5
-	MCPStudentScopeLimit                  = 3
+	MCPStudentScopeLimit                  = 4
 )
 
 // ValidMCPStudentRequestedScopes admits only canonical read-only pilot scopes.
@@ -26,7 +26,7 @@ func ValidMCPStudentRequestedScopes(scopes []string) bool {
 	}
 	previous := ""
 	for _, scope := range scopes {
-		if scope != "courses:read" && scope != "profile:read" && scope != "tasks:read" {
+		if scope != "calendar:read" && scope != "courses:read" && scope != "profile:read" && scope != "tasks:read" {
 			return false
 		}
 		if scope <= previous {
