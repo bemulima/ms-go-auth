@@ -144,4 +144,3 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 	// all codes and OAuth access still require Auth-owned consent and fresh RBAC.
 	return nil
 }
-

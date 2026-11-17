@@ -121,4 +121,3 @@ func (c *Config) ValidateLocalOAuthBoundary() error {
 	}
 	return nil
 }
-

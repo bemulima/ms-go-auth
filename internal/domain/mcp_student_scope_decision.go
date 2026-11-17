@@ -65,4 +65,3 @@ func ValidMCPStudentAllowedScopes(requested, allowed []string) bool {
 type MCPStudentScopeDecisionClient interface {
 	CheckMCPStudentScopes(ctx context.Context, signedAuthProof, expectedStudentID, requestJTI string, requestedScopes []string) ([]string, error)
 }
-
