@@ -22,3 +22,5 @@ This repository owns auth architecture and its HTTP, NATS, and database contract
 - [MCP-00C3D4B: Auth-signed RBAC Student scopes request/readback](mcp00-external-rbac-scopes-readback-source.md) — dormant exact read-only proof and signed subset verifier; grant composition and runtime remain disabled.
 
 - [MCP-53 Student browser OAuth read scopes](mcp53-browser-authorize-source.md) — V0 issuer extended to the three existing, independently consented and RBAC-signed Student read scopes. Write scopes remain denied; source tests NOT_RUN for this extension.
+- [MCP-53 private learning scope ceiling](mcp53-private-learning-scopes.md) — distinct default-OFF `knowledge:read` and `lessons:read`, no automatic grants or runtime activation.
+

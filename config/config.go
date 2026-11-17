@@ -47,6 +47,9 @@ type Config struct {
 	// Mutation scopes are separately opt-in. Existing consent/client/RBAC
 	// gates still apply per scope, even if this ceiling is widened.
 	MCPWriteScopesEnabled bool `env:"AUTH_MCP_WRITE_SCOPES_ENABLED" envDefault:"false"`
+	// Private graph and lesson scopes require separate operator opt-in.
+	// This flag never creates client/consent/RBAC grants.
+	MCPPrivateLearningReadScopesEnabled bool `env:"AUTH_MCP_PRIVATE_LEARNING_READ_SCOPES_ENABLED" envDefault:"false"`
 	// Browser OAuth discovery is a separate opt-in until the first-party consent
 	// UI and its exact Gateway entrypoints have been qualified end-to-end.
 	MCPBrowserEnabled             bool          `env:"AUTH_MCP_BROWSER_ENABLED" envDefault:"false"`
@@ -118,3 +121,4 @@ func (c *Config) ValidateLocalOAuthBoundary() error {
 	}
 	return nil
 }
+

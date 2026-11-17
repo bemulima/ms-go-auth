@@ -45,3 +45,32 @@ func TestMCP53CalendarScopeHasNoImpliedGrantToOtherScopes(t *testing.T) {
 		t.Fatal("RBAC-signed scope subset cannot be implied by consent")
 	}
 }
+
+func TestMCP53PrivateLearningScopesRequireSeparatePlatformOptIn(t *testing.T) {
+	baseline := approvedMCPStudentReadScopeCeiling(false)
+	if !reflect.DeepEqual(baseline, approvedMCPStudentReadScopes()) {
+		t.Fatal("default issuer read ceiling changed")
+	}
+	want := []string{"calendar:read", "courses:read", "knowledge:read", "lessons:read", "profile:read", "tasks:read"}
+	private := approvedMCPStudentReadScopeCeiling(true)
+	if !reflect.DeepEqual(private, want) || !domain.ValidMCPStudentRequestedScopes(private) {
+		t.Fatalf("unexpected private-only read scope ceiling: %#v", private)
+	}
+	combined := []string{"calendar:read", "courses:read", "instances:start", "knowledge:read",
+		"lessons:read", "profile:read", "submissions:write", "tasks:read", "validation:run", "workspace:write"}
+	if !reflect.DeepEqual(approvedMCPStudentScopeCeiling(true, true), combined) ||
+		!domain.ValidMCPStudentRequestedScopes(combined) {
+		t.Fatal("private scope opt-in was not composable with separate mutation opt-in")
+	}
+	if domain.ValidMCPStudentRequestedScopes([]string{"knowledge:write"}) ||
+		domain.ValidMCPStudentRequestedScopes([]string{"lessons:write"}) ||
+		domain.ValidMCPStudentRequestedScopes([]string{"courses:read", "knowledge:read", "knowledge:read"}) ||
+		domain.ValidMCPStudentRequestedScopes([]string{"lessons:read", "knowledge:read"}) {
+		t.Fatal("unknown, repeated or unordered content scope admitted")
+	}
+	private[2] = "teacher:ask"
+	if !reflect.DeepEqual(approvedMCPStudentReadScopeCeiling(true), want) {
+		t.Fatal("read policy returned a mutable globally shared scope slice")
+	}
+}
+

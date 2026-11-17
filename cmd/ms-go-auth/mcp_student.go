@@ -22,10 +22,33 @@ func approvedMCPStudentReadScopes() []string {
 	return []string{"calendar:read", "courses:read", "profile:read", "tasks:read"}
 }
 
+// A separate opt-in widens only the platform REQUEST ceiling. Every scope
+// still requires registered client allowance, stored consent and current RBAC.
+func approvedMCPStudentPrivateLearningReadScopes() []string {
+	return []string{"calendar:read", "courses:read", "knowledge:read", "lessons:read", "profile:read", "tasks:read"}
+}
+
+func approvedMCPStudentReadScopeCeiling(includePrivate bool) []string {
+	if includePrivate {
+		return approvedMCPStudentPrivateLearningReadScopes()
+	}
+	return approvedMCPStudentReadScopes()
+}
+
 // A widened platform ceiling is not a grant: registered client allowance,
 // persisted Student consent and fresh signed RBAC permission must all agree.
 func approvedMCPStudentScopes(includeMutations bool) []string {
-	if !includeMutations { return approvedMCPStudentReadScopes() }
+	return approvedMCPStudentScopeCeiling(includeMutations, false)
+}
+
+func approvedMCPStudentScopeCeiling(includeMutations, includePrivate bool) []string {
+	if !includeMutations {
+		return approvedMCPStudentReadScopeCeiling(includePrivate)
+	}
+	if includePrivate {
+		return []string{"calendar:read", "courses:read", "instances:start", "knowledge:read",
+			"lessons:read", "profile:read", "submissions:write", "tasks:read", "validation:run", "workspace:write"}
+	}
 	return []string{"calendar:read", "courses:read", "instances:start", "profile:read",
 		"submissions:write", "tasks:read", "validation:run", "workspace:write"}
 }
@@ -57,7 +80,7 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 	if err != nil {
 		return errors.New("MCP external JWT issuer unavailable")
 	}
-	scopes := approvedMCPStudentScopes(cfg.MCPWriteScopesEnabled)
+	scopes := approvedMCPStudentScopeCeiling(cfg.MCPWriteScopesEnabled, cfg.MCPPrivateLearningReadScopesEnabled)
 	composer := &usecase.MCPExternalGrantComposer{
 		Reader:               repo.NewMCPExternalAuthGrantRepository(db),
 		RoleProofSigner:      roleSigner,
@@ -71,7 +94,7 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 		return errors.New("MCP issuer-to-adapter verification route unavailable")
 	}
 	codeRepo := repo.NewMCPExternalCodeRepository(db)
-	policy := usecase.MCPExternalPolicy{ResourceURI: cfg.MCPResourceURI, AllowedStudentScopes: approvedMCPStudentReadScopes()}
+	policy := usecase.MCPExternalPolicy{ResourceURI: cfg.MCPResourceURI, AllowedStudentScopes: approvedMCPStudentReadScopeCeiling(cfg.MCPPrivateLearningReadScopesEnabled)}
 	authorize := usecase.MCPExternalAuthorizeUsecase{
 		Clients: repo.NewMCPExternalClientConsentRepository(db),
 		Grants:  composer,
@@ -121,3 +144,4 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 	// all codes and OAuth access still require Auth-owned consent and fresh RBAC.
 	return nil
 }
+

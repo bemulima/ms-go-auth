@@ -15,7 +15,7 @@ const (
 	MCPStudentScopeDecisionPurpose        = "RBAC_AUTH_MCP_STUDENT_SCOPES_DECISION_V1"
 	MCPStudentScopeDecisionMaxAgeSeconds  = 30
 	MCPStudentScopeDecisionFutureSkewSecs = 5
-	MCPStudentScopeLimit                  = 8
+	MCPStudentScopeLimit                  = 10
 )
 
 // ValidMCPStudentRequestedScopes admits only canonical MCP Student scopes.
@@ -27,6 +27,7 @@ func ValidMCPStudentRequestedScopes(scopes []string) bool {
 	previous := ""
 	for _, scope := range scopes {
 		if scope != "calendar:read" && scope != "courses:read" && scope != "instances:start" &&
+			scope != "knowledge:read" && scope != "lessons:read" &&
 			scope != "profile:read" && scope != "submissions:write" && scope != "tasks:read" &&
 			scope != "validation:run" && scope != "workspace:write" {
 			return false
@@ -64,3 +65,4 @@ func ValidMCPStudentAllowedScopes(requested, allowed []string) bool {
 type MCPStudentScopeDecisionClient interface {
 	CheckMCPStudentScopes(ctx context.Context, signedAuthProof, expectedStudentID, requestJTI string, requestedScopes []string) ([]string, error)
 }
+
