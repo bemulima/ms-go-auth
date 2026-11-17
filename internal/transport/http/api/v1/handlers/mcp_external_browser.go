@@ -18,6 +18,18 @@ var mcpBrowserFields = []string{
 	"code_challenge", "code_challenge_method", "scope", "state",
 }
 
+// mcpBrowserAllowedReadScope follows the explicit MCP-01 Auth/RBAC read ceiling.
+// Each browser authorization request selects exactly one read scope; none of
+// these scopes bypasses client registration, Student consent or fresh RBAC.
+func mcpBrowserAllowedReadScope(scope string) bool {
+	switch scope {
+	case "courses:read", "profile:read", "tasks:read":
+		return true
+	default:
+		return false
+	}
+}
+
 // ValidateBrowserUI accepts only an operator-configured first-party HTTPS
 // consent page, never an OAuth client's callback or user-supplied redirect.
 func (h MCPExternalOAuthHandler) ValidateBrowserUI() error {
@@ -55,7 +67,7 @@ func (h MCPExternalOAuthHandler) StartBrowserAuthorization(c echo.Context) error
 	}
 	if params.Get("response_type") != "code" ||
 		params.Get("code_challenge_method") != "S256" ||
-		params.Get("scope") != "courses:read" ||
+		!mcpBrowserAllowedReadScope(params.Get("scope")) ||
 		params.Get("resource") != h.Resource ||
 		!mcpBrowserState.MatchString(params.Get("state")) ||
 		!mcpBrowserChallenge.MatchString(params.Get("code_challenge")) ||

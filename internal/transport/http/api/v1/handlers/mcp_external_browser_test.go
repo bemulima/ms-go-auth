@@ -18,17 +18,27 @@ func TestMCPExternalBrowserStartOnlyForExactPKCEStudentRequest(t *testing.T) {
 		"code_challenge": {strings.Repeat("x", 43)}, "code_challenge_method": {"S256"},
 		"scope": {"courses:read"}, "state": {strings.Repeat("s", 32)},
 	}
-	w := mcpTestHTTP(t, http.MethodGet, "/authorize?"+params.Encode(), "", "", "", h.StartBrowserAuthorization)
-	if w.Code != http.StatusFound || w.Header().Get("Cache-Control") != "no-store" ||
-		w.Header().Get("Referrer-Policy") != "no-referrer" {
-		t.Fatalf("browser start status=%d", w.Code)
-	}
-	location, err := url.Parse(w.Header().Get("Location"))
-	if err != nil || location.Scheme != "https" || location.Host != "web.test" ||
-		location.Path != "/student/mcp/consent" ||
-		location.Query().Get("state") != params.Get("state") ||
-		location.Query().Get("redirect_uri") != params.Get("redirect_uri") {
-		t.Fatalf("browser start unsafe location: %v %v", location, err)
+	for _, scope := range []string{"courses:read", "profile:read", "tasks:read"} {
+		t.Run("allow-"+scope, func(t *testing.T) {
+			q := url.Values{}
+			for key, values := range params {
+				q[key] = append([]string(nil), values...)
+			}
+			q.Set("scope", scope)
+			w := mcpTestHTTP(t, http.MethodGet, "/authorize?"+q.Encode(), "", "", "", h.StartBrowserAuthorization)
+			if w.Code != http.StatusFound || w.Header().Get("Cache-Control") != "no-store" ||
+				w.Header().Get("Referrer-Policy") != "no-referrer" {
+				t.Fatalf("browser start scope=%q status=%d", scope, w.Code)
+			}
+			location, err := url.Parse(w.Header().Get("Location"))
+			if err != nil || location.Scheme != "https" || location.Host != "web.test" ||
+				location.Path != "/student/mcp/consent" ||
+				location.Query().Get("state") != q.Get("state") ||
+				location.Query().Get("scope") != scope ||
+				location.Query().Get("redirect_uri") != q.Get("redirect_uri") {
+				t.Fatalf("browser start unsafe location for scope=%q: %v %v", scope, location, err)
+			}
+		})
 	}
 	for _, tc := range []struct {
 		name string
@@ -38,6 +48,11 @@ func TestMCPExternalBrowserStartOnlyForExactPKCEStudentRequest(t *testing.T) {
 		{"additional-student", func(q url.Values) { q.Set("student_id", "forged") }},
 		{"wrong-resource", func(q url.Values) { q.Set("resource", "https://other.test/mcp") }},
 		{"admin-scope", func(q url.Values) { q.Set("scope", "admin:write") }},
+		{"unapproved-calendar-scope", func(q url.Values) { q.Set("scope", "calendar:read") }},
+		{"unapproved-teacher-scope", func(q url.Values) { q.Set("scope", "teacher:ask") }},
+		{"unapproved-practice-write-scope", func(q url.Values) { q.Set("scope", "tasks:write") }},
+		{"combined-read-scopes", func(q url.Values) { q.Set("scope", "courses:read tasks:read") }},
+		{"unknown-read-scope", func(q url.Values) { q.Set("scope", "assessments:read") }},
 		{"pkce-plain", func(q url.Values) { q.Set("code_challenge_method", "plain") }},
 		{"short-state", func(q url.Values) { q.Set("state", "short") }},
 		{"foreign-http-callback", func(q url.Values) { q.Set("redirect_uri", "http://evil.test/cb") }},

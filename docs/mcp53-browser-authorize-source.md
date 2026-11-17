@@ -20,9 +20,12 @@ completion, token exchange, consent readback and revocation APIs.
   `POST /api/auth/v1/auth/mcp/token`. A non-canonical issuer path or non-default
   internal Auth API prefix makes browser startup fail closed.
 - Public GET authorize accepts only the eight exact Student OAuth fields and
-  redirects their non-secret parameters to the fixed first-party consent UI.
-  It does **not** admit a user, create consent or issue a code. Gateway strips
-  all browser cookies and caller Authorization on this route.
+  exactly one of `courses:read`, `profile:read` or `tasks:read` (MCP-01
+  read-only ceiling). It rejects combined scopes, unknown scopes, writes,
+  Calendar and Teacher requests at the browser entrypoint. It redirects the
+  allowed non-secret parameters to the fixed first-party consent UI, but does
+  **not** admit a user, create consent, grant a permission or issue a code.
+  Gateway strips all browser cookies and caller Authorization on this route.
 - A signed-in Student explicitly confirms in Next.js. Its server-side BFF
   verifies the current HttpOnly cookie with Auth, then calls the existing
   bearer-only `POST /authorization/complete`. Auth rechecks the actual client,
