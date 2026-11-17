@@ -1,5 +1,8 @@
 # HTTP contract
 
+The additive [Notification recipient owner read](notification-recipient-v1.md)
+is a separate default-off service capability; it exposes no profile or role grants.
+
 The base path defaults to /api/v1. Auth routes are listed in .ai/contracts/http.yaml and internal/transport/http/api/v1/router.go. Protected routes use JWT middleware. /internal/health is GET.
 
 ## Default-off Mentor authority

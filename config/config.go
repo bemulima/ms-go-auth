@@ -11,15 +11,17 @@ import (
 )
 
 type Config struct {
-	EmailCodeHMACKey string `env:"AUTH_EMAIL_CODE_HMAC_KEY"`
-	SMTPAddress      string `env:"AUTH_SMTP_ADDRESS"`
-	SMTPFrom         string `env:"AUTH_SMTP_FROM" envDefault:"auth@example.test"`
-	EmailOriginLimit int    `env:"AUTH_EMAIL_ORIGIN_HOURLY_LIMIT" envDefault:"20"`
-	AppName          string `env:"AUTH_APP_NAME" envDefault:"auth-service"`
-	AppEnv           string `env:"AUTH_APP_ENV" envDefault:"local"`
-	HTTPHost         string `env:"AUTH_HTTP_HOST" envDefault:"0.0.0.0"`
-	HTTPPort         string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
-	HTTPBasePath     string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
+	NotificationRecipientEnabled bool   `env:"AUTH_NOTIFICATION_RECIPIENT_ENABLED" envDefault:"false"`
+	NotificationRecipientToken   string `env:"AUTH_NOTIFICATION_RECIPIENT_TOKEN"`
+	EmailCodeHMACKey             string `env:"AUTH_EMAIL_CODE_HMAC_KEY"`
+	SMTPAddress                  string `env:"AUTH_SMTP_ADDRESS"`
+	SMTPFrom                     string `env:"AUTH_SMTP_FROM" envDefault:"auth@example.test"`
+	EmailOriginLimit             int    `env:"AUTH_EMAIL_ORIGIN_HOURLY_LIMIT" envDefault:"20"`
+	AppName                      string `env:"AUTH_APP_NAME" envDefault:"auth-service"`
+	AppEnv                       string `env:"AUTH_APP_ENV" envDefault:"local"`
+	HTTPHost                     string `env:"AUTH_HTTP_HOST" envDefault:"0.0.0.0"`
+	HTTPPort                     string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
+	HTTPBasePath                 string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
 
 	MentorEnabled              bool   `env:"AUTH_MENTOR_ENABLED" envDefault:"false"`
 	MentorHTTPSAddress         string `env:"AUTH_MENTOR_HTTPS_ADDR"`

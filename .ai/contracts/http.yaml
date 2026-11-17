@@ -8,6 +8,21 @@ protected:
   DELETE: ['/identities/:provider/:provider_user_id']
 internal: [{method: GET, path: /internal/health}]
 
+notification_recipient:
+  owner_contract: AUTH_NOTIFICATION_RECIPIENT_V1
+  documentation: .ai/contracts/notification-recipient-v1.md
+  default_enabled: false
+  gate: AUTH_NOTIFICATION_RECIPIENT_ENABLED
+  method: POST
+  path: /internal/v1/notification/recipient
+  capability_header: X-Notification-Recipient-Token
+  request_fields: [schema, user_id]
+  response_fields: [schema, user_id, email, verified, revision, checked_at]
+  human_bearer_allowed: false
+  public_gateway_route: false
+  checked_at_semantics: current_verified_observation_not_historical_verification_time
+  requires: [current_verified_auth_email, completed_signup, HTTPS_consumer_origin]
+
 mentor_authority_source_only:
   owner_contract: AUTH_MENTOR_HTTP_AUTHORITY_V1
   documentation: .ai/contracts/mentor-http-authority-v1.md

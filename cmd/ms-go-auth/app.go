@@ -161,6 +161,9 @@ func New(ctx context.Context) (*App, error) {
 
 	e := echo.New()
 	router.Setup(e)
+	if err := mountNotificationRecipient(cfg, db, e, mentorHTTPS); err != nil {
+		return nil, err
+	}
 
 	initialized = true
 	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e, verificationStore: verificationStore, mentorHTTPS: mentorHTTPS, mentorBroker: mentorBroker}, nil
