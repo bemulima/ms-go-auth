@@ -22,6 +22,14 @@ func approvedMCPStudentReadScopes() []string {
 	return []string{"calendar:read", "courses:read", "profile:read", "tasks:read"}
 }
 
+// A widened platform ceiling is not a grant: registered client allowance,
+// persisted Student consent and fresh signed RBAC permission must all agree.
+func approvedMCPStudentScopes(includeMutations bool) []string {
+	if !includeMutations { return approvedMCPStudentReadScopes() }
+	return []string{"calendar:read", "courses:read", "instances:start", "profile:read",
+		"submissions:write", "tasks:read", "validation:run", "workspace:write"}
+}
+
 // enableMCPStudentAccess is deliberately opt-in. Do not attach frontend JWT
 // verification or generic RBAC role ALLOW as an OAuth access-token fallback.
 func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *nats.Conn, studentAuth echo.MiddlewareFunc) error {
@@ -49,13 +57,14 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 	if err != nil {
 		return errors.New("MCP external JWT issuer unavailable")
 	}
+	scopes := approvedMCPStudentScopes(cfg.MCPWriteScopesEnabled)
 	composer := &usecase.MCPExternalGrantComposer{
 		Reader:               repo.NewMCPExternalAuthGrantRepository(db),
 		RoleProofSigner:      roleSigner,
 		RoleDecisions:        natsadapter.NewMCPStudentRoleClient(nc, cfg.RBACMCPRoleDecisionPublicKey),
 		ScopeProofSigner:     scopeSigner,
 		ScopeDecisions:       natsadapter.NewMCPStudentScopeClient(nc, cfg.RBACMCPScopeDecisionPublicKey),
-		AllowedStudentScopes: approvedMCPStudentReadScopes(),
+		AllowedStudentScopes: scopes,
 	}
 	verifier := usecase.MCPExternalAccessVerification{Tokens: tokens, Grants: composer}
 	if err := privatehttp.RegisterMCPAccess(e.Group("/internal"), verifier, cfg.MCPAdapterVerifyCapability, cfg.MCPResourceURI); err != nil {
@@ -73,7 +82,7 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 		Codes: codeRepo, Grants: composer,
 		Policy: usecase.MCPExternalTokenPolicy{
 			Issuer: cfg.MCPIssuerURI, ResourceURI: cfg.MCPResourceURI,
-			AllowedStudentScopes: approvedMCPStudentReadScopes(), AccessTTL: cfg.MCPAccessTTL,
+			AllowedStudentScopes: scopes, AccessTTL: cfg.MCPAccessTTL,
 		},
 	}
 	handler := api.MCPExternalOAuthHandler{
@@ -94,7 +103,7 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 			Issuer:                 cfg.MCPIssuerURI,
 			AuthorizationEndpoint:  cfg.MCPIssuerURI + "/api/auth/v1/auth/mcp/authorize",
 			TokenEndpoint:          cfg.MCPIssuerURI + "/api/auth/v1/auth/mcp/token",
-			SupportedStudentScopes: approvedMCPStudentReadScopes(),
+			SupportedStudentScopes: scopes,
 		})
 		if err != nil || discoveryPath != "/.well-known/oauth-authorization-server" {
 			return errors.New("MCP authorization-server discovery prerequisites unavailable")

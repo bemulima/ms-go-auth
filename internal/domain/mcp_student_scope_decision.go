@@ -15,10 +15,10 @@ const (
 	MCPStudentScopeDecisionPurpose        = "RBAC_AUTH_MCP_STUDENT_SCOPES_DECISION_V1"
 	MCPStudentScopeDecisionMaxAgeSeconds  = 30
 	MCPStudentScopeDecisionFutureSkewSecs = 5
-	MCPStudentScopeLimit                  = 4
+	MCPStudentScopeLimit                  = 8
 )
 
-// ValidMCPStudentRequestedScopes admits only canonical read-only pilot scopes.
+// ValidMCPStudentRequestedScopes admits only canonical MCP Student scopes.
 // It is a message grammar check, NOT a substitute for RBAC permission checks.
 func ValidMCPStudentRequestedScopes(scopes []string) bool {
 	if len(scopes) == 0 || len(scopes) > MCPStudentScopeLimit {
@@ -26,7 +26,9 @@ func ValidMCPStudentRequestedScopes(scopes []string) bool {
 	}
 	previous := ""
 	for _, scope := range scopes {
-		if scope != "calendar:read" && scope != "courses:read" && scope != "profile:read" && scope != "tasks:read" {
+		if scope != "calendar:read" && scope != "courses:read" && scope != "instances:start" &&
+			scope != "profile:read" && scope != "submissions:write" && scope != "tasks:read" &&
+			scope != "validation:run" && scope != "workspace:write" {
 			return false
 		}
 		if scope <= previous {
