@@ -11,6 +11,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// NewCAT49ReviewerOperatorRepository is only consumed by the task-owned CLI.
+func NewCAT49ReviewerOperatorRepository(db *gorm.DB) domain.CAT49ReviewerOperatorStore {
+	return &authUserRepo{db:db}
+}
+
 // RegisterCAT49Reviewer never updates an existing principal. The Auth user and
 // append-only pending receipt are committed in the same owner transaction.
 func (r *authUserRepo) RegisterCAT49Reviewer(ctx context.Context, input domain.CAT49ReviewerRegistration) (bool,error) {
