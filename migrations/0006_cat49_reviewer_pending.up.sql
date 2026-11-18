@@ -3,7 +3,7 @@
 CREATE TABLE auth_cat49_reviewer_registration (
     request_id uuid PRIMARY KEY,
     principal_id uuid NOT NULL UNIQUE REFERENCES auth_user(id) ON DELETE RESTRICT,
-    run_id text NOT NULL CHECK (run_id ~ '^[a-z0-9]{8,32}$'),
+    run_id text NOT NULL UNIQUE CHECK (run_id ~ '^[a-z0-9]{8,32}$'),
     intent_digest text NOT NULL CHECK (intent_digest ~ '^sha256:[0-9a-f]{64}$'),
     receipt_digest text NOT NULL CHECK (receipt_digest ~ '^sha256:[0-9a-f]{64}$'),
     created_at timestamptz NOT NULL DEFAULT now()
