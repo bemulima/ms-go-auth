@@ -17,6 +17,7 @@ import (
 	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	"github.com/example/auth-service/internal/usecase"
+	"github.com/jackc/pgx/v5/pgxpool"
 	nats "github.com/nats-io/nats.go"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -48,7 +49,7 @@ func (m ownership) valid() bool {
 		db.MatchString(m.AuthDatabase) && db.MatchString(m.RBACDatabase) &&
 		m.AuthDatabase!=m.RBACDatabase && user.MatchString(m.AuthUser) &&
 		(m.PostgresHost=="127.0.0.1" || m.PostgresHost=="localhost") &&
-		m.PostgresPort>0 && strings.HasPrefix(m.NATSURL,"nats://127.0.0.1:")
+		m.PostgresPort>0 && regexp.MustCompile("^nats://127\\.0\\.0\\.1:[1-9][0-9]{0,4}$").MatchString(m.NATSURL)
 }
 func privateFile(path string,max int)([]byte,error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path)!=path {
@@ -101,6 +102,12 @@ func execute() error {
 	if err!=nil || string(authKey)==string(rbacKey) {return errors.New("CAT49 distinct keys required")}
 	dsn:=os.Getenv("AUTH_CAT49_REVIEWER_DSN")
 	if dsn=="" {return errors.New("CAT49 Auth DSN missing")}
+	pgcfg,parseErr:=pgxpool.ParseConfig(dsn)
+	if parseErr!=nil || pgcfg.ConnConfig.Database!=owner.AuthDatabase ||
+		pgcfg.ConnConfig.User!=owner.AuthUser || pgcfg.ConnConfig.Host!=owner.PostgresHost ||
+		pgcfg.ConnConfig.Port!=owner.PostgresPort || len(pgcfg.ConnConfig.Fallbacks)!=0 {
+		return errors.New("CAT49 Auth DSN identity denied")
+	}
 	db,err:=gorm.Open(postgres.Open(dsn),&gorm.Config{Logger:logger.Default.LogMode(logger.Silent)})
 	if err!=nil {return errors.New("CAT49 Auth database unavailable")}
 	sqldb,err:=db.DB()
@@ -140,6 +147,11 @@ func execute() error {
 	if !regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").MatchString(*principalID) ||
 		!regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").MatchString(*requestID) {
 		return errors.New("CAT49 activation IDs denied")
+	}
+	var signed struct{RequestID string `json:"request_id"`; RunID string `json:"run_id"`; PrincipalID string `json:"principal_id"`}
+	if json.Unmarshal(raw,&signed)!=nil || signed.RequestID!=*requestID ||
+		signed.RunID!=*runID || signed.PrincipalID!=*principalID {
+		return errors.New("CAT49 activation proof identity denied")
 	}
 	nc,e:=nats.Connect(owner.NATSURL,nats.Timeout(3*time.Second))
 	if e!=nil {return errors.New("CAT49 RBAC readback unavailable")}
