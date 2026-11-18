@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/auth-service/internal/infrastructure/persistence/postgres"
+	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
 	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
 	"github.com/example/auth-service/internal/usecase"
 	nats "github.com/nats-io/nats.go"
