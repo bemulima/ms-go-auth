@@ -181,7 +181,24 @@ func (r *authUserRepo) CompleteSignup(ctx context.Context, id string, now time.T
 func (r *authUserRepo) SignupPrincipalPending(ctx context.Context, id string) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&domain.SignupCompletion{}).Where("principal_id = ? AND state <> ?", id, domain.SignupCompleted).Count(&count).Error
-	return count != 0, err
+	if err != nil || count != 0 {
+		return count != 0, err
+	}
+	// Only a successful separate activation receipt releases a CAT reviewer.
+	var installed bool
+	if err := r.db.WithContext(ctx).Raw(
+		"SELECT to_regclass('public.auth_cat49_reviewer_registration') IS NOT NULL",
+	).Scan(&installed).Error; err != nil {
+		return false, err
+	}
+	if !installed {
+		return false, nil
+	}
+	var pending bool
+	err = r.db.WithContext(ctx).Raw(
+		"SELECT EXISTS (SELECT 1 FROM auth_cat49_reviewer_registration r WHERE r.principal_id = ? AND NOT EXISTS (SELECT 1 FROM auth_cat49_reviewer_activation a WHERE a.principal_id = r.principal_id))", id,
+	).Scan(&pending).Error
+	return pending, err
 }
 
 func (r *authUserRepo) FindSignupCompletionByPrincipal(ctx context.Context, id string) (*domain.SignupCompletion, error) {
