@@ -196,7 +196,7 @@ func (r *authUserRepo) SignupPrincipalPending(ctx context.Context, id string) (b
 	}
 	var pending bool
 	err = r.db.WithContext(ctx).Raw(
-		"SELECT EXISTS (SELECT 1 FROM auth_cat49_reviewer_registration r WHERE r.principal_id = ? AND NOT EXISTS (SELECT 1 FROM auth_cat49_reviewer_activation a WHERE a.principal_id = r.principal_id))", id,
+		"SELECT EXISTS (SELECT 1 FROM auth_cat49_reviewer_registration r JOIN auth_user u ON u.id = r.principal_id WHERE r.principal_id = ? AND (NOT u.email_verified OR NOT EXISTS (SELECT 1 FROM auth_cat49_reviewer_activation a WHERE a.principal_id = r.principal_id)))", id,
 	).Scan(&pending).Error
 	return pending, err
 }
