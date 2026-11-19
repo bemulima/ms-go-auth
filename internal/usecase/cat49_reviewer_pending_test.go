@@ -10,7 +10,7 @@ import (
 
 type cat49PendingStore struct {
 	*t16Store
-	pending bool
+	pending     bool
 	unavailable bool
 }
 
@@ -30,20 +30,22 @@ type cat49SessionProbe struct {
 }
 
 func (s cat49SessionProbe) FindActive(context.Context, string) (*domain.RefreshToken, error) {
-	return &domain.RefreshToken{UserID:s.id}, nil
+	return &domain.RefreshToken{UserID: s.id}, nil
 }
 
 func TestCAT49PendingReviewerBlocksNewAndPreviouslyIssuedTokens(t *testing.T) {
 	f := newT16(t)
 	const id = "aaaabbbb-cccc-4ddd-8eee-ffffffffffff"
-	user := &domain.AuthUser{ID:id, Email:"reviewer@example.invalid"}
+	user := &domain.AuthUser{ID: id, Email: "reviewer@example.invalid"}
 	f.store.users[id] = user
 	issued, err := f.service().issueTokens(context.Background(), user)
-	if err != nil || issued == nil { t.Fatalf("baseline: %v", err) }
-	ledger := &cat49PendingStore{t16Store:f.store, pending:true}
+	if err != nil || issued == nil {
+		t.Fatalf("baseline: %v", err)
+	}
+	ledger := &cat49PendingStore{t16Store: f.store, pending: true}
 	svc := f.service()
 	svc.completions = ledger
-	svc.refresh = cat49SessionProbe{id:id}
+	svc.refresh = cat49SessionProbe{id: id}
 	if token, err := svc.issueTokens(context.Background(), user); err == nil || token != nil {
 		t.Fatal("pending reviewer issued tokens")
 	}
