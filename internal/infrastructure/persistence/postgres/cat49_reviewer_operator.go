@@ -109,8 +109,11 @@ func (r *authUserRepo) ActivateCAT49Reviewer(ctx context.Context,input domain.CA
 		if user.EmailVerified {return errors.New("CAT49 principal activated without receipt")}
 		if e:=tx.Exec("INSERT INTO auth_cat49_reviewer_activation(principal_id,request_id,rbac_receipt_digest,receipt_digest) VALUES(?,?,?,?)",
 			input.PrincipalID,input.RequestID,input.GrantReceiptDigest,input.ActivationReceiptDigest).Error;e!=nil{return e}
-		if e:=tx.Model(&domain.AuthUser{}).Where("id = ? AND email_verified = false",input.PrincipalID).
-			Update("email_verified",true).Error;e!=nil{return e}
+		activatedUser := tx.Model(&domain.AuthUser{}).Where("id = ? AND email_verified = false", input.PrincipalID).
+			Update("email_verified", true)
+		if activatedUser.Error != nil || activatedUser.RowsAffected != 1 {
+			return errors.New("CAT49 Auth activation did not change exactly one pending principal")
+		}
 		created=true
 		return nil
 	})
