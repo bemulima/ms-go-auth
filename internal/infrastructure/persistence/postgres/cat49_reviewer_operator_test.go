@@ -9,10 +9,11 @@ import (
 )
 
 type cat49ReviewerStoreContract interface {
-	RegisterCAT49Reviewer(context.Context,domain.CAT49ReviewerRegistration)(bool,error)
-	ReadCAT49Registration(context.Context,string)(domain.CAT49RegistrationReceipt,error)
-	ActivateCAT49Reviewer(context.Context,domain.CAT49ReviewerActivation)(bool,error)
+	RegisterCAT49Reviewer(context.Context, domain.CAT49ReviewerRegistration) (bool, error)
+	ReadCAT49Registration(context.Context, string) (domain.CAT49RegistrationReceipt, error)
+	ActivateCAT49Reviewer(context.Context, domain.CAT49ReviewerActivation) (bool, error)
 }
+
 var _ cat49ReviewerStoreContract = (*authUserRepo)(nil)
 
 func TestCAT49RegistrationIsNotImplicitAuthentication(t *testing.T) {
@@ -22,7 +23,7 @@ func TestCAT49RegistrationIsNotImplicitAuthentication(t *testing.T) {
 	if proof.Schema != "" {
 		t.Fatal("unset receipt unexpectedly passes a gate")
 	}
-	if !errors.Is(domain.ErrNotFound,domain.ErrNotFound) {
+	if !errors.Is(domain.ErrNotFound, domain.ErrNotFound) {
 		t.Fatal("owner not-found binding changed")
 	}
 }
