@@ -473,7 +473,8 @@ func TestMentorRoleDecisionUsesExistingCurrentAuthSession(t *testing.T) {
 		t.Fatal("access signer setup failed")
 	}
 	store := &mentorLiveSessionStore{userID: mentorTestActor}
-	sessions := &authService{signer: signer, refresh: store, logger: zerolog.New(io.Discard)}
+	ledger := &cat49PendingStore{t16Store: newT16(t).store}
+	sessions := &authService{signer: signer, refresh: store, completions: ledger, logger: zerolog.New(io.Discard)}
 	_, admins, intents := mentorFixtures()
 	_, privatePEM, publicPEM := mentorTestKeys(t, 0)
 	issuer, err := NewMentorRoleDecisionIssuer(privatePEM, publicPEM, sessions, admins, intents)
@@ -487,6 +488,11 @@ func TestMentorRoleDecisionUsesExistingCurrentAuthSession(t *testing.T) {
 	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw == "" || err != nil || store.calls != 2 {
 		t.Fatal("active persisted Auth session did not authorize source issuance")
 	}
+	ledger.pending = true
+	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw != "" || !errors.Is(err, ErrMentorRoleDecisionDenied) || store.calls != 2 || admins.calls != 1 {
+		t.Fatal("pending reviewer must deny before persisted session and Admin lookup")
+	}
+	ledger.pending = false
 	store.revoked = true
 	if raw, err := issuer.Issue(context.Background(), "test", bearer, mentorTestRequestFor("APPROVE", 2)); raw != "" || !errors.Is(err, ErrMentorRoleDecisionDenied) || store.calls != 3 || admins.calls != 1 {
 		t.Fatal("revoked persisted session must deny without new Admin lookup")
