@@ -12,7 +12,7 @@ permission, runtime schema migration, deployment or token grant is activated.
 `NewMCPExternalAuthGrantRepository` implements
 `domain.MCPExternalAuthGrantReader`, returning a narrowly typed
 `MCPExternalAuthGrantSnapshot` from the existing **draft** Auth migration
-`0006_mcp_external_codes`. The implementation is read-only; it deliberately
+`0007_mcp_external_codes`. The implementation is read-only; it deliberately
 does **not** implement `domain.MCPExternalTokenGrantReadback` and cannot set
 the `RBACStudentActive` status required by C3B token-intent preparation.
 

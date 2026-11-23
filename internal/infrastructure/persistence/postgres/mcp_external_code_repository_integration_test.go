@@ -87,7 +87,8 @@ func TestMCPExternalCodePostgres(t *testing.T) {
 	apply("0003_oauth_flow.up.sql")
 	apply("0004_signup_completion.up.sql")
 	apply("0005_email_verified.up.sql")
-	apply("0006_mcp_external_codes.up.sql")
+	apply("0006_cat49_reviewer_pending.up.sql")
+	apply("0007_mcp_external_codes.up.sql")
 
 	const studentID = "00000000-0000-4000-8000-000000000001"
 	const consentID = "00000000-0000-4000-8000-000000000002"
@@ -248,7 +249,7 @@ func TestMCPExternalCodePostgres(t *testing.T) {
 
 	// Retained evidence — even consumed/revoked — blocks DOWN and is removed
 	// only by automatic destruction of this uniquely named disposable schema.
-	down, err := os.ReadFile(filepath.Join("../../../../migrations", "0006_mcp_external_codes.down.sql"))
+	down, err := os.ReadFile(filepath.Join("../../../../migrations", "0007_mcp_external_codes.down.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}

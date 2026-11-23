@@ -5,7 +5,7 @@ on:
     paths:
       - 'internal/infrastructure/persistence/postgres/mcp_external_code_repository*'
       - 'internal/infrastructure/persistence/postgres/mcp_external_auth_grant_repository*'
-      - 'migrations/0006_mcp_external_codes*'
+      - 'migrations/0007_mcp_external_codes*'
       - '.github/workflows/mcp00c2-postgres.yml'
       - '.ai/commands.yaml'
   workflow_dispatch:
