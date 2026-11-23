@@ -37,7 +37,7 @@ func (c mentorSessionSQLConnector) Connect(context.Context) (driver.Conn, error)
 	return &mentorSessionSQLConn{fixture: c.fixture}, nil
 }
 func (c mentorSessionSQLConnector) Driver() driver.Driver {
-	return mentorSessionSQLDriver{fixture: c.fixture}
+	return mentorSessionSQLDriver(c)
 }
 
 type mentorSessionSQLDriver struct{ fixture *mentorSessionSQLFixture }
@@ -219,7 +219,7 @@ func TestMentorSessionReaderInputAndCancellation(t *testing.T) {
 			t.Fatal("invalid hash reached SQL reader")
 		}
 	}
-	if got, err := r.FindActive(nil, mentorSessionSQLLookupKey); got != nil || err != domain.ErrMentorSessionUnavailable || f.calls != 0 {
+	if got, err := r.FindActive(nil, mentorSessionSQLLookupKey); got != nil || err != domain.ErrMentorSessionUnavailable || f.calls != 0 { //nolint:staticcheck // SA1012: explicitly test rejection of a nil context.
 		t.Fatal("nil context reached SQL reader")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

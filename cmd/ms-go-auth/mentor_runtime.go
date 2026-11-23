@@ -240,7 +240,7 @@ func readMentorRuntimeFile(path string, private bool) ([]byte, error) {
 	if err != nil {
 		return nil, ErrMentorRuntimeUnavailable
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	stat, err := file.Stat()
 	if err != nil || !os.SameFile(info, stat) || !stat.Mode().IsRegular() || stat.Size() <= 0 || stat.Size() > mentorRuntimeFileLimit || (private && !mentorRuntimePrivateFileOwner(stat)) {
 		return nil, ErrMentorRuntimeUnavailable
@@ -276,7 +276,8 @@ func mentorRuntimeHost(host string) bool {
 			return false
 		}
 		for _, c := range label {
-			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			alphanumeric := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+			if !alphanumeric && c != '-' {
 				return false
 			}
 		}

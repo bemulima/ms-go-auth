@@ -26,9 +26,10 @@ func ValidMentorAccessToken(raw string) bool {
 			padding = true
 			continue
 		}
-		if padding || !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+		validCharacter := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
 			(c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' ||
-			c == '~' || c == '+' || c == '/') {
+			c == '~' || c == '+' || c == '/'
+		if padding || !validCharacter {
 			return false
 		}
 	}

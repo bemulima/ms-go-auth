@@ -234,7 +234,7 @@ func TestMentorLiveSessionConfigurationAndCancellation(t *testing.T) {
 			t.Fatal("unconfigured session verifier admitted")
 		}
 	}
-	if got, err := v.VerifyToken(nil, "", token); got != nil || err != ErrMentorSessionUnavailable {
+	if got, err := v.VerifyToken(nil, "", token); got != nil || err != ErrMentorSessionUnavailable { //nolint:staticcheck // SA1012: explicitly test rejection of a nil context.
 		t.Fatal("nil context admitted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

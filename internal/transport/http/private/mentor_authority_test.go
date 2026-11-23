@@ -392,7 +392,11 @@ func TestMentorHTTPAuthorityActualEphemeralTLSAndUnmountedDefaultRouter(t *testi
 	if err != nil {
 		t.Fatal("actual ephemeral TLS request failed")
 	}
-	defer response.Body.Close()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Error("ephemeral TLS response cleanup failed")
+		}
+	}()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, 16385))
 	var body map[string]string
 	if err != nil || json.Unmarshal(raw, &body) != nil || response.StatusCode != 200 || body["user_id"] != mentorHTTPActor {

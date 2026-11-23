@@ -52,7 +52,7 @@ func NewMentorComposition(cfg MentorCompositionConfig, deps MentorCompositionDep
 	}
 	if mentorCompositionMissing(deps.Parser) || mentorCompositionMissing(deps.Requester) ||
 		deps.DB == nil || deps.DB.Config == nil || deps.DB.Statement == nil || deps.DB.Error != nil ||
-		mentorCompositionMissing(deps.DB.Config.ConnPool) || mentorCompositionMissing(deps.DB.Statement.ConnPool) ||
+		mentorCompositionMissing(deps.DB.ConnPool) || mentorCompositionMissing(deps.DB.Statement.ConnPool) ||
 		!mentorCompositionDistinctKeys(cfg) {
 		return nil, ErrMentorCompositionUnavailable
 	}
