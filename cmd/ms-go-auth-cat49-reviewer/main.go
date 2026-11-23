@@ -50,7 +50,59 @@ func (m ownership) valid() bool {
 		db.MatchString(m.AuthDatabase) && db.MatchString(m.RBACDatabase) &&
 		m.AuthDatabase != m.RBACDatabase && user.MatchString(m.AuthUser) &&
 		(m.PostgresHost == "127.0.0.1" || m.PostgresHost == "localhost") &&
-		m.PostgresPort > 0 && regexp.MustCompile("^nats://127\\.0\\.0\\.1:[1-9][0-9]{0,4}$").MatchString(m.NATSURL)
+		m.PostgresPort > 0 && regexp.MustCompile(`^nats://127\.0\.0\.1:[1-9][0-9]{0,4}// CAT-49 one-shot Auth reviewer operator. Not mounted in Auth server or HTTP.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	natsadapter "github.com/example/auth-service/internal/infrastructure/messaging/nats"
+	repo "github.com/example/auth-service/internal/infrastructure/persistence/postgres"
+	"github.com/example/auth-service/internal/usecase"
+	"github.com/jackc/pgx/v5/pgxpool"
+	nats "github.com/nats-io/nats.go"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+)
+
+const markerPath = "/run/cat49/ownership.json"
+
+type ownership struct {
+	Schema       string `json:"schema"`
+	Purpose      string `json:"purpose"`
+	RunID        string `json:"run_id"`
+	Project      string `json:"project"`
+	Network      string `json:"network"`
+	AuthDatabase string `json:"auth_database"`
+	RBACDatabase string `json:"rbac_database"`
+	AuthUser     string `json:"auth_user"`
+	PostgresHost string `json:"postgres_host"`
+	PostgresPort uint16 `json:"postgres_port"`
+	NATSURL      string `json:"nats_url"`
+}
+
+func (m ownership) valid() bool {
+	run := regexp.MustCompile("^cat49[a-z0-9]{5,20}$")
+	db := regexp.MustCompile("^cat49_[a-z0-9_]{4,60}$")
+	user := regexp.MustCompile("^[a-z][a-z0-9_]{1,60}$")
+	return m.Schema == "cat49-disposable-ownership.v1" &&
+		m.Purpose == "cat49-reviewer" && run.MatchString(m.RunID) &&
+		m.Project == "lp-v1-"+m.RunID && m.Network == m.Project+"-net" &&
+		db.MatchString(m.AuthDatabase) && db.MatchString(m.RBACDatabase) &&
+		m.AuthDatabase != m.RBACDatabase && user.MatchString(m.AuthUser) &&
+		(m.PostgresHost == "127.0.0.1" || m.PostgresHost == "localhost") &&
+		m.PostgresPort > 0 && ).MatchString(m.NATSURL)
 }
 func privateFile(path string, max int) ([]byte, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
@@ -78,7 +130,7 @@ func marker() (ownership, error) {
 	}
 	return m, nil
 }
-func execute() error {
+func execute() (runErr error) {
 	if os.Getenv("APP_ENV") != "cat49-disposable-operator" ||
 		os.Getenv("AUTH_CAT49_REVIEWER_OPERATOR") != "enabled" ||
 		os.Getenv("AUTH_JWT_SECRET") != "" ||
@@ -127,7 +179,12 @@ func execute() error {
 	if err != nil {
 		return errors.New("CAT49 Auth database unavailable")
 	}
-	defer sqldb.Close()
+	// A failed close must not be reported as a successful privileged operation.
+	defer func() {
+		if closeErr := sqldb.Close(); closeErr != nil {
+			runErr = errors.Join(runErr, errors.New("CAT49 Auth database close failed"))
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var actual struct {
