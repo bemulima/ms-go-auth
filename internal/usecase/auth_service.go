@@ -393,6 +393,14 @@ func (s *authService) VerifyToken(ctx context.Context, traceID, token string) (*
 	if err != nil {
 		return nil, err
 	}
+	// A JWT issued before reviewer activation must not survive pending status.
+	if s.completions == nil {
+		return nil, errInvalidCredentials
+	}
+	pending, checkErr := s.completions.SignupPrincipalPending(ctx, result.UserID)
+	if checkErr != nil || pending {
+		return nil, errInvalidCredentials
+	}
 	if sid, ok := result.Claims["sid"].(string); ok {
 		session, e := s.refresh.FindActive(ctx, hashToken(sid))
 		if e != nil || session.UserID != result.UserID {
