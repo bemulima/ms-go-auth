@@ -59,7 +59,7 @@ func approvedMCPStudentScopeCeiling(includeMutations, includePrivate bool) []str
 // are still independently required for each requested permission.
 func authorizePolicyForMCPStudent(resource string, scopes []string) usecase.MCPExternalPolicy {
 	return usecase.MCPExternalPolicy{
-		ResourceURI: resource,
+		ResourceURI:          resource,
 		AllowedStudentScopes: append([]string(nil), scopes...),
 	}
 }
