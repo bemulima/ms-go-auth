@@ -59,6 +59,25 @@ type Config struct {
 	RBACSignupPrivateKey            string `env:"AUTH_RBAC_SIGNUP_PRIVATE_KEY"`
 	RBACPermissionDecisionPublicKey string `env:"AUTH_RBAC_PERMISSION_DECISION_PUBLIC_KEY"`
 
+	// The external MCP issuer is opt-in and separate from frontend JWTs.
+	MCPStudentEnabled bool `env:"AUTH_MCP_STUDENT_ENABLED" envDefault:"false"`
+	// Mutation scopes are separately opt-in. Existing consent/client/RBAC
+	// gates still apply per scope, even if this ceiling is widened.
+	MCPWriteScopesEnabled bool `env:"AUTH_MCP_WRITE_SCOPES_ENABLED" envDefault:"false"`
+	// Private graph and lesson scopes require separate operator opt-in.
+	// This flag never creates client/consent/RBAC grants.
+	MCPPrivateLearningReadScopesEnabled bool `env:"AUTH_MCP_PRIVATE_LEARNING_READ_SCOPES_ENABLED" envDefault:"false"`
+	// Browser OAuth discovery is a separate opt-in until the first-party consent
+	// UI and its exact Gateway entrypoints have been qualified end-to-end.
+	MCPBrowserEnabled             bool          `env:"AUTH_MCP_BROWSER_ENABLED" envDefault:"false"`
+	MCPConsentUIURI               string        `env:"AUTH_MCP_CONSENT_UI_URI"`
+	MCPIssuerURI                  string        `env:"AUTH_MCP_ISSUER_URI"`
+	MCPResourceURI                string        `env:"AUTH_MCP_RESOURCE_URI"`
+	MCPAccessTTL                  time.Duration `env:"AUTH_MCP_ACCESS_TTL" envDefault:"5m"`
+	MCPAdapterVerifyCapability    string        `env:"AUTH_MCP_ADAPTER_VERIFY_TOKEN"`
+	RBACMCPRoleDecisionPublicKey  string        `env:"AUTH_RBAC_MCP_STUDENT_ROLE_DECISION_PUBLIC_KEY"`
+	RBACMCPScopeDecisionPublicKey string        `env:"AUTH_RBAC_MCP_STUDENT_SCOPE_DECISION_PUBLIC_KEY"`
+
 	NATSURL                    string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
 	NATSVerifySubject          string `env:"NATS_SUBJECT_VERIFY_JWT" envDefault:"auth.verifyJWT"`
 	NATSUserCreateSubject      string `env:"NATS_SUBJECT_USER_CREATE" envDefault:"user.create-user"`

@@ -288,9 +288,11 @@ func validMentorLookupTime(issuedAt, expiresAt, now, ttl int64) bool {
 }
 
 func validMentorLookupBinding(binding domain.MentorRoleDecisionBinding) bool {
+	validDecision := binding.Decision == "APPROVE" && binding.ApplicationRevision == 2 ||
+		binding.Decision == "SUSPEND" && (binding.ApplicationRevision == 3 || binding.ApplicationRevision == 4)
 	if !validNonZeroCanonicalReviewerUUID(binding.AdminActorID) || !validNonZeroCanonicalReviewerUUID(binding.TargetUserID) ||
 		!validNonZeroCanonicalReviewerUUID(binding.ApplicationID) || !validNonZeroCanonicalReviewerUUID(binding.RequestID) ||
-		!(binding.Decision == "APPROVE" && binding.ApplicationRevision == 2 || binding.Decision == "SUSPEND" && (binding.ApplicationRevision == 3 || binding.ApplicationRevision == 4)) {
+		!validDecision {
 		return false
 	}
 	digest := sha256.Sum256([]byte(strings.Join([]string{binding.Decision, binding.AdminActorID, binding.ApplicationID, binding.RequestID, strconv.FormatInt(binding.ApplicationRevision-1, 10)}, "|")))

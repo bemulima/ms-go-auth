@@ -79,14 +79,14 @@ type compositionConnector struct{ fixture *compositionSQL }
 
 func (c compositionConnector) Connect(context.Context) (driver.Conn, error) {
 	c.fixture.connects++
-	return compositionSQLConn{c.fixture}, nil
+	return compositionSQLConn(c), nil
 }
-func (c compositionConnector) Driver() driver.Driver { return compositionDriver{c.fixture} }
+func (c compositionConnector) Driver() driver.Driver { return compositionDriver(c) }
 
 type compositionDriver struct{ fixture *compositionSQL }
 
 func (d compositionDriver) Open(string) (driver.Conn, error) {
-	return compositionConnector{d.fixture}.Connect(context.Background())
+	return compositionConnector(d).Connect(context.Background())
 }
 
 type compositionSQLConn struct{ fixture *compositionSQL }

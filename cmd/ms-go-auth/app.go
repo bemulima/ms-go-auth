@@ -49,6 +49,9 @@ func New(ctx context.Context) (*App, error) {
 	if err := cfg.ValidateLocalOAuthBoundary(); err != nil {
 		return nil, err
 	}
+	if cfg.MCPBrowserEnabled && !cfg.MCPStudentEnabled {
+		return nil, errors.New("MCP browser authorization requires Student MCP authorization")
+	}
 	mentorPrepared, err := prepareMentorRuntime(cfg, defaultMentorRuntimeLoaders())
 	if err != nil {
 		return nil, err
@@ -161,6 +164,11 @@ func New(ctx context.Context) (*App, error) {
 
 	e := echo.New()
 	router.Setup(e)
+	if cfg.MCPStudentEnabled {
+		if err := enableMCPStudentAccess(e, cfg, db, nc, authMW.Handler); err != nil {
+			return nil, err
+		}
+	}
 	if err := mountNotificationRecipient(cfg, db, e, mentorHTTPS); err != nil {
 		return nil, err
 	}

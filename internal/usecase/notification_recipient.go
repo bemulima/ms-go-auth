@@ -85,7 +85,8 @@ func validNotificationRecipient(r domain.NotificationRecipientRecord, id string)
 		return false
 	}
 	for _, c := range host {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '-') {
+		alphanumeric := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+		if !alphanumeric && c != '.' && c != '-' {
 			return false
 		}
 	}
@@ -100,7 +101,7 @@ func notificationRecipientUUID(s string) bool {
 			if c != '-' {
 				return false
 			}
-		} else if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+		} else if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}
