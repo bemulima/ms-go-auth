@@ -11,15 +11,31 @@ import (
 )
 
 type Config struct {
-	EmailCodeHMACKey string `env:"AUTH_EMAIL_CODE_HMAC_KEY"`
-	SMTPAddress      string `env:"AUTH_SMTP_ADDRESS"`
-	SMTPFrom         string `env:"AUTH_SMTP_FROM" envDefault:"auth@example.test"`
-	EmailOriginLimit int    `env:"AUTH_EMAIL_ORIGIN_HOURLY_LIMIT" envDefault:"20"`
-	AppName          string `env:"AUTH_APP_NAME" envDefault:"auth-service"`
-	AppEnv           string `env:"AUTH_APP_ENV" envDefault:"local"`
-	HTTPHost         string `env:"AUTH_HTTP_HOST" envDefault:"0.0.0.0"`
-	HTTPPort         string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
-	HTTPBasePath     string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
+	NotificationRecipientEnabled bool   `env:"AUTH_NOTIFICATION_RECIPIENT_ENABLED" envDefault:"false"`
+	NotificationRecipientToken   string `env:"AUTH_NOTIFICATION_RECIPIENT_TOKEN"`
+	EmailCodeHMACKey             string `env:"AUTH_EMAIL_CODE_HMAC_KEY"`
+	SMTPAddress                  string `env:"AUTH_SMTP_ADDRESS"`
+	SMTPFrom                     string `env:"AUTH_SMTP_FROM" envDefault:"auth@example.test"`
+	EmailOriginLimit             int    `env:"AUTH_EMAIL_ORIGIN_HOURLY_LIMIT" envDefault:"20"`
+	AppName                      string `env:"AUTH_APP_NAME" envDefault:"auth-service"`
+	AppEnv                       string `env:"AUTH_APP_ENV" envDefault:"local"`
+	HTTPHost                     string `env:"AUTH_HTTP_HOST" envDefault:"0.0.0.0"`
+	HTTPPort                     string `env:"AUTH_HTTP_PORT" envDefault:"8081"`
+	HTTPBasePath                 string `env:"AUTH_HTTP_BASE_PATH" envDefault:"/api/v1"`
+
+	MentorEnabled              bool   `env:"AUTH_MENTOR_ENABLED" envDefault:"false"`
+	MentorHTTPSAddress         string `env:"AUTH_MENTOR_HTTPS_ADDR"`
+	MentorTLSCertFile          string `env:"AUTH_MENTOR_TLS_CERT_FILE"`
+	MentorTLSKeyFile           string `env:"AUTH_MENTOR_TLS_KEY_FILE"`
+	MentorRolePrivateKey       string `env:"AUTH_MENTOR_ROLE_DECISION_PRIVATE_KEY"`
+	MentorRolePublicKey        string `env:"AUTH_MENTOR_ROLE_DECISION_PUBLIC_KEY"`
+	MentorLookupPrivateKey     string `env:"AUTH_MENTOR_OWNER_LOOKUP_PRIVATE_KEY"`
+	MentorLookupPublicKey      string `env:"AUTH_MENTOR_OWNER_LOOKUP_PUBLIC_KEY"`
+	MentorRBACReplyPublicKey   string `env:"AUTH_MENTOR_RBAC_REPLY_PUBLIC_KEY"`
+	MentorIntentReplyPublicKey string `env:"AUTH_MENTOR_INTENT_REPLY_PUBLIC_KEY"`
+	MentorNATSURL              string `env:"AUTH_MENTOR_NATS_URL"`
+	MentorNATSCredentialsFile  string `env:"AUTH_MENTOR_NATS_CREDENTIALS_FILE"`
+	MentorNATSCAFile           string `env:"AUTH_MENTOR_NATS_CA_FILE"`
 
 	DBHost     string `env:"AUTH_DB_HOST" envDefault:"localhost"`
 	DBPort     string `env:"AUTH_DB_PORT" envDefault:"5432"`

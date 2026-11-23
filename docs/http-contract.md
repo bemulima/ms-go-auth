@@ -1,6 +1,23 @@
 # HTTP contract
 
+The additive [Notification recipient owner read](notification-recipient-v1.md)
+is a separate default-off service capability; it exposes no profile or role grants.
+
 The base path defaults to /api/v1. Auth routes are listed in .ai/contracts/http.yaml and internal/transport/http/api/v1/router.go. Protected routes use JWT middleware. /internal/health is GET.
+
+## Default-off Mentor authority
+
+[AUTH_MENTOR_HTTP_AUTHORITY_V1](../.ai/contracts/mentor-http-authority-v1.md)
+defines a separate strict direct-HTTPS provider for live user/Admin verification
+and exact role-decision issuance. It is never registered in the existing
+plaintext private/public Echo router. Explicit validated `AUTH_MENTOR_ENABLED`
+now composes and serves it on a dedicated HTTPS listener; default is disabled.
+Construction and runtime prerequisites are described in
+[Mentor HTTP authority](mentor-http-authority.md) and
+[runtime wiring](mentor-runtime.md). Existing `/auth/verify`, NATS,
+login/refresh, reviewer, OAuth and MCP paths are unchanged.
+
+## Existing reviewer authority
 
 `POST /auth/knowledge-graph/reviewer-token` is protected by the existing Auth
 JWT/session middleware. It accepts only `decision` (`APPROVE` or `REJECT`) and

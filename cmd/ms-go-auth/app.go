@@ -40,11 +40,17 @@ type App struct {
 	natsConn          *nats.Conn
 	echo              *echo.Echo
 	verificationStore *taraclient.Client
+	mentorHTTPS       *http.Server
+	mentorBroker      *mentorRuntimeBroker
 }
 
 func New(ctx context.Context) (*App, error) {
 	cfg := config.MustLoad()
 	if err := cfg.ValidateLocalOAuthBoundary(); err != nil {
+		return nil, err
+	}
+	mentorPrepared, err := prepareMentorRuntime(cfg, defaultMentorRuntimeLoaders())
+	if err != nil {
 		return nil, err
 	}
 	google := oauthprovider.NewGoogleOAuth2(cfg.OAuthGoogleClientID, cfg.OAuthGoogleClientSecret, cfg.OAuthGoogleRedirectURL)
@@ -112,6 +118,23 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	var mentorHTTPS *http.Server
+	var mentorBroker *mentorRuntimeBroker
+	if mentorPrepared != nil {
+		mentorBroker, err = connectMentorRuntimeBroker(ctx, mentorPrepared, dialMentorRuntimeBroker)
+		if err != nil {
+			return nil, ErrMentorRuntimeUnavailable
+		}
+		defer func() {
+			if !initialized {
+				mentorBroker.Close()
+			}
+		}()
+		mentorHTTPS, err = newMentorHTTPSServer(mentorPrepared, MentorCompositionDependencies{DB: db, Parser: signer, Requester: mentorBroker})
+		if err != nil {
+			return nil, ErrMentorRuntimeUnavailable
+		}
+	}
 
 	oauthRegistry := oauthprovider.NewRegistry(
 		google,
@@ -138,9 +161,12 @@ func New(ctx context.Context) (*App, error) {
 
 	e := echo.New()
 	router.Setup(e)
+	if err := mountNotificationRecipient(cfg, db, e, mentorHTTPS); err != nil {
+		return nil, err
+	}
 
 	initialized = true
-	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e, verificationStore: verificationStore}, nil
+	return &App{cfg: cfg, logger: logger, db: db, natsConn: nc, echo: e, verificationStore: verificationStore, mentorHTTPS: mentorHTTPS, mentorBroker: mentorBroker}, nil
 }
 
 // applyDatabaseMigrations is intentionally a single gate around every
@@ -164,6 +190,9 @@ func applyDatabaseMigrations(db *gorm.DB, cfg *config.Config) error {
 }
 
 func (a *App) Run(ctx context.Context) error {
+	if a.mentorHTTPS != nil {
+		return a.runMentorHTTPS(ctx)
+	}
 	errCh := make(chan error, 1)
 	go func() {
 		<-ctx.Done()
@@ -185,7 +214,30 @@ func (a *App) Run(ctx context.Context) error {
 	}
 }
 
+// The new authority is never mounted on plaintext Echo. Only the explicitly
+// enabled branch supervises both listeners and the separate secure requester.
+func (a *App) runMentorHTTPS(ctx context.Context) error {
+	if ctx == nil || a.cfg == nil || a.echo == nil || a.mentorHTTPS == nil || a.mentorBroker == nil {
+		return ErrMentorRuntimeUnavailable
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer a.mentorBroker.Close()
+	a.mentorHTTPS.BaseContext = func(net.Listener) context.Context { return runCtx }
+	servers := []mentorServerLifecycle{
+		{start: func() error { return a.echo.Start(net.JoinHostPort(a.cfg.HTTPHost, a.cfg.HTTPPort)) }, shutdown: func(c context.Context) error { cancel(); return a.echo.Shutdown(c) }, close: a.echo.Close},
+		{start: func() error { return a.mentorHTTPS.ListenAndServeTLS("", "") }, shutdown: func(c context.Context) error { cancel(); return a.mentorHTTPS.Shutdown(c) }, close: a.mentorHTTPS.Close},
+	}
+	return runMentorServers(runCtx, servers, a.mentorBroker.done)
+}
+
 func (a *App) Close() {
+	if a.mentorHTTPS != nil {
+		_ = a.mentorHTTPS.Close()
+	}
+	if a.mentorBroker != nil {
+		a.mentorBroker.Close()
+	}
 	if a.verificationStore != nil {
 		_ = a.verificationStore.Close()
 	}

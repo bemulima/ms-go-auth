@@ -1,0 +1,30 @@
+{
+  "contract": "AUTH_RBAC_MENTOR_ROLE_DECISION_V1",
+  "status": "source_wiring_default_off_runtime_not_run",
+  "owner": "ms-go-auth",
+  "consumer": "ms-go-rbac",
+  "algorithm": "RS256",
+  "minimum_rsa_bits": 2048,
+  "max_token_bytes": 8192,
+  "header": {"alg": "RS256", "typ": "JWT"},
+  "required_claims": ["iss", "aud", "sub", "typ", "purpose", "target_user_id", "application_id", "application_revision", "decision", "request_id", "decision_digest", "role", "service", "jti", "iat", "exp"],
+  "constants": {
+    "iss": "ms-go-auth",
+    "aud": "ms-go-rbac-mentor-role",
+    "typ": "mentor_role_decision",
+    "purpose": "AUTH_RBAC_MENTOR_ROLE_DECISION_V1",
+    "role": "mentor",
+    "service": "ms-go-mentor"
+  },
+  "decisions": {"APPROVE": [2], "SUSPEND": [3, 4]},
+  "producer_ttl_seconds": 30,
+  "max_ttl_seconds": 30,
+  "future_skew_seconds": 5,
+  "maximum_integer_time": 9007199254740991,
+  "decision_digest": "sha256(UTF8(decision|admin_actor_id|application_id|request_id|application_revision-1))",
+  "authority": ["current_auth_session", "authenticated_unique_canonical_default_admin", "authenticated_exact_committed_mentor_intent"],
+  "current_session_revalidation": "same bearer, actor and sid after both owner confirmations before signing; no stored-ID renewal",
+  "strict_session_errors": "typed unauthenticated and unavailable outcomes preserved; unknown legacy session errors remain denied",
+  "source_http_boundary": "AUTH_MENTOR_HTTP_AUTHORITY_V1; explicit opt-in dedicated HTTPS, disabled by default",
+  "prerequisites_not_mounted": ["authenticated_owner_lookup_runtime_wiring", "rbac_atomic_role_store", "signed_fresh_scoped_readback", "runtime_key_configuration"]
+}

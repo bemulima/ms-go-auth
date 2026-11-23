@@ -8,6 +8,35 @@ protected:
   DELETE: ['/identities/:provider/:provider_user_id']
 internal: [{method: GET, path: /internal/health}]
 
+notification_recipient:
+  owner_contract: AUTH_NOTIFICATION_RECIPIENT_V1
+  documentation: .ai/contracts/notification-recipient-v1.md
+  default_enabled: false
+  gate: AUTH_NOTIFICATION_RECIPIENT_ENABLED
+  method: POST
+  path: /internal/v1/notification/recipient
+  capability_header: X-Notification-Recipient-Token
+  request_fields: [schema, user_id]
+  response_fields: [schema, user_id, email, verified, revision, checked_at]
+  human_bearer_allowed: false
+  public_gateway_route: false
+  checked_at_semantics: current_verified_observation_not_historical_verification_time
+  requires: [current_verified_auth_email, completed_signup, HTTPS_consumer_origin]
+
+mentor_authority_source_only:
+  owner_contract: AUTH_MENTOR_HTTP_AUTHORITY_V1
+  documentation: .ai/contracts/mentor-http-authority-v1.md
+  registered: false
+  registration_semantics: disabled_by_default
+  registration_gate: AUTH_MENTOR_ENABLED_true_with_complete_validated_runtime_configuration
+  method: POST
+  paths: [/internal/v1/mentor/session/verify, /internal/v1/mentor/admin-session/verify, /internal/v1/mentor/role-decisions]
+  transport: direct_authenticated_https
+  session_authority: concrete_strict_current_auth_session_with_mandatory_owner_store
+  admin_authority: authenticated_canonical_default_admin_then_same_session_revalidation
+  production_composition: explicit_opt_in_dedicated_https_not_plaintext_echo
+  runtime_documentation: docs/mentor-runtime.md
+
 signup_recovery_storage:
   owner: ms-go-auth
   protocol: direct_authenticated_tarantool_call
