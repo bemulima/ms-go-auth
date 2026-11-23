@@ -53,6 +53,17 @@ func approvedMCPStudentScopeCeiling(includeMutations, includePrivate bool) []str
 		"submissions:write", "tasks:read", "validation:run", "workspace:write"}
 }
 
+// authorizePolicyForMCPStudent returns the same operator-approved request
+// ceiling used during token exchange. This does NOT grant scopes: an Auth
+// registered client, stored Student consent and fresh RBAC signed decision
+// are still independently required for each requested permission.
+func authorizePolicyForMCPStudent(resource string, scopes []string) usecase.MCPExternalPolicy {
+	return usecase.MCPExternalPolicy{
+		ResourceURI: resource,
+		AllowedStudentScopes: append([]string(nil), scopes...),
+	}
+}
+
 // enableMCPStudentAccess is deliberately opt-in. Do not attach frontend JWT
 // verification or generic RBAC role ALLOW as an OAuth access-token fallback.
 func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *nats.Conn, studentAuth echo.MiddlewareFunc) error {
@@ -94,7 +105,7 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 		return errors.New("MCP issuer-to-adapter verification route unavailable")
 	}
 	codeRepo := repo.NewMCPExternalCodeRepository(db)
-	policy := usecase.MCPExternalPolicy{ResourceURI: cfg.MCPResourceURI, AllowedStudentScopes: approvedMCPStudentReadScopeCeiling(cfg.MCPPrivateLearningReadScopesEnabled)}
+	policy := authorizePolicyForMCPStudent(cfg.MCPResourceURI, scopes)
 	authorize := usecase.MCPExternalAuthorizeUsecase{
 		Clients: repo.NewMCPExternalClientConsentRepository(db),
 		Grants:  composer,
