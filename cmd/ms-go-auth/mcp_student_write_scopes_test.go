@@ -76,7 +76,7 @@ func TestMCP53AuthorizePolicyUsesSameExplicitScopeCeilingAsTokenExchange(t *test
 			client := usecase.MCPExternalClient{ID: clientID, RedirectURIs: []string{redirect}, AllowedScopes: append([]string(nil), scopes...)}
 			consent := usecase.MCPExternalConsent{
 				StudentID: student, ClientID: clientID, ResourceURI: resource,
-				Scopes: []string{"courses:read", "instances:start", "lessons:read", "submissions:write", "tasks:read", "validation:run", "workspace:write"},
+				Scopes:    []string{"courses:read", "instances:start", "lessons:read", "submissions:write", "tasks:read", "validation:run", "workspace:write"},
 				ExpiresAt: now.Add(time.Hour),
 			}
 			request := usecase.MCPExternalAuthorizationRequest{
