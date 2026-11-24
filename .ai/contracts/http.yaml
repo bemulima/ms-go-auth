@@ -117,3 +117,8 @@ knowledge_reviewer_read_token_v1:
   graph_claims: always_present_empty_for_queue_exact_for_version
   authority: authenticated_subject_and_signed_RBAC_decision
   write_decision_authority: false
+
+mcp_mentor_foundation:
+  documentation: docs/mcp-mentor-oauth.md
+  contract: .ai/contracts/mcp-mentor-oauth-v1.json
+  default_enabled: false

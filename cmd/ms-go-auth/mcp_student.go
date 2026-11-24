@@ -66,7 +66,7 @@ func authorizePolicyForMCPStudent(resource string, scopes []string) usecase.MCPE
 
 // enableMCPStudentAccess is deliberately opt-in. Do not attach frontend JWT
 // verification or generic RBAC role ALLOW as an OAuth access-token fallback.
-func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *nats.Conn, studentAuth echo.MiddlewareFunc) error {
+func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *nats.Conn, studentAuth echo.MiddlewareFunc, mentors ...privatehttp.MCPMentorAccessVerifier) error {
 	if e == nil || cfg == nil || db == nil || nc == nil || !cfg.MCPStudentEnabled ||
 		studentAuth == nil ||
 		cfg.MCPResourceURI == "" || cfg.MCPIssuerURI == "" ||
@@ -101,7 +101,16 @@ func enableMCPStudentAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *n
 		AllowedStudentScopes: scopes,
 	}
 	verifier := usecase.MCPExternalAccessVerification{Tokens: tokens, Grants: composer}
-	if err := privatehttp.RegisterMCPAccess(e.Group("/internal"), verifier, cfg.MCPAdapterVerifyCapability, cfg.MCPResourceURI); err != nil {
+	var registerErr error
+	if cfg.MCPMentorEnabled {
+		if len(mentors) != 1 || mentors[0] == nil {
+			return errors.New("MCP Mentor verification prerequisites unavailable")
+		}
+		registerErr = privatehttp.RegisterMCPPersonaAccess(e.Group("/internal"), verifier, mentors[0], cfg.MCPAdapterVerifyCapability, cfg.MCPResourceURI)
+	} else {
+		registerErr = privatehttp.RegisterMCPAccess(e.Group("/internal"), verifier, cfg.MCPAdapterVerifyCapability, cfg.MCPResourceURI)
+	}
+	if registerErr != nil {
 		return errors.New("MCP issuer-to-adapter verification route unavailable")
 	}
 	codeRepo := repo.NewMCPExternalCodeRepository(db)

@@ -150,3 +150,7 @@ In the production composition, `auth.verifyJWT` also checks the persisted sessio
 referenced by the access token's `sid`. Password recovery revokes those sessions
 transactionally, so an otherwise valid access JWT is rejected before its TTL.
 The existing request/response fields remain unchanged.
+
+## Mentor MCP Foundation
+
+See [isolated Mentor OAuth and delegation](mcp-mentor-oauth.md) for the additive, default-off contract. No live schema/runtime activation is implied by source verification.

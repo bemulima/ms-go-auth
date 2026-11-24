@@ -28,6 +28,7 @@ import (
 	apiv1 "github.com/example/auth-service/internal/transport/http/api/v1"
 	handlers "github.com/example/auth-service/internal/transport/http/api/v1/handlers"
 	authmw "github.com/example/auth-service/internal/transport/http/api/v1/middleware"
+	privatehttp "github.com/example/auth-service/internal/transport/http/private"
 	"github.com/example/auth-service/internal/usecase"
 	verification "github.com/example/auth-service/internal/usecase/verification"
 	pkglog "github.com/example/auth-service/pkg/log"
@@ -51,6 +52,9 @@ func New(ctx context.Context) (*App, error) {
 	}
 	if cfg.MCPBrowserEnabled && !cfg.MCPStudentEnabled {
 		return nil, errors.New("MCP browser authorization requires Student MCP authorization")
+	}
+	if err := validateMCPMentorConfig(cfg); err != nil {
+		return nil, err
 	}
 	mentorPrepared, err := prepareMentorRuntime(cfg, defaultMentorRuntimeLoaders())
 	if err != nil {
@@ -164,10 +168,31 @@ func New(ctx context.Context) (*App, error) {
 
 	e := echo.New()
 	router.Setup(e)
-	if cfg.MCPStudentEnabled {
-		if err := enableMCPStudentAccess(e, cfg, db, nc, authMW.Handler); err != nil {
+	var mentorVerifier privatehttp.MCPMentorAccessVerifier
+	if cfg.MCPMentorEnabled {
+		mentorVerifier, err = enableMCPMentorAccess(e, cfg, db, nc, signer)
+		if err != nil {
 			return nil, err
 		}
+	}
+	if cfg.MCPStudentEnabled {
+		if err := enableMCPStudentAccess(e, cfg, db, nc, authMW.Handler, mentorVerifier); err != nil {
+			return nil, err
+		}
+	} else if cfg.MCPMentorEnabled {
+		if err := privatehttp.RegisterMCPPersonaAccess(e.Group("/internal"), nil, mentorVerifier, cfg.MCPAdapterVerifyCapability, cfg.MCPMentorResource); err != nil {
+			return nil, err
+		}
+	}
+	if cfg.MCPMentorEnabled && mentorHTTPS != nil {
+		// Match the existing private-recipient composition: the exact private
+		// MCP route is also available on the dedicated verified TLS listener.
+		// The ordinary Echo listener otherwise requires trusted TLS termination.
+		prior := mentorHTTPS.Handler
+		mux := http.NewServeMux()
+		mux.Handle("/internal/mcp/verify", e)
+		mux.Handle("/", prior)
+		mentorHTTPS.Handler = mux
 	}
 	if err := mountNotificationRecipient(cfg, db, e, mentorHTTPS); err != nil {
 		return nil, err

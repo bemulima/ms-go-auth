@@ -1,0 +1,208 @@
+{
+  "contract": "AUTH_MCP_MENTOR_OAUTH_V1",
+  "owner": "ms-go-auth",
+  "consumers": [
+    "mentor-nextjs",
+    "api-gateway",
+    "ms-go-mcp",
+    "ms-go-mentor",
+    "ms-go-rbac"
+  ],
+  "status": "source_implemented_default_off_live_acceptance_not_run",
+  "flag": "MCP_MENTOR_EXTERNAL_ENABLED",
+  "default": false,
+  "persona": "MENTOR",
+  "scope_ceiling": [
+    "mentor:profile:read"
+  ],
+  "issuer": {
+    "configuration": "MCP_MENTOR_ISSUER",
+    "path": "/mentor",
+    "distinct_from": [
+      "AUTH_JWT_ISSUER",
+      "AUTH_MCP_ISSUER_URI"
+    ],
+    "metadata_path": "/.well-known/oauth-authorization-server/mentor"
+  },
+  "resource": {
+    "configuration": "MCP_MENTOR_RESOURCE_URI",
+    "path": "/mcp",
+    "same_as_student_when_both_enabled": true
+  },
+  "http": {
+    "owner_prefix": "/api/v1/auth/mcp/mentor",
+    "gateway_prefix": "/api/auth/v1/auth/mcp/mentor",
+    "routes": [
+      "GET /authorize",
+      "GET /consent",
+      "POST /consent",
+      "POST /token",
+      "POST /revoke"
+    ],
+    "authorize_fields": [
+      "response_type",
+      "client_id",
+      "redirect_uri",
+      "resource",
+      "code_challenge",
+      "code_challenge_method",
+      "scope",
+      "state"
+    ],
+    "token_fields": [
+      "grant_type",
+      "code",
+      "code_verifier",
+      "client_id",
+      "redirect_uri",
+      "resource"
+    ],
+    "revoke_fields": [
+      "client_id",
+      "resource"
+    ],
+    "consent_preview_fields": [
+      "persona",
+      "client_id",
+      "client_name",
+      "resource",
+      "scopes",
+      "consent_active",
+      "consent_expires_at?"
+    ],
+    "approval_response_fields": [
+      "redirect_uri"
+    ],
+    "consent_session": "strict live Auth persisted session, pre/post response subject recheck, no Cookie",
+    "revoke_role_required": false,
+    "code_entropy_bits": 256,
+    "code_encoding": "canonical_base64url_43",
+    "pkce": "S256_only",
+    "redirect": "exact registered HTTPS or literal loopback HTTP, no userinfo/fragment/reserved token parameters",
+    "cache_control": "no-store"
+  },
+  "access_token": {
+    "algorithm": "RS256",
+    "jose_type": "mentor-at+jwt",
+    "claims": [
+      "iss",
+      "sub",
+      "aud",
+      "client_id",
+      "grant_id",
+      "scope",
+      "persona",
+      "iat",
+      "exp",
+      "jti"
+    ],
+    "maximum_ttl_seconds": 300,
+    "dedicated_signing_keys": true,
+    "shared_rsa_modulus_rejected": true,
+    "future_iat_allowed": false,
+    "strict_json": true,
+    "refresh_token": false
+  },
+  "verification": {
+    "path": "POST /internal/mcp/verify",
+    "capability": "AUTH_MCP_ADAPTER_VERIFY_TOKEN",
+    "request_fields": [
+      "token",
+      "resource"
+    ],
+    "mentor_response_fields": [
+      "persona",
+      "mentor_id",
+      "client_id",
+      "grant_id",
+      "audience",
+      "scopes",
+      "expires_at",
+      "owner_proof"
+    ],
+    "expires_at": "integer_unix_seconds",
+    "student_wire": "unchanged",
+    "selection": "unverified JOSE typ selects one full verifier; terminal failure; no fallback",
+    "fresh_checks": [
+      "current Auth account/client/consent",
+      "signed exact Mentor RBAC role and explicit permission",
+      "current Mentor approval",
+      "Auth consent re-read after external I/O"
+    ],
+    "ordinary_listener": "trusted TLS termination required",
+    "optional_dedicated_mentor_https": "exact verify route mounted"
+  },
+  "owner_proof": {
+    "audience": "ms-go-mentor-mcp",
+    "issuer": "same configured Mentor OAuth issuer",
+    "header": {
+      "alg": "RS256",
+      "typ": "JWT"
+    },
+    "maximum_ttl_seconds": 15,
+    "claims": [
+      "iss",
+      "aud",
+      "sub",
+      "persona",
+      "purpose",
+      "iat",
+      "exp",
+      "jti"
+    ],
+    "approval_purpose": "MCP_MENTOR_APPROVAL_V1",
+    "profile_purpose": "MCP_MENTOR_PROFILE_READ_V1",
+    "profile_additional_claims": [
+      "client_id",
+      "grant_id",
+      "resource",
+      "scope"
+    ],
+    "profile_expiry_capped_to_grant": true,
+    "response_exposure": "private MCP verifier only; never tool output",
+    "approval_capability": "MCP_MENTOR_APPROVAL_TOKEN",
+    "approval_trust": "verified HTTPS, optional MCP_MENTOR_APPROVAL_CA_PEM, no proxy/redirect/retry"
+  },
+  "rbac_request": {
+    "subject": "rbac.checkMCPMentorAccess",
+    "envelope_fields": [
+      "proof"
+    ],
+    "audience": "ms-go-rbac-mcp-mentor",
+    "purpose": "AUTH_RBAC_MCP_MENTOR_ACCESS_V1",
+    "claims": [
+      "iss",
+      "aud",
+      "sub",
+      "persona",
+      "purpose",
+      "scope",
+      "jti",
+      "iat",
+      "exp"
+    ],
+    "maximum_ttl_seconds": 15,
+    "response_owner_contract": "ms-go-rbac/.ai/contracts/mcp-mentor-access-v1.json"
+  },
+  "storage": {
+    "migration": "0008_mcp_mentor_oauth",
+    "tables": [
+      "auth_mcp_mentor_client",
+      "auth_mcp_mentor_consent",
+      "auth_mcp_mentor_code"
+    ],
+    "grants_seeded": false,
+    "code_stored_as": "sha256_only",
+    "grant_and_code": "atomic transaction; verified account FOR UPDATE and registered client FOR SHARE",
+    "revoke": "same account serialization lock; all own client/resource consents",
+    "reapprove": "new grant replaces and revokes prior own client/resource consent",
+    "code_redeem": "conditional UPDATE RETURNING then verifier/current-authority checks",
+    "rollback": "refuse any retained rows",
+    "startup_migrations": "disabled required"
+  },
+  "validation_limits": {
+    "source_tests": "behavioral crypto, PKCE/replay/revocation, HTTP, configuration, GORM protocol fixtures",
+    "live_sql": "NOT_RUN",
+    "runtime_activation": "NOT_RUN"
+  }
+}

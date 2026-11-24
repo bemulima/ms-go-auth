@@ -177,3 +177,11 @@ access_session_verification:
   request_response_shape: unchanged
   production_validation: signature_claims_and_active_persisted_session_sid
   reset_revocation: rejected_before_access_jwt_expiry
+
+mcp_mentor_access:
+  subject: rbac.checkMCPMentorAccess
+  kind: Core_NATS_request_reply
+  queue: ms-go-rbac
+  proof_and_response: dedicated_RSA_purpose_nonce_digest_bound
+  contract: .ai/contracts/mcp-mentor-oauth-v1.json
+  default_enabled: false

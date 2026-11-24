@@ -127,3 +127,7 @@ substitute for a fresh **signed RBAC** Student permission decision. The SQL
 readback does not implement the final token-grant port or issue access tokens.
 See [MCP-00C3C](mcp00-external-auth-grant-readback-source.md) for the guarded
 disposable PostgreSQL test and still-missing runtime authorization boundary.
+
+## Mentor MCP Foundation
+
+See [isolated Mentor OAuth and delegation](mcp-mentor-oauth.md) for the additive, default-off contract. No live schema/runtime activation is implied by source verification.
