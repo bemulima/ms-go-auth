@@ -1,8 +1,8 @@
 schema_version: 1
 documentation: docs/database-contract.md
 owner: ms-go-auth
-tables: [auth_user, auth_identity, auth_refresh_token, auth_oauth_transaction, auth_signup_completion]
-migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow, 0004_signup_completion, 0005_email_verified]
+tables: [auth_user, auth_identity, auth_refresh_token, auth_oauth_transaction, auth_signup_completion, auth_mcp_mentor_client, auth_mcp_mentor_consent, auth_mcp_mentor_code]
+migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow, 0004_signup_completion, 0005_email_verified, 0008_mcp_mentor_oauth, 0009_mcp_mentor_offer_scope, 0010_mcp_mentor_workspace_read, 0011_mcp_mentor_skill_draft, 0012_mcp_mentor_authoring, 0013_mcp_mentor_skill_final, 0014_mcp_mentor_management, 0015_mcp_mentor_authored_content_read, 0016_mcp_mentor_cohort_respond, 0017_mcp_mentor_student_feedback, 0018_mcp_mentor_dialog_write, 0020_mcp_mentor_task_assignment]
 refresh_rotation:
   isolation: principal_lock_then_conditional_active_session_consume_and_replacement_insert_in_one_postgres_transaction
   replay: rejected
@@ -38,3 +38,23 @@ email_code:
   grant: purpose_and_email_bound_single_use_HMAC
   registration: verified_grant_before_principal_creation
   reset: password_update_and_session_revocation_in_one_transaction
+
+mcp_mentor_oauth:
+  migration: 0008_mcp_mentor_oauth
+  offers_scope_migration: 0009_mcp_mentor_offer_scope
+  workspace_read_scope_migration: 0010_mcp_mentor_workspace_read
+  authoring_scope_migration: 0012_mcp_mentor_authoring
+  skill_draft_scope_migration: 0011_mcp_mentor_skill_draft
+  management_scope_migration: 0014_mcp_mentor_management
+  persona_tables_separate_from_student: true
+  consent_and_code: same_transaction_account_lock_client_lock
+  code_redeem: atomic_conditional_update_returning
+  code_storage: SHA256_only
+  grants_seeded: false
+  rollback: refuses_retained_rows
+  sql_acceptance: NOT_RUN
+
+mcp_mentor_cohort_response_scope_migration: 0016_mcp_mentor_cohort_respond
+mcp_mentor_student_feedback_scope_migration: 0017_mcp_mentor_student_feedback
+
+mcp_mentor_task_assignment_scope_migration: 0020_mcp_mentor_task_assignment

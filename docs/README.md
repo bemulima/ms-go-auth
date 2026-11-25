@@ -3,6 +3,7 @@
 This repository owns auth architecture and its HTTP, NATS, and database contracts.
 
 - [Architecture](architecture.md)
+- [Mentor MCP Foundation (default off)](mcp-mentor-oauth.md)
 - [HTTP](http-contract.md)
 - [Notification verified recipient (disabled by default)](notification-recipient-v1.md)
 - [Mentor HTTP authority (disabled by default)](mentor-http-authority.md)

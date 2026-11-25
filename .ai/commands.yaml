@@ -1,5 +1,7 @@
 schema_version: 1
 commands:
+  - {name: mcp-mentor-source, run: "go test -count=1 ./... -run '^TestMCPMentor'", requires_approval: false, risk: source-only-crypto-HTTP-and-injected-storage-no-live-database}
+  - {name: mcp-mentor-race, run: "go test -race -count=1 ./... -run '^TestMCPMentor'", requires_approval: false, risk: source-only-crypto-HTTP-and-injected-storage-no-live-database}
   - {name: notification-recipient-targeted, run: 'go test -count=1 ./internal/usecase ./internal/transport/http/private ./cmd/ms-go-auth -run "^TestNotificationRecipient"', requires_approval: false, risk: verification}
   - {name: agent-policy-regression, run: 'PYTHONDONTWRITEBYTECODE=1 python3 test/unit/agent_policy_test.py', requires_approval: false, risk: verification}
   - {name: agent-policy, run: ./scripts/check-agent-policy.sh, requires_approval: false, risk: verification}

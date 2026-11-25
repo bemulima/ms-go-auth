@@ -206,3 +206,7 @@ sub, permission, scope, graph_id/graph_version (both empty for queue), iat/exp90
 and fresh JTI. It contains no review decision and cannot authorize writes. Pure
 read replay within TTL is allowed; Planner verifies audience/scope/path and its
 dedicated admin service boundary. Existing review-decision JWTs remain unchanged.
+
+## Mentor MCP Foundation
+
+See [isolated Mentor OAuth and delegation](mcp-mentor-oauth.md) for the additive, default-off contract. No live schema/runtime activation is implied by source verification.
