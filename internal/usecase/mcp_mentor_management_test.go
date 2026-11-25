@@ -10,7 +10,7 @@ import (
 )
 
 func TestMCPMentorManagementUsesExactEnabledScope(t *testing.T) {
-	for _, scope := range []string{"mentor:offers:publish", "mentor:cohorts:respond", "mentor:students:feedback"} {
+	for _, scope := range []string{"mentor:offers:publish", "mentor:cohorts:respond", "mentor:students:feedback", "mentor:dialogs:write", "mentor:students:assign", "mentor:cohorts:assign"} {
 		t.Run(scope, func(t *testing.T) { testMCPMentorManagementScope(t, scope) })
 	}
 }

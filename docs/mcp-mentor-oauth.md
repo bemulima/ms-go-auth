@@ -213,3 +213,9 @@ have separate permissions, as do schedule editing and session cancellation.
 Both flags default to false. Every grant still consents to one exact scope
 and mints its own owner proof purpose after current RBAC and Mentor checks.
 Approval of an OAuth grant alone does not confirm a final command.
+
+The management gate also admits the exact `mentor:dialogs:write` scope for
+confirmed Mentor messages in existing Assignment and Cohort dialogs.
+Migration 0018 adds only the scope to the closed client and consent registries.
+Auth binds it to the existing Mentor management proof purpose and checks the
+matching RBAC permission before issuing a proof.

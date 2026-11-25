@@ -40,7 +40,10 @@
     "mentor:notifications:read",
     "mentor:dialogs:read",
     "mentor:cohorts:respond",
-    "mentor:students:feedback"
+    "mentor:students:feedback",
+    "mentor:dialogs:write",
+    "mentor:students:assign",
+    "mentor:cohorts:assign"
   ],
   "offers_flag": "MCP_MENTOR_OFFERS_ENABLED",
   "offers_default": false,
