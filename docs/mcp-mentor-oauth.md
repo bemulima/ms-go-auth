@@ -161,3 +161,17 @@ Migration 0009 widens scope checks without auto-granting new access. It
 preserves existing profile rows and refuses rollback while offers entries
 still need the new constraints. Runtime SQL and live authorization remain
 unverified.
+
+## MENT-07B workspace read scopes
+
+`MCP_MENTOR_WORKSPACE_READ_ENABLED` defaults to false. When enabled, the
+Mentor issuer supports explicit singleton approvals for
+`mentor:students:read`, `mentor:cohorts:read`, `mentor:schedule:read`,
+`mentor:skills:read` and `mentor:reviews:read`. A registered client may allow
+several, while each authorization code, grant and token carries exactly one.
+Authorization, metadata and per-request verification use the same flag.
+Migration `0010_mcp_mentor_workspace_read` updates the closed database scope
+constraints without adding any client or grant. Its rollback refuses retained
+workspace scopes. After current Auth consent, scoped RBAC and Mentor approval
+checks, Auth issues a proof with purpose `MCP_MENTOR_WORKSPACE_READ_V1` and
+the exact verified scope. The proof expires within 15 seconds and by grant expiry.

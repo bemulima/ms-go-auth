@@ -7,19 +7,25 @@ import (
 )
 
 const (
-	MCPMentorScope            = "mentor:profile:read"
-	MCPMentorOffersScope      = "mentor:offers:read"
-	MCPMentorPersona          = "MENTOR"
-	MCPMentorAccessType       = "mentor-at+jwt"
-	MCPMentorRBACSubject      = "rbac.checkMCPMentorAccess"
-	MCPMentorRBACAudience     = "ms-go-rbac-mcp-mentor"
-	MCPMentorRBACPurpose      = "AUTH_RBAC_MCP_MENTOR_ACCESS_V1"
-	MCPMentorDecisionAudience = "ms-go-auth-mcp-mentor-decision"
-	MCPMentorDecisionPurpose  = "RBAC_AUTH_MCP_MENTOR_ACCESS_V1"
-	MCPMentorOwnerAudience    = "ms-go-mentor-mcp"
-	MCPMentorApprovalPurpose  = "MCP_MENTOR_APPROVAL_V1"
-	MCPMentorProfilePurpose   = "MCP_MENTOR_PROFILE_READ_V1"
-	MCPMentorOffersPurpose    = "MCP_MENTOR_OFFERS_READ_V1"
+	MCPMentorScope                = "mentor:profile:read"
+	MCPMentorOffersScope          = "mentor:offers:read"
+	MCPMentorReviewsReadScope     = "mentor:reviews:read"
+	MCPMentorStudentsReadScope    = "mentor:students:read"
+	MCPMentorCohortsReadScope     = "mentor:cohorts:read"
+	MCPMentorScheduleReadScope    = "mentor:schedule:read"
+	MCPMentorSkillsReadScope      = "mentor:skills:read"
+	MCPMentorPersona              = "MENTOR"
+	MCPMentorAccessType           = "mentor-at+jwt"
+	MCPMentorRBACSubject          = "rbac.checkMCPMentorAccess"
+	MCPMentorRBACAudience         = "ms-go-rbac-mcp-mentor"
+	MCPMentorRBACPurpose          = "AUTH_RBAC_MCP_MENTOR_ACCESS_V1"
+	MCPMentorDecisionAudience     = "ms-go-auth-mcp-mentor-decision"
+	MCPMentorDecisionPurpose      = "RBAC_AUTH_MCP_MENTOR_ACCESS_V1"
+	MCPMentorOwnerAudience        = "ms-go-mentor-mcp"
+	MCPMentorApprovalPurpose      = "MCP_MENTOR_APPROVAL_V1"
+	MCPMentorProfilePurpose       = "MCP_MENTOR_PROFILE_READ_V1"
+	MCPMentorOffersPurpose        = "MCP_MENTOR_OFFERS_READ_V1"
+	MCPMentorWorkspaceReadPurpose = "MCP_MENTOR_WORKSPACE_READ_V1"
 )
 
 var (
@@ -41,7 +47,19 @@ type MCPMentorCode struct {
 }
 
 func ValidMCPMentorScope(scope string) bool {
-	return scope == MCPMentorScope || scope == MCPMentorOffersScope
+	return scope == MCPMentorScope || scope == MCPMentorOffersScope || IsMCPMentorWorkspaceReadScope(scope)
+}
+
+func MCPMentorWorkspaceReadScopes() []string {
+	return []string{MCPMentorReviewsReadScope, MCPMentorStudentsReadScope, MCPMentorCohortsReadScope, MCPMentorScheduleReadScope, MCPMentorSkillsReadScope}
+}
+
+func IsMCPMentorWorkspaceReadScope(scope string) bool {
+	switch scope {
+	case MCPMentorReviewsReadScope, MCPMentorStudentsReadScope, MCPMentorCohortsReadScope, MCPMentorScheduleReadScope, MCPMentorSkillsReadScope:
+		return true
+	}
+	return false
 }
 
 // Store never accesses Student MCP tables. Each grant has one exact scope.

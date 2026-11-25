@@ -372,3 +372,34 @@ func TestMCPMentorOffersConsentAndProofAreScopeBound(t *testing.T) {
 		t.Fatalf("offers token survived switch-off: %v", err)
 	}
 }
+
+func TestMCPMentorWorkspaceConsentUsesExactScope(t *testing.T) {
+	oauth, store, authority, request, verifier, _, _ := mentorOAuthFixture(t)
+	ctx := context.Background()
+	store.client.Scopes = append(store.client.Scopes, domain.MCPMentorWorkspaceReadScopes()...)
+	for _, scope := range domain.MCPMentorWorkspaceReadScopes() {
+		t.Run(scope, func(t *testing.T) {
+			request.Scope = scope
+			if _, err := oauth.Preview(ctx, request, mentorOAuthActor); err != domain.ErrMCPMentorDenied {
+				t.Fatalf("disabled workspace scope preview: %v", err)
+			}
+			oauth.WorkspaceReadEnabled = true
+			preview, err := oauth.Preview(ctx, request, mentorOAuthActor)
+			if err != nil || preview.ConsentActive || len(preview.Scopes) != 1 || preview.Scopes[0] != scope {
+				t.Fatalf("another scope changed workspace consent: %+v %v", preview, err)
+			}
+			token, err := oauth.Exchange(ctx, mentorOAuthExchangeRequest(request, mentorOAuthCode(t, oauth, request), verifier))
+			if err != nil || token.Scope != scope || authority.lastScope != scope {
+				t.Fatalf("workspace scope did not reach token exchange and RBAC: %v", err)
+			}
+			grant, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now())
+			if err != nil || len(grant.Scopes) != 1 || grant.Scopes[0] != scope {
+				t.Fatalf("workspace scope did not reach verification: %v", err)
+			}
+			oauth.WorkspaceReadEnabled = false
+			if _, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now()); err != domain.ErrMCPMentorDenied {
+				t.Fatalf("workspace granted after switch-off: %v", err)
+			}
+		})
+	}
+}

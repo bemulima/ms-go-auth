@@ -14,7 +14,12 @@
   "persona": "MENTOR",
   "scope_ceiling": [
     "mentor:profile:read",
-    "mentor:offers:read"
+    "mentor:offers:read",
+    "mentor:students:read",
+    "mentor:cohorts:read",
+    "mentor:schedule:read",
+    "mentor:skills:read",
+    "mentor:reviews:read"
   ],
   "offers_flag": "MCP_MENTOR_OFFERS_ENABLED",
   "offers_default": false,
@@ -166,7 +171,8 @@
     "offers_purpose": "MCP_MENTOR_OFFERS_READ_V1",
     "response_exposure": "private MCP verifier only; never tool output",
     "approval_capability": "MCP_MENTOR_APPROVAL_TOKEN",
-    "approval_trust": "verified HTTPS, optional MCP_MENTOR_APPROVAL_CA_PEM, no proxy/redirect/retry"
+    "approval_trust": "verified HTTPS, optional MCP_MENTOR_APPROVAL_CA_PEM, no proxy/redirect/retry",
+    "workspace_read_purpose": "MCP_MENTOR_WORKSPACE_READ_V1"
   },
   "rbac_request": {
     "subject": "rbac.checkMCPMentorAccess",
@@ -204,11 +210,14 @@
     "reapprove": "new grant replaces and revokes prior own client/resource consent",
     "code_redeem": "conditional UPDATE RETURNING then verifier/current-authority checks",
     "rollback": "refuse any retained rows",
-    "startup_migrations": "disabled required"
+    "startup_migrations": "disabled required",
+    "workspace_read_scope_migration": "0010_mcp_mentor_workspace_read"
   },
   "validation_limits": {
     "source_tests": "behavioral crypto, PKCE/replay/revocation, HTTP, configuration, GORM protocol fixtures",
     "live_sql": "NOT_RUN",
     "runtime_activation": "NOT_RUN"
-  }
+  },
+  "workspace_read_flag": "MCP_MENTOR_WORKSPACE_READ_ENABLED",
+  "workspace_read_default": false
 }

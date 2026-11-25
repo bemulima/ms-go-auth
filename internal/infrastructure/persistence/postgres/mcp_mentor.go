@@ -55,7 +55,7 @@ func (r *mcpMentorStore) Client(ctx context.Context, subject, client, resource s
 	}
 	redirects, ok := decodeMCPExternalRedirectURIs(row.RedirectsJSON)
 	scopes, valid := decodeMCPExternalStoredScopes(row.ScopesJSON)
-	if row.ClientID != client || !ok || !valid || len(scopes) > 2 || len(row.DisplayName) == 0 || len(row.DisplayName) > 160 || !utf8.ValidString(row.DisplayName) || strings.ContainsFunc(row.DisplayName, unicode.IsControl) {
+	if row.ClientID != client || !ok || !valid || len(scopes) > 2+len(domain.MCPMentorWorkspaceReadScopes()) || len(row.DisplayName) == 0 || len(row.DisplayName) > 160 || !utf8.ValidString(row.DisplayName) || strings.ContainsFunc(row.DisplayName, unicode.IsControl) {
 		return nil, domain.ErrMCPMentorUnavailable
 	}
 	for _, scope := range scopes {

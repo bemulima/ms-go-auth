@@ -120,6 +120,8 @@ func (a *MCPMentorTokens) OwnerReadProof(c MCPMentorAccessClaims) (string, error
 	purpose := domain.MCPMentorProfilePurpose
 	if c.Scope == domain.MCPMentorOffersScope {
 		purpose = domain.MCPMentorOffersPurpose
+	} else if domain.IsMCPMentorWorkspaceReadScope(c.Scope) {
+		purpose = domain.MCPMentorWorkspaceReadPurpose
 	}
 	raw, _, err := a.proof(c.Subject, domain.MCPMentorOwnerAudience, purpose, c.Scope, &c)
 	return raw, err
