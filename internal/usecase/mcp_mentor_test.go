@@ -403,3 +403,32 @@ func TestMCPMentorWorkspaceConsentUsesExactScope(t *testing.T) {
 		})
 	}
 }
+
+func TestMCPMentorSkillDraftDelegationNeedsSeparateEnabledScope(t *testing.T) {
+	oauth, store, authority, request, verifier, _, _ := mentorOAuthFixture(t)
+	ctx := context.Background()
+	request.Scope = domain.MCPMentorSkillDraftScope
+	store.client.Scopes = append(store.client.Scopes, request.Scope)
+	oauth.WorkspaceReadEnabled = true
+	if _, err := oauth.Preview(ctx, request, mentorOAuthActor); err != domain.ErrMCPMentorDenied {
+		t.Fatalf("read feature admitted unrelated draft authority: %v", err)
+	}
+	oauth.SkillDraftEnabled = true
+	token, err := oauth.Exchange(ctx, mentorOAuthExchangeRequest(request, mentorOAuthCode(t, oauth, request), verifier))
+	if err != nil || token.Scope != request.Scope || authority.lastScope != request.Scope {
+		t.Fatalf("draft authority reached wrong RBAC scope or token: %v", err)
+	}
+	grant, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimsJSON, err := base64.RawURLEncoding.DecodeString(strings.Split(grant.OwnerProof, ".")[1])
+	var claims map[string]any
+	if err != nil || json.Unmarshal(claimsJSON, &claims) != nil || claims["scope"] != request.Scope || claims["purpose"] != domain.MCPMentorSkillDraftPurpose {
+		t.Fatal("draft proof did not bind the owner purpose")
+	}
+	oauth.SkillDraftEnabled = false
+	if _, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now()); err != domain.ErrMCPMentorDenied {
+		t.Fatalf("draft access survived switch-off: %v", err)
+	}
+}

@@ -13,6 +13,8 @@ const (
 	MCPMentorStudentsReadScope    = "mentor:students:read"
 	MCPMentorCohortsReadScope     = "mentor:cohorts:read"
 	MCPMentorScheduleReadScope    = "mentor:schedule:read"
+	MCPMentorSkillDraftScope      = "mentor:skills:write"
+	MCPMentorSkillDraftPurpose    = "MCP_MENTOR_SKILL_DRAFT_V1"
 	MCPMentorSkillsReadScope      = "mentor:skills:read"
 	MCPMentorPersona              = "MENTOR"
 	MCPMentorAccessType           = "mentor-at+jwt"
@@ -47,7 +49,7 @@ type MCPMentorCode struct {
 }
 
 func ValidMCPMentorScope(scope string) bool {
-	return scope == MCPMentorScope || scope == MCPMentorOffersScope || IsMCPMentorWorkspaceReadScope(scope)
+	return scope == MCPMentorScope || scope == MCPMentorOffersScope || scope == MCPMentorSkillDraftScope || IsMCPMentorWorkspaceReadScope(scope)
 }
 
 func MCPMentorWorkspaceReadScopes() []string {

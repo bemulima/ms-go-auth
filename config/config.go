@@ -79,6 +79,7 @@ type Config struct {
 	RBACMCPScopeDecisionPublicKey string        `env:"AUTH_RBAC_MCP_STUDENT_SCOPE_DECISION_PUBLIC_KEY"`
 	// Mentor grants, signing keys and consent remain separate from Student.
 	MCPMentorEnabled              bool          `env:"MCP_MENTOR_EXTERNAL_ENABLED" envDefault:"false"`
+	MCPMentorSkillDraftEnabled    bool          `env:"MCP_MENTOR_SKILL_DRAFT_ENABLED" envDefault:"false"`
 	MCPMentorWorkspaceReadEnabled bool          `env:"MCP_MENTOR_WORKSPACE_READ_ENABLED" envDefault:"false"`
 	MCPMentorOffersEnabled        bool          `env:"MCP_MENTOR_OFFERS_ENABLED" envDefault:"false"`
 	MCPMentorIssuer               string        `env:"MCP_MENTOR_ISSUER"`

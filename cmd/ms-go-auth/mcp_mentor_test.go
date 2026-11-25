@@ -15,12 +15,12 @@ import (
 )
 
 func TestMCPMentorMetadataUsesDistinctRFC8414IssuerAndCanonicalGatewayRoutes(t *testing.T) {
-	m, path, err := mcpMentorMetadata("https://api.example.test/mentor", false, false)
+	m, path, err := mcpMentorMetadata("https://api.example.test/mentor", false, false, false)
 	if err != nil || path != "/.well-known/oauth-authorization-server/mentor" || m.Issuer != "https://api.example.test/mentor" || m.AuthorizationEndpoint != "https://api.example.test/api/auth/v1/auth/mcp/mentor/authorize" || m.TokenEndpoint != "https://api.example.test/api/auth/v1/auth/mcp/mentor/token" || len(m.ScopesSupported) != 1 || m.ScopesSupported[0] != domain.MCPMentorScope || len(m.GrantTypesSupported) != 1 || m.GrantTypesSupported[0] != "authorization_code" || len(m.CodeChallengeMethodsSupported) != 1 || m.CodeChallengeMethodsSupported[0] != "S256" {
 		t.Fatalf("metadata mismatch: %+v %s %v", m, path, err)
 	}
 	for _, bad := range []string{"http://api.example.test/mentor", "https://api.example.test", "https://api.example.test/mentor/", "https://api.example.test/mentor?x=1", "https://api.example.test/%6dentor"} {
-		if _, _, err := mcpMentorMetadata(bad, false, false); err == nil {
+		if _, _, err := mcpMentorMetadata(bad, false, false, false); err == nil {
 			t.Fatal("invalid issuer admitted")
 		}
 	}

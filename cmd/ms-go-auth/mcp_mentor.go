@@ -26,7 +26,7 @@ func validateMCPMentorConfig(cfg *config.Config) error {
 		return domain.ErrMCPMentorUnavailable
 	}
 	if !cfg.MCPMentorEnabled {
-		if cfg.MCPMentorOffersEnabled || cfg.MCPMentorWorkspaceReadEnabled {
+		if cfg.MCPMentorOffersEnabled || cfg.MCPMentorWorkspaceReadEnabled || cfg.MCPMentorSkillDraftEnabled {
 			return domain.ErrMCPMentorUnavailable
 		}
 		return nil
@@ -95,12 +95,12 @@ func enableMCPMentorAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *na
 	if err != nil {
 		return nil, err
 	}
-	oauth := &usecase.MCPMentorOAuth{Store: repo.NewMCPMentorStore(db), Tokens: tokens, Authority: usecase.MCPMentorLiveAuthority{Tokens: tokens, RBAC: rbac, Owner: owner}, Resource: cfg.MCPMentorResource, AccessTTL: cfg.MCPMentorAccessTTL, ConsentTTL: cfg.MCPMentorConsentTTL, OffersEnabled: cfg.MCPMentorOffersEnabled, WorkspaceReadEnabled: cfg.MCPMentorWorkspaceReadEnabled}
+	oauth := &usecase.MCPMentorOAuth{Store: repo.NewMCPMentorStore(db), Tokens: tokens, Authority: usecase.MCPMentorLiveAuthority{Tokens: tokens, RBAC: rbac, Owner: owner}, Resource: cfg.MCPMentorResource, AccessTTL: cfg.MCPMentorAccessTTL, ConsentTTL: cfg.MCPMentorConsentTTL, OffersEnabled: cfg.MCPMentorOffersEnabled, WorkspaceReadEnabled: cfg.MCPMentorWorkspaceReadEnabled, SkillDraftEnabled: cfg.MCPMentorSkillDraftEnabled}
 	handler := api.MCPMentorHandler{OAuth: oauth, Sessions: sessions, Resource: cfg.MCPMentorResource, ConsentUI: cfg.MCPMentorConsentUI}
 	if err = handler.Validate(); err != nil {
 		return nil, err
 	}
-	metadata, discovery, err := mcpMentorMetadata(cfg.MCPMentorIssuer, cfg.MCPMentorOffersEnabled, cfg.MCPMentorWorkspaceReadEnabled)
+	metadata, discovery, err := mcpMentorMetadata(cfg.MCPMentorIssuer, cfg.MCPMentorOffersEnabled, cfg.MCPMentorWorkspaceReadEnabled, cfg.MCPMentorSkillDraftEnabled)
 	if err != nil || discovery != "/.well-known/oauth-authorization-server/mentor" {
 		return nil, domain.ErrMCPMentorUnavailable
 	}
@@ -117,7 +117,7 @@ func enableMCPMentorAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *na
 	return oauth, nil
 }
 
-func mcpMentorMetadata(issuerURI string, offersEnabled, workspaceReadEnabled bool) (*usecase.MCPExternalASMetadata, string, error) {
+func mcpMentorMetadata(issuerURI string, offersEnabled, workspaceReadEnabled, skillDraftEnabled bool) (*usecase.MCPExternalASMetadata, string, error) {
 	issuer, err := url.Parse(issuerURI)
 	if err != nil || issuer.Scheme != "https" || issuer.Path != "/mentor" {
 		return nil, "", domain.ErrMCPMentorUnavailable
@@ -129,6 +129,9 @@ func mcpMentorMetadata(issuerURI string, offersEnabled, workspaceReadEnabled boo
 	}
 	if workspaceReadEnabled {
 		scopes = append(scopes, domain.MCPMentorWorkspaceReadScopes()...)
+	}
+	if skillDraftEnabled {
+		scopes = append(scopes, domain.MCPMentorSkillDraftScope)
 	}
 	return usecase.BuildMCPExternalASMetadata(usecase.MCPExternalASMetadataConfig{PublicationApproved: true, Issuer: issuerURI, AuthorizationEndpoint: origin + "/api/auth/v1/auth/mcp/mentor/authorize", TokenEndpoint: origin + "/api/auth/v1/auth/mcp/mentor/token", SupportedStudentScopes: scopes})
 }

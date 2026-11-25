@@ -175,3 +175,13 @@ constraints without adding any client or grant. Its rollback refuses retained
 workspace scopes. After current Auth consent, scoped RBAC and Mentor approval
 checks, Auth issues a proof with purpose `MCP_MENTOR_WORKSPACE_READ_V1` and
 the exact verified scope. The proof expires within 15 seconds and by grant expiry.
+
+## MENT-07D skill draft consent
+
+`MCP_MENTOR_SKILL_DRAFT_ENABLED` defaults to false. When enabled,
+`mentor:skills:write` requires its own current singleton consent and exact
+RBAC permission. Auth issues a private `MCP_MENTOR_SKILL_DRAFT_V1` proof
+after verifying the enabled flag, client, active grant and Mentor approval.
+The operation ceiling covers skill draft create/edit, validation and preview.
+Migration `0011_mcp_mentor_skill_draft` adds the exact scope to the existing
+database checks. Its rollback refuses rows that retain it.

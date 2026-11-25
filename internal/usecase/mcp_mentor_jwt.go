@@ -120,6 +120,8 @@ func (a *MCPMentorTokens) OwnerReadProof(c MCPMentorAccessClaims) (string, error
 	purpose := domain.MCPMentorProfilePurpose
 	if c.Scope == domain.MCPMentorOffersScope {
 		purpose = domain.MCPMentorOffersPurpose
+	} else if c.Scope == domain.MCPMentorSkillDraftScope {
+		purpose = domain.MCPMentorSkillDraftPurpose
 	} else if domain.IsMCPMentorWorkspaceReadScope(c.Scope) {
 		purpose = domain.MCPMentorWorkspaceReadPurpose
 	}
