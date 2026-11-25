@@ -95,7 +95,11 @@ type MCPMentorOAuth struct {
 	AccessTTL, ConsentTTL time.Duration
 	OffersEnabled         bool
 	WorkspaceReadEnabled  bool
+	AuthoringEnabled      bool
 	SkillDraftEnabled     bool
+	ManagementEnabled     bool
+	SkillFinalEnabled     bool
+	ReviewWritesEnabled   bool
 	Clock                 func() time.Time
 }
 
@@ -204,7 +208,11 @@ func (u *MCPMentorOAuth) allowsScope(scope string) bool {
 	return scope == domain.MCPMentorScope ||
 		(u.OffersEnabled && scope == domain.MCPMentorOffersScope) ||
 		(u.WorkspaceReadEnabled && domain.IsMCPMentorWorkspaceReadScope(scope)) ||
-		(u.SkillDraftEnabled && scope == domain.MCPMentorSkillDraftScope)
+		(u.SkillDraftEnabled && scope == domain.MCPMentorSkillDraftScope) ||
+		(u.AuthoringEnabled && domain.IsMCPMentorAuthoringScope(scope)) ||
+		(u.ManagementEnabled && domain.IsMCPMentorManagementScope(scope)) ||
+		(u.SkillFinalEnabled && scope == domain.MCPMentorSkillFinalScope) ||
+		(u.ReviewWritesEnabled && domain.IsMCPMentorReviewWriteScope(scope))
 }
 
 func (u *MCPMentorOAuth) currentGrant(ctx context.Context, subject, client, id, scope string) (*domain.MCPMentorConsent, error) {

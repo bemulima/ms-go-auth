@@ -22,7 +22,25 @@
     "mentor:reviews:read",
     "mentor:skills:write",
     "mentor:courses:read",
-    "mentor:tasks:read"
+    "mentor:tasks:read",
+    "mentor:courses:write",
+    "mentor:tasks:write",
+    "mentor:courses:publish",
+    "mentor:tasks:publish",
+    "mentor:profile:write",
+    "mentor:offers:write",
+    "mentor:students:write",
+    "mentor:cohorts:write",
+    "mentor:schedule:write",
+    "mentor:offers:publish",
+    "mentor:schedule:cancel",
+    "mentor:skills:publish",
+    "mentor:reviews:write",
+    "mentor:reviews:decide",
+    "mentor:notifications:read",
+    "mentor:dialogs:read",
+    "mentor:cohorts:respond",
+    "mentor:students:feedback"
   ],
   "offers_flag": "MCP_MENTOR_OFFERS_ENABLED",
   "offers_default": false,
@@ -176,7 +194,12 @@
     "approval_capability": "MCP_MENTOR_APPROVAL_TOKEN",
     "approval_trust": "verified HTTPS, optional MCP_MENTOR_APPROVAL_CA_PEM, no proxy/redirect/retry",
     "workspace_read_purpose": "MCP_MENTOR_WORKSPACE_READ_V1",
-    "skill_draft_purpose": "MCP_MENTOR_SKILL_DRAFT_V1"
+    "skill_draft_purpose": "MCP_MENTOR_SKILL_DRAFT_V1",
+    "authoring_purpose": "MCP_MENTOR_AUTHORING_V1",
+    "management_purpose": "MCP_MENTOR_MANAGEMENT_V1",
+    "skill_final_purpose": "MCP_MENTOR_SKILL_FINAL_V1",
+    "review_comment_purpose": "MCP_MENTOR_REVIEW_COMMENT_V1",
+    "review_decision_purpose": "MCP_MENTOR_REVIEW_DECISION_V1"
   },
   "rbac_request": {
     "subject": "rbac.checkMCPMentorAccess",
@@ -216,7 +239,11 @@
     "rollback": "refuse any retained rows",
     "startup_migrations": "disabled required",
     "workspace_read_scope_migration": "0010_mcp_mentor_workspace_read",
-    "skill_draft_scope_migration": "0011_mcp_mentor_skill_draft"
+    "skill_draft_scope_migration": "0011_mcp_mentor_skill_draft",
+    "authoring_scope_migration": "0012_mcp_mentor_authoring",
+    "management_scope_migration": "0014_mcp_mentor_management",
+    "cohort_response_scope_migration": "0016_mcp_mentor_cohort_respond",
+    "student_feedback_scope_migration": "0017_mcp_mentor_student_feedback"
   },
   "validation_limits": {
     "source_tests": "behavioral crypto, PKCE/replay/revocation, HTTP, configuration, GORM protocol fixtures",
@@ -226,5 +253,11 @@
   "workspace_read_flag": "MCP_MENTOR_WORKSPACE_READ_ENABLED",
   "workspace_read_default": false,
   "skill_draft_flag": "MCP_MENTOR_SKILL_DRAFT_ENABLED",
-  "skill_draft_default": false
+  "skill_draft_default": false,
+  "authoring_flag": "MCP_MENTOR_AUTHORING_ENABLED",
+  "authoring_default": false,
+  "management_flag": "MCP_MENTOR_MANAGEMENT_ENABLED",
+  "management_default": false,
+  "skills_final_flag": "MCP_MENTOR_SKILL_FINAL_ENABLED",
+  "review_writes_flag": "MCP_MENTOR_REVIEW_WRITES_ENABLED"
 }

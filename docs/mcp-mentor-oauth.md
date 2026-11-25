@@ -189,3 +189,27 @@ database checks. Its rollback refuses rows that retain it.
 The workspace read flag also admits the explicit `mentor:courses:read` and
 `mentor:tasks:read` singleton scopes for authored content inventory. Migration
 `0015_mcp_mentor_authored_content_read` extends the client and consent checks.
+
+## Mentor content authoring scopes
+
+`MCP_MENTOR_AUTHORING_ENABLED` defaults to false. When enabled, the Mentor
+OAuth issuer can advertise and verify exact separately consented scopes
+`mentor:courses:write`, `mentor:tasks:write`, `mentor:courses:publish` and
+`mentor:tasks:publish`. The owner proof purpose is
+`MCP_MENTOR_AUTHORING_V1`. Migration `0012_mcp_mentor_authoring` adds the
+closed scope values while preserving one scope per consent and token.
+A publication scope still requires the Mentor owner's command confirmation.
+
+Mentor management adds seven independently consented exact scopes under the
+default-off `MCP_MENTOR_MANAGEMENT_ENABLED` switch. Owner delegation uses
+`MCP_MENTOR_MANAGEMENT_V1`. Draft offer management and confirmed publication
+have separate permissions, as do schedule editing and session cancellation.
+
+## MENT-07D final skill and review grants
+
+`MCP_MENTOR_SKILL_FINAL_ENABLED` enables only `mentor:skills:publish`.
+`MCP_MENTOR_REVIEW_WRITES_ENABLED` makes two distinct grants available,
+`mentor:reviews:write` for comments and `mentor:reviews:decide` for decisions.
+Both flags default to false. Every grant still consents to one exact scope
+and mints its own owner proof purpose after current RBAC and Mentor checks.
+Approval of an OAuth grant alone does not confirm a final command.

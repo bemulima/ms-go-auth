@@ -219,7 +219,7 @@ func TestMCPMentorOAuthWrongVerifierBurnsCodeAndReplayIsAtomic(t *testing.T) {
 }
 func TestMCPMentorOAuthNoRoleClientOrConsentFallback(t *testing.T) {
 	u, store, authority, r, verifier, _, _ := mentorOAuthFixture(t)
-	for _, scope := range []string{"profile:read", "courses:read", "mentor:profile:read profile:read", "mentor:profile:write", "mentor:courses:read"} {
+	for _, scope := range []string{"profile:read", "courses:read", "mentor:profile:read profile:read", "mentor:profile:delete", "mentor:courses:read"} {
 		bad := r
 		bad.Scope = scope
 		if _, err := u.Approve(context.Background(), bad, mentorOAuthActor); err != domain.ErrMCPMentorDenied {
@@ -430,5 +430,73 @@ func TestMCPMentorSkillDraftDelegationNeedsSeparateEnabledScope(t *testing.T) {
 	oauth.SkillDraftEnabled = false
 	if _, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now()); err != domain.ErrMCPMentorDenied {
 		t.Fatalf("draft access survived switch-off: %v", err)
+	}
+}
+
+func TestMCPMentorAuthoringScopesHaveDistinctConsentAndProof(t *testing.T) {
+	for _, scope := range domain.MCPMentorAuthoringScopes() {
+		t.Run(scope, func(t *testing.T) {
+			oauth, store, authority, request, verifier, _, _ := mentorOAuthFixture(t)
+			ctx := context.Background()
+			request.Scope = scope
+			store.client.Scopes = append(store.client.Scopes, scope)
+			oauth.WorkspaceReadEnabled, oauth.SkillDraftEnabled = true, true
+			if _, err := oauth.Preview(ctx, request, mentorOAuthActor); err != domain.ErrMCPMentorDenied {
+				t.Fatalf("other scope flags enabled authoring: %v", err)
+			}
+			oauth.AuthoringEnabled = true
+			token, err := oauth.Exchange(ctx, mentorOAuthExchangeRequest(request, mentorOAuthCode(t, oauth, request), verifier))
+			if err != nil || token.Scope != scope || authority.lastScope != scope {
+				t.Fatalf("wrong authoring RBAC scope or token: %v", err)
+			}
+			grant, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := base64.RawURLEncoding.DecodeString(strings.Split(grant.OwnerProof, ".")[1])
+			var claim map[string]any
+			if err != nil || json.Unmarshal(data, &claim) != nil || claim["scope"] != scope || claim["purpose"] != domain.MCPMentorAuthoringPurpose {
+				t.Fatal("authoring owner proof lost scope or purpose")
+			}
+			oauth.AuthoringEnabled = false
+			if _, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now()); err != domain.ErrMCPMentorDenied {
+				t.Fatal("disabled flag allowed existing grant", err)
+			}
+		})
+	}
+}
+
+func TestMCPMentorFinalAndReviewScopesHaveSeparatePurposes(t *testing.T) {
+	for _, tt := range []struct {
+		scope, purpose string
+	}{
+		{domain.MCPMentorSkillFinalScope, domain.MCPMentorSkillFinalPurpose},
+		{domain.MCPMentorReviewCommentScope, domain.MCPMentorReviewCommentPurpose},
+		{domain.MCPMentorReviewDecisionScope, domain.MCPMentorReviewDecisionPurpose},
+	} {
+		t.Run(tt.scope, func(t *testing.T) {
+			oauth, store, authority, request, verifier, _, _ := mentorOAuthFixture(t)
+			ctx := context.Background()
+			request.Scope = tt.scope
+			store.client.Scopes = append(store.client.Scopes, request.Scope)
+			oauth.SkillDraftEnabled, oauth.WorkspaceReadEnabled = true, true
+			if _, err := oauth.Preview(ctx, request, mentorOAuthActor); err != domain.ErrMCPMentorDenied {
+				t.Fatalf("draft or read flag activated sensitive scope: %v", err)
+			}
+			oauth.SkillFinalEnabled, oauth.ReviewWritesEnabled = true, true
+			token, err := oauth.Exchange(ctx, mentorOAuthExchangeRequest(request, mentorOAuthCode(t, oauth, request), verifier))
+			if err != nil || token.Scope != tt.scope || authority.lastScope != tt.scope {
+				t.Fatalf("incorrect RBAC scope: %v", err)
+			}
+			grant, err := oauth.Verify(ctx, token.AccessToken, oauth.Resource, oauth.now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := base64.RawURLEncoding.DecodeString(strings.Split(grant.OwnerProof, ".")[1])
+			var proof map[string]any
+			if err != nil || json.Unmarshal(raw, &proof) != nil || proof["scope"] != tt.scope || proof["purpose"] != tt.purpose {
+				t.Fatal("wrong owner delegation purpose")
+			}
+		})
 	}
 }

@@ -26,7 +26,7 @@ func validateMCPMentorConfig(cfg *config.Config) error {
 		return domain.ErrMCPMentorUnavailable
 	}
 	if !cfg.MCPMentorEnabled {
-		if cfg.MCPMentorOffersEnabled || cfg.MCPMentorWorkspaceReadEnabled || cfg.MCPMentorSkillDraftEnabled {
+		if cfg.MCPMentorOffersEnabled || cfg.MCPMentorWorkspaceReadEnabled || cfg.MCPMentorSkillDraftEnabled || cfg.MCPMentorAuthoringEnabled || cfg.MCPMentorManagementEnabled || cfg.MCPMentorSkillFinalEnabled || cfg.MCPMentorReviewWritesEnabled {
 			return domain.ErrMCPMentorUnavailable
 		}
 		return nil
@@ -95,12 +95,12 @@ func enableMCPMentorAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *na
 	if err != nil {
 		return nil, err
 	}
-	oauth := &usecase.MCPMentorOAuth{Store: repo.NewMCPMentorStore(db), Tokens: tokens, Authority: usecase.MCPMentorLiveAuthority{Tokens: tokens, RBAC: rbac, Owner: owner}, Resource: cfg.MCPMentorResource, AccessTTL: cfg.MCPMentorAccessTTL, ConsentTTL: cfg.MCPMentorConsentTTL, OffersEnabled: cfg.MCPMentorOffersEnabled, WorkspaceReadEnabled: cfg.MCPMentorWorkspaceReadEnabled, SkillDraftEnabled: cfg.MCPMentorSkillDraftEnabled}
+	oauth := &usecase.MCPMentorOAuth{Store: repo.NewMCPMentorStore(db), Tokens: tokens, Authority: usecase.MCPMentorLiveAuthority{Tokens: tokens, RBAC: rbac, Owner: owner}, Resource: cfg.MCPMentorResource, AccessTTL: cfg.MCPMentorAccessTTL, ConsentTTL: cfg.MCPMentorConsentTTL, OffersEnabled: cfg.MCPMentorOffersEnabled, WorkspaceReadEnabled: cfg.MCPMentorWorkspaceReadEnabled, SkillDraftEnabled: cfg.MCPMentorSkillDraftEnabled, AuthoringEnabled: cfg.MCPMentorAuthoringEnabled, ManagementEnabled: cfg.MCPMentorManagementEnabled, SkillFinalEnabled: cfg.MCPMentorSkillFinalEnabled, ReviewWritesEnabled: cfg.MCPMentorReviewWritesEnabled}
 	handler := api.MCPMentorHandler{OAuth: oauth, Sessions: sessions, Resource: cfg.MCPMentorResource, ConsentUI: cfg.MCPMentorConsentUI}
 	if err = handler.Validate(); err != nil {
 		return nil, err
 	}
-	metadata, discovery, err := mcpMentorMetadata(cfg.MCPMentorIssuer, cfg.MCPMentorOffersEnabled, cfg.MCPMentorWorkspaceReadEnabled, cfg.MCPMentorSkillDraftEnabled)
+	metadata, discovery, err := mcpMentorMetadata(cfg.MCPMentorIssuer, cfg.MCPMentorOffersEnabled, cfg.MCPMentorWorkspaceReadEnabled, cfg.MCPMentorSkillDraftEnabled, cfg.MCPMentorAuthoringEnabled, cfg.MCPMentorManagementEnabled, cfg.MCPMentorSkillFinalEnabled, cfg.MCPMentorReviewWritesEnabled)
 	if err != nil || discovery != "/.well-known/oauth-authorization-server/mentor" {
 		return nil, domain.ErrMCPMentorUnavailable
 	}
@@ -117,7 +117,7 @@ func enableMCPMentorAccess(e *echo.Echo, cfg *config.Config, db *gorm.DB, nc *na
 	return oauth, nil
 }
 
-func mcpMentorMetadata(issuerURI string, offersEnabled, workspaceReadEnabled, skillDraftEnabled bool) (*usecase.MCPExternalASMetadata, string, error) {
+func mcpMentorMetadata(issuerURI string, offersEnabled, workspaceReadEnabled, skillDraftEnabled bool, additional ...bool) (*usecase.MCPExternalASMetadata, string, error) {
 	issuer, err := url.Parse(issuerURI)
 	if err != nil || issuer.Scheme != "https" || issuer.Path != "/mentor" {
 		return nil, "", domain.ErrMCPMentorUnavailable
@@ -132,6 +132,18 @@ func mcpMentorMetadata(issuerURI string, offersEnabled, workspaceReadEnabled, sk
 	}
 	if skillDraftEnabled {
 		scopes = append(scopes, domain.MCPMentorSkillDraftScope)
+	}
+	if len(additional) > 0 && additional[0] {
+		scopes = append(scopes, domain.MCPMentorAuthoringScopes()...)
+	}
+	if len(additional) > 1 && additional[1] {
+		scopes = append(scopes, domain.MCPMentorManagementScopes()...)
+	}
+	if len(additional) > 2 && additional[2] {
+		scopes = append(scopes, domain.MCPMentorSkillFinalScope)
+	}
+	if len(additional) > 3 && additional[3] {
+		scopes = append(scopes, domain.MCPMentorReviewCommentScope, domain.MCPMentorReviewDecisionScope)
 	}
 	return usecase.BuildMCPExternalASMetadata(usecase.MCPExternalASMetadataConfig{PublicationApproved: true, Issuer: issuerURI, AuthorizationEndpoint: origin + "/api/auth/v1/auth/mcp/mentor/authorize", TokenEndpoint: origin + "/api/auth/v1/auth/mcp/mentor/token", SupportedStudentScopes: scopes})
 }

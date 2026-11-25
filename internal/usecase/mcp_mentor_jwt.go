@@ -122,6 +122,16 @@ func (a *MCPMentorTokens) OwnerReadProof(c MCPMentorAccessClaims) (string, error
 		purpose = domain.MCPMentorOffersPurpose
 	} else if c.Scope == domain.MCPMentorSkillDraftScope {
 		purpose = domain.MCPMentorSkillDraftPurpose
+	} else if domain.IsMCPMentorAuthoringScope(c.Scope) {
+		purpose = domain.MCPMentorAuthoringPurpose
+	} else if domain.IsMCPMentorManagementScope(c.Scope) {
+		purpose = domain.MCPMentorManagementPurpose
+	} else if c.Scope == domain.MCPMentorSkillFinalScope {
+		purpose = domain.MCPMentorSkillFinalPurpose
+	} else if c.Scope == domain.MCPMentorReviewCommentScope {
+		purpose = domain.MCPMentorReviewCommentPurpose
+	} else if c.Scope == domain.MCPMentorReviewDecisionScope {
+		purpose = domain.MCPMentorReviewDecisionPurpose
 	} else if domain.IsMCPMentorWorkspaceReadScope(c.Scope) {
 		purpose = domain.MCPMentorWorkspaceReadPurpose
 	}
