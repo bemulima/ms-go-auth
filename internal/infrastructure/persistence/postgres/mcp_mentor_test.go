@@ -138,8 +138,8 @@ func mentorOAuthSQLStore(t *testing.T, f *mentorOAuthSQLFixture) (domain.MCPMent
 	return store, captured
 }
 func mentorOAuthSQLGrant(now time.Time) (domain.MCPMentorConsent, domain.MCPMentorCode) {
-	c := domain.MCPMentorConsent{ID: "20000000-0000-4000-8000-000000000001", MentorID: "10000000-0000-4000-8000-000000000001", ClientID: "mentor-client", Resource: "https://api.example.test/mcp", ExpiresAt: now.Add(time.Hour)}
-	code := domain.MCPMentorCode{Hash: strings.Repeat("a", 64), MentorID: c.MentorID, ClientID: c.ClientID, ConsentID: c.ID, Resource: c.Resource, RedirectURI: "https://client.example.test/callback", Challenge: strings.Repeat("A", 43), ExpiresAt: now.Add(5 * time.Minute)}
+	c := domain.MCPMentorConsent{ID: "20000000-0000-4000-8000-000000000001", MentorID: "10000000-0000-4000-8000-000000000001", ClientID: "mentor-client", Resource: "https://api.example.test/mcp", Scope: domain.MCPMentorScope, ExpiresAt: now.Add(time.Hour)}
+	code := domain.MCPMentorCode{Hash: strings.Repeat("a", 64), MentorID: c.MentorID, ClientID: c.ClientID, ConsentID: c.ID, Resource: c.Resource, RedirectURI: "https://client.example.test/callback", Challenge: strings.Repeat("A", 43), Scope: c.Scope, ExpiresAt: now.Add(5 * time.Minute)}
 	return c, code
 }
 func TestMCPMentorStoreConsentAndCodeCommitTogetherOrRollBackSilently(t *testing.T) {
@@ -151,7 +151,7 @@ func TestMCPMentorStoreConsentAndCodeCommitTogetherOrRollBackSilently(t *testing
 				{fragments: []string{"public.auth_user", "FOR UPDATE", "email_verified=true", "signup.state<>'completed'"}, columns: []string{"id"}, values: []driver.Value{consent.MentorID}, inTx: true, check: func(args []driver.NamedValue) bool { return len(args) == 1 && args[0].Value == consent.MentorID }},
 				{fragments: []string{"public.auth_mcp_mentor_client", "FOR SHARE", "disabled_at IS NULL", "ANY(redirect_uris)"}, columns: []string{"client_id"}, values: []driver.Value{consent.ClientID}, inTx: true},
 				{fragments: []string{"UPDATE public.auth_mcp_mentor_consent", "revoked_at=clock_timestamp()"}, exec: true, inTx: true},
-				{fragments: []string{"INSERT INTO public.auth_mcp_mentor_consent", "ARRAY['mentor:profile:read']"}, exec: true, inTx: true},
+				{fragments: []string{"INSERT INTO public.auth_mcp_mentor_consent", "ARRAY[CAST($5 AS text)]"}, exec: true, inTx: true},
 				{fragments: []string{"INSERT INTO public.auth_mcp_mentor_code", "pkce_challenge"}, exec: true, inTx: true, check: func(args []driver.NamedValue) bool {
 					return len(args) == 8 && args[0].Value == code.Hash && args[1].Value == code.MentorID && args[3].Value == code.ConsentID && args[6].Value == code.Challenge
 				}},
@@ -177,7 +177,7 @@ func TestMCPMentorStoreConsentAndCodeCommitTogetherOrRollBackSilently(t *testing
 func TestMCPMentorStoreAtomicConsumeBindingsAndActualColumnDecode(t *testing.T) {
 	now := time.Now().UTC()
 	consent, code := mentorOAuthSQLGrant(now)
-	f := &mentorOAuthSQLFixture{steps: []mentorOAuthSQLStep{{fragments: []string{"UPDATE public.auth_mcp_mentor_code code SET consumed_at=clock_timestamp()", "code.consumed_at IS NULL", "consent.id=code.consent_id", "consent.mentor_id=code.mentor_id", "client.disabled_at IS NULL", "code.redirect_uri=ANY(client.redirect_uris)", "code.expires_at>clock_timestamp()", "consent.expires_at>clock_timestamp()", "account.email_verified=true", "RETURNING code.code_hash"}, columns: []string{"code_hash", "mentor_id", "client_id", "consent_id", "resource_uri", "redirect_uri", "pkce_challenge", "expires_at"}, values: []driver.Value{code.Hash, code.MentorID, code.ClientID, code.ConsentID, code.Resource, code.RedirectURI, code.Challenge, code.ExpiresAt}, check: func(args []driver.NamedValue) bool {
+	f := &mentorOAuthSQLFixture{steps: []mentorOAuthSQLStep{{fragments: []string{"UPDATE public.auth_mcp_mentor_code code SET consumed_at=clock_timestamp()", "code.consumed_at IS NULL", "consent.id=code.consent_id", "consent.mentor_id=code.mentor_id", "client.disabled_at IS NULL", "code.redirect_uri=ANY(client.redirect_uris)", "code.expires_at>clock_timestamp()", "consent.expires_at>clock_timestamp()", "account.email_verified=true", "RETURNING code.code_hash"}, columns: []string{"code_hash", "mentor_id", "client_id", "consent_id", "resource_uri", "redirect_uri", "pkce_challenge", "scope", "expires_at"}, values: []driver.Value{code.Hash, code.MentorID, code.ClientID, code.ConsentID, code.Resource, code.RedirectURI, code.Challenge, code.Scope, code.ExpiresAt}, check: func(args []driver.NamedValue) bool {
 		return len(args) == 6 && args[0].Value == code.Hash && args[1].Value == code.ClientID && args[2].Value == code.RedirectURI && args[3].Value == code.Resource
 	}}}}
 	store, logs := mentorOAuthSQLStore(t, f)

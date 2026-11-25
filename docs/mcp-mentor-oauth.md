@@ -9,8 +9,8 @@ establish live PostgreSQL/broker/edge acceptance.
 
 Mentor uses separate `auth_mcp_mentor_client`, `auth_mcp_mentor_consent` and
 `auth_mcp_mentor_code` tables, a dedicated RSA key pair, issuer ending in
-`/mentor`, JOSE type `mentor-at+jwt`, and exact `persona=MENTOR`. The only scope
-is `mentor:profile:read`. External access tokens contain exactly `iss`, `sub`,
+`/mentor`, JOSE type `mentor-at+jwt`, and exact `persona=MENTOR`. The default Mentor scope is
+`mentor:profile:read`. External access tokens contain exactly `iss`, `sub`,
 `aud`, `client_id`, `grant_id`, `scope`, `persona`, `iat`, `exp`, `jti`; they
 expire within five minutes and have a canonical nonzero UUID subject/grant/JTI.
 The resource is the same exact configured HTTPS `/mcp` URL used by Student.
@@ -24,8 +24,8 @@ Dedicated key isolation compares RSA moduli, including different exponents.
 
 Every preview, consent approval, token exchange and access verification requires
 a fresh signed RBAC decision and a fresh Mentor owner approval probe. RBAC must
-confirm the current exact service-scoped Mentor role and its explicit profile
-permission. Mentor independently applies its persisted approval and current
+confirm the current exact service-scoped Mentor role and its explicit permission
+for the requested scope. Mentor independently applies its persisted approval and current
 signed role fences. The token/grant path rereads Auth-owned account, client,
 consent, expiry and scope state after remote authority calls. No role claim,
 caller actor ID, generic Admin bypass or cached ALLOW establishes access.
@@ -45,7 +45,7 @@ Internal Auth prefix: `/api/v 1/auth/mcp/mentor`. Gateway public prefix:
 
 The eight authorization fields are `response_type=code`, `client_id`,
 `redirect_uri`, `resource`, `code_challenge`, `code_challenge_method=S256`,
-`scope=mentor:profile:read`, `state`. State is 22–256 characters from
+one supported `scope`, and `state`. State is 22–256 characters from
 `[A-Za-z 0-9._~-]`; the challenge and returned opaque code are canonical 43-byte
 base64url strings. Codes contain 256 bits of entropy; the database stores only
 their SHA-256 digest. Redirects match a registered complete URL exactly and
@@ -142,3 +142,22 @@ and actual GORM transaction/column/logging protocol with an injected driver.
 No injected driver result is PostgreSQL acceptance. Real schema lifecycle,
 database concurrency, broker ACL and complete Gateway/browser acceptance remain
 separate prerequisites before activation.
+
+### MENT-07B offers consent
+
+`MCP_MENTOR_OFFERS_ENABLED=false` by default. With Mentor OAuth and this
+flag enabled, the Mentor issuer advertises `mentor:offers:read` as another
+supported scope. Authorization requires an exact registered redirect and
+explicit permission for that requested scope from both the client
+registration and current signed RBAC decision. Each OAuth grant still has
+one exact scope. Reapproval replaces the previous grant for that
+mentor/client/resource. Changing scope requires another explicit approval.
+
+The authorization code is bound to the exact consent it was created with.
+Exchange and verification require the scope to match the current consent
+and current client ceiling. The owner proof for `mentor:offers:read` uses
+`MCP_MENTOR_OFFERS_READ_V1`, distinct from the profile purpose.
+Migration 0009 widens scope checks without auto-granting new access. It
+preserves existing profile rows and refuses rollback while offers entries
+still need the new constraints. Runtime SQL and live authorization remain
+unverified.

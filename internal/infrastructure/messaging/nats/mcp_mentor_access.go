@@ -72,7 +72,7 @@ func (c *mcpMentorRBACClient) CheckMCPMentorAccess(ctx context.Context, proof, s
 		IssuedAt  int64  `json:"iat"`
 		ExpiresAt int64  `json:"exp"`
 	}
-	if !utf8.Valid(requestClaims) || mcpMentorDecisionJSON(requestClaims, []string{"iss", "aud", "sub", "persona", "purpose", "scope", "jti", "iat", "exp"}, &request) != nil || request.Audience != domain.MCPMentorRBACAudience || request.Purpose != domain.MCPMentorRBACPurpose || request.Persona != domain.MCPMentorPersona || request.Scope != domain.MCPMentorScope || request.Subject != subject || request.JWTID != nonce {
+	if !utf8.Valid(requestClaims) || mcpMentorDecisionJSON(requestClaims, []string{"iss", "aud", "sub", "persona", "purpose", "scope", "jti", "iat", "exp"}, &request) != nil || request.Audience != domain.MCPMentorRBACAudience || request.Purpose != domain.MCPMentorRBACPurpose || request.Persona != domain.MCPMentorPersona || !domain.ValidMCPMentorScope(request.Scope) || request.Subject != subject || request.JWTID != nonce {
 		return false, domain.ErrMCPMentorUnavailable
 	}
 	data, _ := json.Marshal(struct {
@@ -108,7 +108,7 @@ func (c *mcpMentorRBACClient) CheckMCPMentorAccess(ctx context.Context, proof, s
 		return false, domain.ErrMCPMentorUnavailable
 	}
 	now := c.now().UTC().Unix()
-	if d.Issuer != "ms-go-rbac" || d.Audience != domain.MCPMentorDecisionAudience || d.Persona != domain.MCPMentorPersona || d.Purpose != domain.MCPMentorDecisionPurpose || d.Scope != domain.MCPMentorScope || d.Subject != subject || d.RequestJWTID != nonce || d.RequestDigest != hex.EncodeToString(binding[:]) || !validNonZeroCanonicalReviewerUUID(d.JWTID) || (d.Allowed && !d.Active) || d.IssuedAt <= 0 || d.IssuedAt > now || d.IssuedAt < request.IssuedAt || d.ExpiresAt <= now || d.ExpiresAt > request.ExpiresAt || d.ExpiresAt-d.IssuedAt > 15 || d.ExpiresAt > 1<<53-1 || bound.Err() != nil {
+	if d.Issuer != "ms-go-rbac" || d.Audience != domain.MCPMentorDecisionAudience || d.Persona != domain.MCPMentorPersona || d.Purpose != domain.MCPMentorDecisionPurpose || d.Scope != request.Scope || d.Subject != subject || d.RequestJWTID != nonce || d.RequestDigest != hex.EncodeToString(binding[:]) || !validNonZeroCanonicalReviewerUUID(d.JWTID) || (d.Allowed && !d.Active) || d.IssuedAt <= 0 || d.IssuedAt > now || d.IssuedAt < request.IssuedAt || d.ExpiresAt <= now || d.ExpiresAt > request.ExpiresAt || d.ExpiresAt-d.IssuedAt > 15 || d.ExpiresAt > 1<<53-1 || bound.Err() != nil {
 		return false, domain.ErrMCPMentorUnavailable
 	}
 	c.mu.Lock()

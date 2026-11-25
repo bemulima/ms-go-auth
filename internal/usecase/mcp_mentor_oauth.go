@@ -7,13 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/example/auth-service/internal/domain"
 )
 
 type MCPMentorAuthority interface {
-	Check(context.Context, string) error
+	Check(context.Context, string, string) error
 }
 type MCPMentorLiveAuthority struct {
 	Tokens *MCPMentorTokens
@@ -21,12 +22,12 @@ type MCPMentorLiveAuthority struct {
 	Owner  domain.MCPMentorApprovalClient
 }
 
-func (a MCPMentorLiveAuthority) Check(ctx context.Context, subject string) error {
+func (a MCPMentorLiveAuthority) Check(ctx context.Context, subject, scope string) error {
 	if ctx == nil || ctx.Err() != nil || a.Tokens == nil || a.RBAC == nil || a.Owner == nil || !validNonZeroCanonicalMCPUUID(subject) {
 		return domain.ErrMCPMentorUnavailable
 	}
 	started := a.Tokens.now().UTC()
-	proof, nonce, err := a.Tokens.RBACProof(subject)
+	proof, nonce, err := a.Tokens.RBACProof(subject, scope)
 	if err != nil {
 		return domain.ErrMCPMentorUnavailable
 	}
@@ -92,6 +93,7 @@ type MCPMentorOAuth struct {
 	Tokens                *MCPMentorTokens
 	Resource              string
 	AccessTTL, ConsentTTL time.Duration
+	OffersEnabled         bool
 	Clock                 func() time.Time
 }
 
@@ -112,23 +114,23 @@ func ValidMCPMentorAuthorizationRequest(r MCPMentorAuthorizationRequest, resourc
 	if err != nil || callback.Query().Has("refresh_token") {
 		return false
 	}
-	return validMCPResourceURI(resource) && r.Resource == resource && r.ResponseType == "code" && validMCPMentorClientID(r.ClientID) && validMCPRedirectURI(r.RedirectURI) && len(r.RedirectURI) <= 2048 && redirectQuerySafeForCode(r.RedirectURI) && r.ChallengeMethod == "S256" && validMCPCodeChallenge(r.Challenge) && r.Scope == domain.MCPMentorScope && validMCPExternalState(r.State)
+	return validMCPResourceURI(resource) && r.Resource == resource && r.ResponseType == "code" && validMCPMentorClientID(r.ClientID) && validMCPRedirectURI(r.RedirectURI) && len(r.RedirectURI) <= 2048 && redirectQuerySafeForCode(r.RedirectURI) && r.ChallengeMethod == "S256" && validMCPCodeChallenge(r.Challenge) && domain.ValidMCPMentorScope(r.Scope) && validMCPExternalState(r.State)
 }
 func (u *MCPMentorOAuth) admitted(ctx context.Context, r MCPMentorAuthorizationRequest, subject string) (*domain.MCPMentorClient, error) {
 	if !u.configured() || ctx == nil || ctx.Err() != nil {
 		return nil, domain.ErrMCPMentorUnavailable
 	}
-	if !validNonZeroCanonicalMCPUUID(subject) || !ValidMCPMentorAuthorizationRequest(r, u.Resource) {
+	if !validNonZeroCanonicalMCPUUID(subject) || !ValidMCPMentorAuthorizationRequest(r, u.Resource) || !u.allowsScope(r.Scope) {
 		return nil, domain.ErrMCPMentorDenied
 	}
 	client, err := u.Store.Client(ctx, subject, r.ClientID, u.Resource)
 	if err != nil {
 		return nil, err
 	}
-	if client == nil || client.ID != r.ClientID || len(client.Scopes) != 1 || client.Scopes[0] != domain.MCPMentorScope || !registeredMCPRedirect(r.RedirectURI, client.RedirectURIs) {
+	if client == nil || client.ID != r.ClientID || !slices.Contains(client.Scopes, r.Scope) || !registeredMCPRedirect(r.RedirectURI, client.RedirectURIs) {
 		return nil, domain.ErrMCPMentorDenied
 	}
-	if err = u.Authority.Check(ctx, subject); err != nil {
+	if err = u.Authority.Check(ctx, subject, r.Scope); err != nil {
 		return nil, err
 	}
 	return client, nil
@@ -138,12 +140,12 @@ func (u *MCPMentorOAuth) Preview(ctx context.Context, r MCPMentorAuthorizationRe
 	if err != nil {
 		return nil, err
 	}
-	preview := &MCPMentorConsentPreview{Persona: domain.MCPMentorPersona, ClientID: client.ID, ClientName: client.Name, Resource: u.Resource, Scopes: []string{domain.MCPMentorScope}}
+	preview := &MCPMentorConsentPreview{Persona: domain.MCPMentorPersona, ClientID: client.ID, ClientName: client.Name, Resource: u.Resource, Scopes: []string{r.Scope}}
 	consent, err := u.Store.Consent(ctx, subject, client.ID, u.Resource, "", u.now())
 	if err != nil && err != domain.ErrNotFound {
 		return nil, err
 	}
-	if consent != nil {
+	if consent != nil && consent.Scope == r.Scope {
 		preview.ConsentActive = true
 		expiry := consent.ExpiresAt
 		preview.ConsentExpiresAt = &expiry
@@ -171,8 +173,8 @@ func (u *MCPMentorOAuth) Approve(ctx context.Context, r MCPMentorAuthorizationRe
 	}
 	code := base64.RawURLEncoding.EncodeToString(entropy[:])
 	hash := sha256.Sum256([]byte(code))
-	consent := domain.MCPMentorConsent{ID: id, MentorID: subject, ClientID: r.ClientID, Resource: u.Resource, ExpiresAt: now.Add(u.ConsentTTL)}
-	record := domain.MCPMentorCode{Hash: hex.EncodeToString(hash[:]), MentorID: subject, ClientID: r.ClientID, ConsentID: id, Resource: u.Resource, RedirectURI: r.RedirectURI, Challenge: r.Challenge, ExpiresAt: now.Add(5 * time.Minute)}
+	consent := domain.MCPMentorConsent{ID: id, MentorID: subject, ClientID: r.ClientID, Resource: u.Resource, Scope: r.Scope, ExpiresAt: now.Add(u.ConsentTTL)}
+	record := domain.MCPMentorCode{Hash: hex.EncodeToString(hash[:]), MentorID: subject, ClientID: r.ClientID, ConsentID: id, Resource: u.Resource, RedirectURI: r.RedirectURI, Challenge: r.Challenge, Scope: r.Scope, ExpiresAt: now.Add(5 * time.Minute)}
 	if record.ExpiresAt.After(consent.ExpiresAt) {
 		record.ExpiresAt = consent.ExpiresAt
 	}
@@ -180,7 +182,7 @@ func (u *MCPMentorOAuth) Approve(ctx context.Context, r MCPMentorAuthorizationRe
 		return "", err
 	}
 	// Do not publish a callback if role/approval/consent was lost during commit.
-	if _, err = u.currentGrant(ctx, subject, r.ClientID, id); err != nil {
+	if _, err = u.currentGrant(ctx, subject, r.ClientID, id, r.Scope); err != nil {
 		return "", err
 	}
 	if !record.ExpiresAt.After(u.now()) {
@@ -196,11 +198,15 @@ func (u *MCPMentorOAuth) Approve(ctx context.Context, r MCPMentorAuthorizationRe
 	callback.RawQuery = query.Encode()
 	return callback.String(), nil
 }
-func (u *MCPMentorOAuth) currentGrant(ctx context.Context, subject, client, id string) (*domain.MCPMentorConsent, error) {
+func (u *MCPMentorOAuth) allowsScope(scope string) bool {
+	return scope == domain.MCPMentorScope || (u.OffersEnabled && scope == domain.MCPMentorOffersScope)
+}
+
+func (u *MCPMentorOAuth) currentGrant(ctx context.Context, subject, client, id, scope string) (*domain.MCPMentorConsent, error) {
 	if !u.configured() || ctx == nil || ctx.Err() != nil {
 		return nil, domain.ErrMCPMentorUnavailable
 	}
-	if !validNonZeroCanonicalMCPUUID(subject) || !validNonZeroCanonicalMCPUUID(id) || !validMCPMentorClientID(client) {
+	if !validNonZeroCanonicalMCPUUID(subject) || !validNonZeroCanonicalMCPUUID(id) || !validMCPMentorClientID(client) || !u.allowsScope(scope) {
 		return nil, domain.ErrMCPMentorDenied
 	}
 	consent, err := u.Store.Consent(ctx, subject, client, u.Resource, id, u.now())
@@ -210,10 +216,10 @@ func (u *MCPMentorOAuth) currentGrant(ctx context.Context, subject, client, id s
 	if err != nil {
 		return nil, err
 	}
-	if !validMCPMentorConsent(consent, subject, client, id, u.Resource, u.now()) {
+	if !validMCPMentorConsent(consent, subject, client, id, u.Resource, scope, u.now()) {
 		return nil, domain.ErrMCPMentorDenied
 	}
-	if err = u.Authority.Check(ctx, subject); err != nil {
+	if err = u.Authority.Check(ctx, subject, scope); err != nil {
 		return nil, err
 	}
 	// SQL rechecks account, client, consent and scopes after external I/O.
@@ -224,13 +230,13 @@ func (u *MCPMentorOAuth) currentGrant(ctx context.Context, subject, client, id s
 	if err != nil {
 		return nil, err
 	}
-	if !validMCPMentorConsent(consent, subject, client, id, u.Resource, u.now()) || ctx.Err() != nil {
+	if !validMCPMentorConsent(consent, subject, client, id, u.Resource, scope, u.now()) || ctx.Err() != nil {
 		return nil, domain.ErrMCPMentorDenied
 	}
 	return consent, nil
 }
-func validMCPMentorConsent(c *domain.MCPMentorConsent, subject, client, id, resource string, now time.Time) bool {
-	return c != nil && c.ID == id && c.MentorID == subject && c.ClientID == client && c.Resource == resource && c.ExpiresAt.After(now)
+func validMCPMentorConsent(c *domain.MCPMentorConsent, subject, client, id, resource, scope string, now time.Time) bool {
+	return c != nil && c.ID == id && c.MentorID == subject && c.ClientID == client && c.Resource == resource && c.Scope == scope && c.ExpiresAt.After(now)
 }
 func (u *MCPMentorOAuth) Exchange(ctx context.Context, r MCPExternalTokenRequest) (*MCPMentorTokenResponse, error) {
 	if !u.configured() || ctx == nil || ctx.Err() != nil {
@@ -248,7 +254,7 @@ func (u *MCPMentorOAuth) Exchange(ctx context.Context, r MCPExternalTokenRequest
 	if code == nil || code.Hash != digest || code.ClientID != r.ClientID || code.RedirectURI != r.RedirectURI || code.Resource != u.Resource || !code.ExpiresAt.After(u.now()) || VerifyMCPExternalPKCES256(r.Verifier, code.Challenge) != nil {
 		return nil, domain.ErrMCPMentorDenied
 	}
-	consent, err := u.currentGrant(ctx, code.MentorID, code.ClientID, code.ConsentID)
+	consent, err := u.currentGrant(ctx, code.MentorID, code.ClientID, code.ConsentID, code.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +267,7 @@ func (u *MCPMentorOAuth) Exchange(ctx context.Context, r MCPExternalTokenRequest
 	if err != nil {
 		return nil, domain.ErrMCPMentorUnavailable
 	}
-	claims := MCPMentorAccessClaims{Issuer: u.Tokens.issuer, Subject: code.MentorID, Audience: u.Resource, ClientID: code.ClientID, GrantID: code.ConsentID, Scope: domain.MCPMentorScope, Persona: domain.MCPMentorPersona, IssuedAt: now.Unix(), ExpiresAt: expiry.Unix(), JWTID: jti}
+	claims := MCPMentorAccessClaims{Issuer: u.Tokens.issuer, Subject: code.MentorID, Audience: u.Resource, ClientID: code.ClientID, GrantID: code.ConsentID, Scope: consent.Scope, Persona: domain.MCPMentorPersona, IssuedAt: now.Unix(), ExpiresAt: expiry.Unix(), JWTID: jti}
 	token, err := u.Tokens.SignAccess(claims)
 	if err != nil || ctx.Err() != nil {
 		return nil, domain.ErrMCPMentorUnavailable
@@ -270,7 +276,7 @@ func (u *MCPMentorOAuth) Exchange(ctx context.Context, r MCPExternalTokenRequest
 	if remaining <= 0 {
 		return nil, domain.ErrMCPMentorDenied
 	}
-	return &MCPMentorTokenResponse{AccessToken: token, TokenType: "Bearer", ExpiresIn: remaining, Scope: domain.MCPMentorScope}, nil
+	return &MCPMentorTokenResponse{AccessToken: token, TokenType: "Bearer", ExpiresIn: remaining, Scope: consent.Scope}, nil
 }
 
 // Verify is called for EVERY protected MCP request. It never accepts Student
@@ -283,16 +289,16 @@ func (u *MCPMentorOAuth) Verify(ctx context.Context, raw, resource string, _ tim
 	if err != nil {
 		return nil, err
 	}
-	consent, err := u.currentGrant(ctx, claims.Subject, claims.ClientID, claims.GrantID)
+	consent, err := u.currentGrant(ctx, claims.Subject, claims.ClientID, claims.GrantID, claims.Scope)
 	if err != nil {
 		return nil, err
 	}
 	claims.ExpiresAt = min(claims.ExpiresAt, consent.ExpiresAt.Unix())
-	proof, err := u.Tokens.ProfileProof(*claims)
+	proof, err := u.Tokens.OwnerReadProof(*claims)
 	if err != nil || ctx.Err() != nil || claims.ExpiresAt <= u.now().Unix() {
 		return nil, domain.ErrMCPMentorDenied
 	}
-	return &MCPMentorVerifiedGrant{Persona: domain.MCPMentorPersona, MentorID: claims.Subject, ClientID: claims.ClientID, GrantID: claims.GrantID, Audience: resource, Scopes: []string{domain.MCPMentorScope}, ExpiresAt: claims.ExpiresAt, OwnerProof: proof}, nil
+	return &MCPMentorVerifiedGrant{Persona: domain.MCPMentorPersona, MentorID: claims.Subject, ClientID: claims.ClientID, GrantID: claims.GrantID, Audience: resource, Scopes: []string{claims.Scope}, ExpiresAt: claims.ExpiresAt, OwnerProof: proof}, nil
 }
 func (u *MCPMentorOAuth) Revoke(ctx context.Context, subject, client, resource string) error {
 	if !u.configured() || ctx == nil || ctx.Err() != nil {

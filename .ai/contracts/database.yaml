@@ -2,7 +2,7 @@ schema_version: 1
 documentation: docs/database-contract.md
 owner: ms-go-auth
 tables: [auth_user, auth_identity, auth_refresh_token, auth_oauth_transaction, auth_signup_completion, auth_mcp_mentor_client, auth_mcp_mentor_consent, auth_mcp_mentor_code]
-migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow, 0004_signup_completion, 0005_email_verified, 0008_mcp_mentor_oauth]
+migrations: [0001_init, 0002_seed_auth_users, 0003_oauth_flow, 0004_signup_completion, 0005_email_verified, 0008_mcp_mentor_oauth, 0009_mcp_mentor_offer_scope]
 refresh_rotation:
   isolation: principal_lock_then_conditional_active_session_consume_and_replacement_insert_in_one_postgres_transaction
   replay: rejected
@@ -41,6 +41,7 @@ email_code:
 
 mcp_mentor_oauth:
   migration: 0008_mcp_mentor_oauth
+  offers_scope_migration: 0009_mcp_mentor_offer_scope
   persona_tables_separate_from_student: true
   consent_and_code: same_transaction_account_lock_client_lock
   code_redeem: atomic_conditional_update_returning

@@ -8,6 +8,7 @@ import (
 
 const (
 	MCPMentorScope            = "mentor:profile:read"
+	MCPMentorOffersScope      = "mentor:offers:read"
 	MCPMentorPersona          = "MENTOR"
 	MCPMentorAccessType       = "mentor-at+jwt"
 	MCPMentorRBACSubject      = "rbac.checkMCPMentorAccess"
@@ -18,6 +19,7 @@ const (
 	MCPMentorOwnerAudience    = "ms-go-mentor-mcp"
 	MCPMentorApprovalPurpose  = "MCP_MENTOR_APPROVAL_V1"
 	MCPMentorProfilePurpose   = "MCP_MENTOR_PROFILE_READ_V1"
+	MCPMentorOffersPurpose    = "MCP_MENTOR_OFFERS_READ_V1"
 )
 
 var (
@@ -30,16 +32,19 @@ type MCPMentorClient struct {
 	RedirectURIs, Scopes []string
 }
 type MCPMentorConsent struct {
-	ID, MentorID, ClientID, Resource string
-	ExpiresAt                        time.Time
+	ID, MentorID, ClientID, Resource, Scope string
+	ExpiresAt                               time.Time
 }
 type MCPMentorCode struct {
-	Hash, MentorID, ClientID, ConsentID, RedirectURI, Resource, Challenge string
-	ExpiresAt                                                             time.Time
+	Hash, MentorID, ClientID, ConsentID, RedirectURI, Resource, Challenge, Scope string
+	ExpiresAt                                                                    time.Time
 }
 
-// Store never accesses Student MCP tables. A grant contains only the initial
-// profile read scope; widening requires an explicit versioned change.
+func ValidMCPMentorScope(scope string) bool {
+	return scope == MCPMentorScope || scope == MCPMentorOffersScope
+}
+
+// Store never accesses Student MCP tables. Each grant has one exact scope.
 type MCPMentorStore interface {
 	Client(context.Context, string, string, string) (*MCPMentorClient, error)
 	Consent(context.Context, string, string, string, string, time.Time) (*MCPMentorConsent, error)

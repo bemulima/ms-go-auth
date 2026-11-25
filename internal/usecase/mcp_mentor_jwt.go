@@ -94,23 +94,37 @@ func (a *MCPMentorTokens) validAccess(c MCPMentorAccessClaims) bool {
 		return false
 	}
 	now := a.now().UTC().Unix()
-	return c.Issuer == a.issuer && c.Audience == a.resource && c.Persona == domain.MCPMentorPersona && c.Scope == domain.MCPMentorScope && validNonZeroCanonicalMCPUUID(c.Subject) && validNonZeroCanonicalMCPUUID(c.GrantID) && validNonZeroCanonicalMCPUUID(c.JWTID) && validMCPMentorClientID(c.ClientID) && c.IssuedAt > 0 && c.IssuedAt <= now && c.ExpiresAt > now && c.ExpiresAt-c.IssuedAt <= 300 && c.ExpiresAt <= 1<<53-1
+	return c.Issuer == a.issuer && c.Audience == a.resource && c.Persona == domain.MCPMentorPersona && domain.ValidMCPMentorScope(c.Scope) && validNonZeroCanonicalMCPUUID(c.Subject) && validNonZeroCanonicalMCPUUID(c.GrantID) && validNonZeroCanonicalMCPUUID(c.JWTID) && validMCPMentorClientID(c.ClientID) && c.IssuedAt > 0 && c.IssuedAt <= now && c.ExpiresAt > now && c.ExpiresAt-c.IssuedAt <= 300 && c.ExpiresAt <= 1<<53-1
 }
-func (a *MCPMentorTokens) RBACProof(subject string) (string, string, error) {
-	return a.proof(subject, domain.MCPMentorRBACAudience, domain.MCPMentorRBACPurpose, nil)
+func (a *MCPMentorTokens) RBACProof(subject, scope string) (string, string, error) {
+	if !domain.ValidMCPMentorScope(scope) {
+		return "", "", domain.ErrMCPMentorDenied
+	}
+	return a.proof(subject, domain.MCPMentorRBACAudience, domain.MCPMentorRBACPurpose, scope, nil)
 }
 func (a *MCPMentorTokens) ApprovalProof(subject string) (string, error) {
-	raw, _, err := a.proof(subject, domain.MCPMentorOwnerAudience, domain.MCPMentorApprovalPurpose, nil)
+	raw, _, err := a.proof(subject, domain.MCPMentorOwnerAudience, domain.MCPMentorApprovalPurpose, "", nil)
 	return raw, err
 }
 func (a *MCPMentorTokens) ProfileProof(c MCPMentorAccessClaims) (string, error) {
+	if c.Scope != domain.MCPMentorScope {
+		return "", domain.ErrMCPMentorDenied
+	}
+	return a.OwnerReadProof(c)
+}
+
+func (a *MCPMentorTokens) OwnerReadProof(c MCPMentorAccessClaims) (string, error) {
 	if !a.validAccess(c) {
 		return "", domain.ErrMCPMentorDenied
 	}
-	raw, _, err := a.proof(c.Subject, domain.MCPMentorOwnerAudience, domain.MCPMentorProfilePurpose, &c)
+	purpose := domain.MCPMentorProfilePurpose
+	if c.Scope == domain.MCPMentorOffersScope {
+		purpose = domain.MCPMentorOffersPurpose
+	}
+	raw, _, err := a.proof(c.Subject, domain.MCPMentorOwnerAudience, purpose, c.Scope, &c)
 	return raw, err
 }
-func (a *MCPMentorTokens) proof(subject, audience, purpose string, grant *MCPMentorAccessClaims) (string, string, error) {
+func (a *MCPMentorTokens) proof(subject, audience, purpose, scope string, grant *MCPMentorAccessClaims) (string, string, error) {
 	if a == nil || a.private == nil || a.now == nil || !validNonZeroCanonicalMCPUUID(subject) {
 		return "", "", domain.ErrMCPMentorUnavailable
 	}
@@ -124,7 +138,7 @@ func (a *MCPMentorTokens) proof(subject, audience, purpose string, grant *MCPMen
 	}
 	claims := map[string]any{"iss": a.issuer, "aud": audience, "sub": subject, "persona": domain.MCPMentorPersona, "purpose": purpose, "iat": now, "exp": now + 15, "jti": jti}
 	if purpose == domain.MCPMentorRBACPurpose {
-		claims["scope"] = domain.MCPMentorScope
+		claims["scope"] = scope
 	}
 	if grant != nil {
 		claims["client_id"], claims["grant_id"], claims["resource"], claims["scope"] = grant.ClientID, grant.GrantID, grant.Audience, grant.Scope

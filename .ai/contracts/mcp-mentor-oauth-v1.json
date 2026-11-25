@@ -13,8 +13,12 @@
   "default": false,
   "persona": "MENTOR",
   "scope_ceiling": [
-    "mentor:profile:read"
+    "mentor:profile:read",
+    "mentor:offers:read"
   ],
+  "offers_flag": "MCP_MENTOR_OFFERS_ENABLED",
+  "offers_default": false,
+  "scopes_per_grant": 1,
   "issuer": {
     "configuration": "MCP_MENTOR_ISSUER",
     "path": "/mentor",
@@ -159,6 +163,7 @@
       "scope"
     ],
     "profile_expiry_capped_to_grant": true,
+    "offers_purpose": "MCP_MENTOR_OFFERS_READ_V1",
     "response_exposure": "private MCP verifier only; never tool output",
     "approval_capability": "MCP_MENTOR_APPROVAL_TOKEN",
     "approval_trust": "verified HTTPS, optional MCP_MENTOR_APPROVAL_CA_PEM, no proxy/redirect/retry"
@@ -186,6 +191,7 @@
   },
   "storage": {
     "migration": "0008_mcp_mentor_oauth",
+    "offers_scope_migration": "0009_mcp_mentor_offer_scope",
     "tables": [
       "auth_mcp_mentor_client",
       "auth_mcp_mentor_consent",

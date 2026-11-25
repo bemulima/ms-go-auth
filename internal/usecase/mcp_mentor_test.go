@@ -90,20 +90,22 @@ func (s *mentorOAuthStore) Revoke(_ context.Context, subject, client, resource s
 }
 
 type mentorOAuthAuthority struct {
-	mu     sync.Mutex
-	err    error
-	calls  int
-	during func()
+	mu        sync.Mutex
+	err       error
+	calls     int
+	during    func()
+	lastScope string
 }
 
-func (a *mentorOAuthAuthority) Check(ctx context.Context, subject string) error {
+func (a *mentorOAuthAuthority) Check(ctx context.Context, subject, scope string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.calls++
+	a.lastScope = scope
 	if a.during != nil {
 		a.during()
 	}
-	if subject != mentorOAuthActor || ctx.Err() != nil {
+	if subject != mentorOAuthActor || !domain.ValidMCPMentorScope(scope) || ctx.Err() != nil {
 		return domain.ErrMCPMentorDenied
 	}
 	return a.err
@@ -328,5 +330,45 @@ func TestMCPMentorExactObjectRejectsAliasesAndDuplicates(t *testing.T) {
 		if mcpMentorObject([]byte(data), []string{"sub"}, &target) == nil {
 			t.Fatalf("accepted malformed JSON: %q", data)
 		}
+	}
+}
+
+func TestMCPMentorOffersConsentAndProofAreScopeBound(t *testing.T) {
+	oauth, store, authority, profile, verifier, _, _ := mentorOAuthFixture(t)
+	ctx := context.Background()
+	offers := profile
+	offers.Scope = domain.MCPMentorOffersScope
+	store.client.Scopes = append(store.client.Scopes, offers.Scope)
+	if _, err := oauth.Preview(ctx, offers, mentorOAuthActor); err != domain.ErrMCPMentorDenied {
+		t.Fatalf("offers enabled by default: %v", err)
+	}
+	oauth.OffersEnabled = true
+	profileToken, err := oauth.Exchange(ctx, mentorOAuthExchangeRequest(profile, mentorOAuthCode(t, oauth, profile), verifier))
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := oauth.Preview(ctx, offers, mentorOAuthActor)
+	if err != nil || preview.ConsentActive || len(preview.Scopes) != 1 || preview.Scopes[0] != offers.Scope {
+		t.Fatalf("profile consent substituted for offers: %+v %v", preview, err)
+	}
+	offerToken, err := oauth.Exchange(ctx, mentorOAuthExchangeRequest(offers, mentorOAuthCode(t, oauth, offers), verifier))
+	if err != nil || offerToken.Scope != offers.Scope || authority.lastScope != offers.Scope {
+		t.Fatalf("wrong scope in token or role check: %v", err)
+	}
+	if _, err = oauth.Verify(ctx, profileToken.AccessToken, oauth.Resource, oauth.now()); err != domain.ErrMCPMentorDenied {
+		t.Fatalf("prior client grant survived replacement: %v", err)
+	}
+	grant, err := oauth.Verify(ctx, offerToken.AccessToken, oauth.Resource, oauth.now())
+	if err != nil || len(grant.Scopes) != 1 || grant.Scopes[0] != offers.Scope {
+		t.Fatalf("offers token did not verify: %v", err)
+	}
+	body, err := base64.RawURLEncoding.DecodeString(strings.Split(grant.OwnerProof, ".")[1])
+	var claims map[string]any
+	if err != nil || json.Unmarshal(body, &claims) != nil || claims["scope"] != offers.Scope || claims["purpose"] != domain.MCPMentorOffersPurpose {
+		t.Fatal("owner proof substituted a different purpose or scope")
+	}
+	oauth.OffersEnabled = false
+	if _, err = oauth.Verify(ctx, offerToken.AccessToken, oauth.Resource, oauth.now()); err != domain.ErrMCPMentorDenied {
+		t.Fatalf("offers token survived switch-off: %v", err)
 	}
 }
