@@ -20,7 +20,9 @@
     "mentor:schedule:read",
     "mentor:skills:read",
     "mentor:reviews:read",
-    "mentor:skills:write"
+    "mentor:skills:write",
+    "mentor:courses:read",
+    "mentor:tasks:read"
   ],
   "offers_flag": "MCP_MENTOR_OFFERS_ENABLED",
   "offers_default": false,

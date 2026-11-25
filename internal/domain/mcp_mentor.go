@@ -15,6 +15,8 @@ const (
 	MCPMentorScheduleReadScope    = "mentor:schedule:read"
 	MCPMentorSkillDraftScope      = "mentor:skills:write"
 	MCPMentorSkillDraftPurpose    = "MCP_MENTOR_SKILL_DRAFT_V1"
+	MCPMentorCoursesReadScope     = "mentor:courses:read"
+	MCPMentorTasksReadScope       = "mentor:tasks:read"
 	MCPMentorSkillsReadScope      = "mentor:skills:read"
 	MCPMentorPersona              = "MENTOR"
 	MCPMentorAccessType           = "mentor-at+jwt"
@@ -53,12 +55,12 @@ func ValidMCPMentorScope(scope string) bool {
 }
 
 func MCPMentorWorkspaceReadScopes() []string {
-	return []string{MCPMentorReviewsReadScope, MCPMentorStudentsReadScope, MCPMentorCohortsReadScope, MCPMentorScheduleReadScope, MCPMentorSkillsReadScope}
+	return []string{MCPMentorReviewsReadScope, MCPMentorStudentsReadScope, MCPMentorCohortsReadScope, MCPMentorScheduleReadScope, MCPMentorSkillsReadScope, MCPMentorCoursesReadScope, MCPMentorTasksReadScope}
 }
 
 func IsMCPMentorWorkspaceReadScope(scope string) bool {
 	switch scope {
-	case MCPMentorReviewsReadScope, MCPMentorStudentsReadScope, MCPMentorCohortsReadScope, MCPMentorScheduleReadScope, MCPMentorSkillsReadScope:
+	case MCPMentorReviewsReadScope, MCPMentorStudentsReadScope, MCPMentorCohortsReadScope, MCPMentorScheduleReadScope, MCPMentorSkillsReadScope, MCPMentorCoursesReadScope, MCPMentorTasksReadScope:
 		return true
 	}
 	return false

@@ -185,3 +185,7 @@ after verifying the enabled flag, client, active grant and Mentor approval.
 The operation ceiling covers skill draft create/edit, validation and preview.
 Migration `0011_mcp_mentor_skill_draft` adds the exact scope to the existing
 database checks. Its rollback refuses rows that retain it.
+
+The workspace read flag also admits the explicit `mentor:courses:read` and
+`mentor:tasks:read` singleton scopes for authored content inventory. Migration
+`0015_mcp_mentor_authored_content_read` extends the client and consent checks.
